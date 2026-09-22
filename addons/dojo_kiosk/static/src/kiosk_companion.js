@@ -94,6 +94,7 @@
         if (nav === "membership") renderMembership();
         if (nav === "family") renderFamily();
         if (nav === "help") renderHelp();
+        if (nav === "credential") renderCredentialEntry();
       };
     });
   }
@@ -222,6 +223,43 @@
     setTimeout(() => input.focus(), 50);
   }
 
+  function renderCredentialEntry() {
+    state.body.innerHTML =
+      '<button class="kc-back" data-nav="find">← Member search</button>' +
+      '<div class="kc-eyebrow">IDENTIFY</div><h2>Member code</h2>' +
+      '<p class="kc-muted">Scan a barcode/QR code or enter the member number. NFC and wallet credentials stay disabled until an Odoo credential provider is configured.</p>' +
+      '<div class="kc-search-wrap">' + icon("qr_code_scanner") +
+      '<input class="kc-search kc-credential" autocomplete="off" placeholder="DJ-00001" aria-label="Member code"/></div>' +
+      '<button class="kc-primary kc-wide" data-identify="1">Continue</button>' +
+      '<div class="kc-credential-result"></div>';
+    wireNav();
+    const input = state.body.querySelector(".kc-credential");
+    const resultEl = state.body.querySelector(".kc-credential-result");
+    const submit = async () => {
+      resetIdle();
+      if (!navigator.onLine) {
+        resultEl.innerHTML = '<p class="kc-error">This action needs a connection to Odoo.</p>';
+        return;
+      }
+      const value = input.value.trim();
+      if (!value) return;
+      resultEl.innerHTML = '<div class="kc-inline-loading">' + icon("progress_activity") + ' Checking…</div>';
+      try {
+        const data = await post("/kiosk/companion/identify", {credential_type: "qr", value});
+        if (!data.success || !data.member) throw new Error(data.error || "Member not found");
+        await loadContext(data.member.id);
+        renderHome();
+      } catch (e) {
+        resultEl.innerHTML = '<p class="kc-error">' +
+          (e.message === "member_not_found" ? "No member matched that code." : "Could not verify that credential.") +
+          '</p>';
+      }
+    };
+    state.body.querySelector("[data-identify]").onclick = submit;
+    input.onkeydown = (e) => { if (e.key === "Enter") submit(); };
+    setTimeout(() => input.focus(), 50);
+  }
+
   async function renderClasses() {
     state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button><h2>Classes</h2>' +
       '<div class="kc-inline-loading">' + icon("progress_activity") + ' Loading…</div>';
@@ -284,6 +322,10 @@
 
   async function handleSessionAction(button) {
     resetIdle();
+    if (!navigator.onLine) {
+      showToast("You’re offline. Reconnect before booking or checking in.", true);
+      return;
+    }
     if (!navigator.onLine) {
       showToast("Kiosk is offline. Reconnect before booking or checking in.", true);
       return;
@@ -412,79 +454,47 @@
   }
 
   function renderHelp() {
-    state.body.innerHTML =
-      '<button class="kc-back" data-nav="home">← Home</button>' +
-      '<div class="kc-ai-head">' + icon("auto_awesome") +
-      '<div><div class="kc-eyebrow">DOJANG AI COMPANION</div><h2>Ask Dojang</h2></div></div>' +
-      (state.member ? '<p class="kc-muted">Asking about <strong>' + esc(state.member.name) + '</strong>. ' +
-        '<button class="kc-inline-link" data-nav="find">Change member</button></p>' :
-        '<p class="kc-muted">Ask about today’s schedule, classes, members, belts, or how to use the kiosk.</p>') +
-      '<div class="kc-ai-suggestions">' +
-        '<button data-ai-prompt="What classes are today?">Today’s classes</button>' +
-        '<button data-ai-prompt="What can you do?">What can you do?</button>' +
-        (state.member ? '<button data-ai-prompt="What is this member\'s belt rank?">Belt rank</button>' : '') +
-      '</div>' +
-      '<div class="kc-chat-log" aria-live="polite"></div>' +
-      '<div class="kc-chat-compose"><input class="kc-chat-input" maxlength="500" placeholder="Ask a question…" aria-label="Ask Dojang"/>' +
-      '<button class="kc-primary kc-chat-send" aria-label="Send">' + icon("arrow_upward") + '</button></div>';
+    state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button><div class="kc-ai kc-ai--ask">' +
+      icon("auto_awesome") + '<div class="kc-eyebrow">DOJANG AI COMPANION</div><h2>Ask Dojang</h2>' +
+      '<p>I can answer kiosk-safe questions about classes, your selected member’s schedule/rank, and guide check-in without bypassing Odoo rules.</p>' +
+      '<div class="kc-ask-box"><input class="kc-ask-input" autocomplete="off" placeholder="What classes are on today?" aria-label="Ask Dojang"/>' +
+      '<button class="kc-primary" data-ask="1">' + icon("arrow_upward") + '</button></div>' +
+      '<div class="kc-ai-answer"></div>' +
+      '<div class="kc-help-actions"><button class="kc-secondary" data-nav="find">Find a member</button>' +
+      '<button class="kc-secondary" data-nav="classes">Classes</button></div></div>';
     wireNav();
-
-    const log = state.body.querySelector(".kc-chat-log");
-    const input = state.body.querySelector(".kc-chat-input");
-    const send = state.body.querySelector(".kc-chat-send");
-
-    const append = (role, message) => {
-      const row = document.createElement("div");
-      row.className = "kc-chat-msg kc-chat-msg--" + role;
-      row.textContent = message;
-      log.appendChild(row);
-      log.scrollTop = log.scrollHeight;
-    };
-
-    const ask = async (prompt) => {
-      prompt = (prompt || "").trim();
-      if (!prompt) return;
+    const input = state.body.querySelector(".kc-ask-input");
+    const answer = state.body.querySelector(".kc-ai-answer");
+    const submit = async () => {
       resetIdle();
-      append("user", prompt);
-      input.value = "";
-      send.disabled = true;
-      const thinking = document.createElement("div");
-      thinking.className = "kc-chat-msg kc-chat-msg--ai kc-chat-thinking";
-      thinking.textContent = "Thinking…";
-      log.appendChild(thinking);
+      const text = input.value.trim();
+      if (!text) return;
+      if (!navigator.onLine) {
+        answer.innerHTML = '<p class="kc-error">Ask Dojang needs a connection to Odoo.</p>';
+        return;
+      }
+      answer.innerHTML = '<div class="kc-inline-loading">' + icon("progress_activity") + ' Thinking…</div>';
       try {
         const data = await post("/kiosk/companion/ask", {
-          text: prompt,
-          member_id: state.member?.id || null,
+          text,
+          member_id: state.member ? state.member.id : null,
         });
-        thinking.remove();
-        append("ai", data.response || "I couldn't answer that.");
-        if (data.state === "action_required" && data.handoff === "classes") {
-          const handoff = document.createElement("button");
-          handoff.className = "kc-secondary kc-wide";
-          handoff.innerHTML = icon("how_to_reg") + " Continue in secure check-in";
-          handoff.onclick = renderClasses;
-          log.appendChild(handoff);
-        }
-      } catch {
-        thinking.remove();
-        append("ai", "I couldn't reach the assistant. You can still use the kiosk actions above.");
-      } finally {
-        send.disabled = false;
-        input.focus();
+        if (!data.success) throw new Error(data.response || data.error || "Could not answer");
+        answer.innerHTML = '<div class="kc-answer-card"><strong>Dojang</strong><p>' + esc(data.response || "") + '</p>' +
+          (data.action && data.action !== "home" ?
+            '<button class="kc-primary kc-wide" data-ai-route="' + esc(data.action) + '">Continue</button>' : '') +
+          '</div>';
+        const route = answer.querySelector("[data-ai-route]");
+        if (route) route.onclick = () => {
+          if (route.dataset.aiRoute === "find_member") renderMemberSearch();
+          else if (route.dataset.aiRoute === "classes") renderClasses();
+        };
+      } catch (e) {
+        answer.innerHTML = '<p class="kc-error">' + esc(e.message || "Could not answer right now.") + '</p>';
       }
     };
-
-    send.onclick = () => ask(input.value);
-    input.onkeydown = (ev) => {
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        ask(input.value);
-      }
-    };
-    state.body.querySelectorAll("[data-ai-prompt]").forEach((btn) => {
-      btn.onclick = () => ask(btn.dataset.aiPrompt);
-    });
+    state.body.querySelector("[data-ask]").onclick = submit;
+    input.onkeydown = (e) => { if (e.key === "Enter") submit(); };
     setTimeout(() => input.focus(), 50);
   }
 
