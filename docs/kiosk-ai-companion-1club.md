@@ -9,8 +9,15 @@ Welcome → Identify → Resolve household/member → Resolve eligibility → Ch
 ## Implemented in this branch
 - Additive AI Companion drawer loaded by the existing kiosk shell.
 - Live companion context endpoint backed by Odoo.
+- Member search plus barcode/QR-payload credential resolution.
+- Household/guardian resolution and family-member switching.
+- Membership summary and issue states from the authoritative subscription/member records.
+- Live class eligibility, booking, waitlist, cancellation and secure check-in handoff.
+- Upcoming belt-test visibility.
+- Read-only Ask Dojang chat using the existing AI intent/role system; mutating AI intents are blocked from public execution and handed back to deterministic kiosk flows.
+- Online/offline status with mutation blocking while disconnected.
+- Privacy reset on completion, close and idle timeout.
 - Capability discovery so unsupported functions are not faked.
-- Quick actions for check-in, member search, today's classes, membership, family, testing/events, facility map and AI help.
 - Existing check-in/search flows remain the canonical action path.
 - Existing token security remains mandatory.
 
@@ -18,14 +25,13 @@ Welcome → Identify → Resolve household/member → Resolve eligibility → Ch
 Member search; barcode lookup; trial check-in; enrolled-session lookup; check-in/check-out; instructor PIN; roster management; attendance; member profile; session management; announcements; accessibility sizing; theme controls.
 
 ## Next integration slices
-1. Member/household resolver and guardian-scoped actions.
-2. Membership eligibility + plan/pass/day-pass actions.
-3. Booking, waitlist and class-service selection.
-4. Facility/location/map data once an authoritative Odoo facility model is confirmed.
-5. Credential adapter for QR/PIN/NFC/wallet.
-6. Testing/events registration.
-7. AI action execution through allowlisted commands only.
-8. Offline queue/idempotency and privacy reset hardening.
+1. Guardian-scoped permissions for actions that affect minors or billing owners.
+2. Pass/day-pass purchase and payment collection once the kiosk payment contract is confirmed.
+3. Facility/location/map data once an authoritative Odoo facility model is confirmed.
+4. NFC/wallet credential adapters when a backend credential model is available.
+5. Testing/event registration and payment rules.
+6. Optional AI-to-action handoff for additional allowlisted intents; public AI remains read-only by default.
+7. Deeper offline recovery/idempotency for reconnect scenarios without ever showing a false success state.
 
 ## Rules
 - No duplicate member, attendance, membership, payment or booking databases.
