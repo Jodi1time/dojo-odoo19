@@ -33,6 +33,19 @@ class KioskCompanionController(http.Controller):
         return svc.get_companion_context(token, member_id=member_id)
 
     @http.route(
+        "/kiosk/companion/credential",
+        type="jsonrpc",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def companion_credential(self, token=None, credential=None, kind="barcode", **kw):
+        svc, error = self._validate(token)
+        if error:
+            return error
+        return svc.resolve_companion_credential(credential, kind=kind)
+
+    @http.route(
         "/kiosk/companion/household",
         type="jsonrpc",
         auth="public",
