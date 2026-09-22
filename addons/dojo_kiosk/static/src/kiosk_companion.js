@@ -106,7 +106,7 @@
       '<p class="kc-muted">Quick actions use live Odoo data.</p>' +
       '<div class="kc-actions">' +
       actions.map((a) => {
-        const needsMember = ["check_in", "membership", "family"].includes(a.id);
+        const needsMember = ["check_in", "membership", "family", "events"].includes(a.id);
         const disabled = !a.enabled;
         const action = a.id === "check_in" ? "classes" : a.id;
         return '<button class="kc-action" data-action="' + esc(action) + '" ' + (disabled ? "disabled" : "") + '>' +
@@ -344,6 +344,33 @@
       });
     } catch {
       state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button><p class="kc-error">Could not load family information.</p>';
+      wireNav();
+    }
+  }
+
+  async function renderTesting() {
+    if (!state.member) return renderMemberSearch();
+    state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button><div class="kc-inline-loading">' +
+      icon("progress_activity") + ' Loading testing schedule…</div>';
+    wireNav();
+    try {
+      const data = await post("/kiosk/companion/testing", {member_id: state.member.id});
+      if (!data.success) throw new Error(data.error);
+      const rows = data.tests || [];
+      state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button>' + memberHeader() +
+        '<div class="kc-eyebrow">TESTING & EVENTS</div><h2>Upcoming belt tests</h2>' +
+        (data.test_invite_pending ? '<div class="kc-ok">' + icon("mark_email_unread") +
+          '<span>You have a testing invitation pending.</span></div>' : '') +
+        (rows.length ? '<div class="kc-test-list">' + rows.map(t =>
+          '<article class="kc-test-card"><div><small>' + esc(t.program || "Testing") + '</small><strong>' +
+          esc(t.name) + '</strong><span>' + esc(t.date) + (t.location ? ' · ' + esc(t.location) : '') +
+          '</span></div>' + (t.registered ? '<span class="kc-badge kc-good">' +
+          esc(t.target_rank ? 'Testing for ' + t.target_rank : 'Registered') + '</span>' :
+          '<span class="kc-badge">Not registered</span>') + '</article>').join("") + '</div>' :
+          '<p class="kc-empty">No upcoming belt tests.</p>');
+      wireNav();
+    } catch {
+      state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button><p class="kc-error">Could not load testing schedule.</p>';
       wireNav();
     }
   }
