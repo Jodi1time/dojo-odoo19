@@ -46,6 +46,32 @@ class KioskCompanionController(http.Controller):
         return svc.resolve_companion_credential(credential, kind=kind)
 
     @http.route(
+        "/kiosk/companion/identify",
+        type="jsonrpc",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def companion_identify(self, token=None, credential_type=None, value=None, **kw):
+        svc, error = self._validate(token)
+        if error:
+            return error
+        return svc.identify_by_credential(credential_type, value)
+
+    @http.route(
+        "/kiosk/companion/ask",
+        type="jsonrpc",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def companion_ask(self, token=None, text=None, member_id=None, **kw):
+        svc, error = self._validate(token)
+        if error:
+            return error
+        return svc.ask_companion(text, member_id=member_id)
+
+    @http.route(
         "/kiosk/companion/household",
         type="jsonrpc",
         auth="public",
