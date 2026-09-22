@@ -83,6 +83,7 @@ class KioskController(http.Controller):
     <meta name="robots" content="noindex,nofollow"/>
     <title>Dojo Kiosk</title>
     <link rel="stylesheet" href="/dojo_kiosk/static/src/kiosk.css?v={_static_ver('static/src/kiosk.css')}"/>
+    <link rel="stylesheet" href="/dojo_kiosk/static/src/kiosk_companion.css?v={_static_ver('static/src/kiosk_companion.css')}"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"/>
 </head>
 <body class="dojo-kiosk-body {theme_class}">
@@ -98,6 +99,7 @@ class KioskController(http.Controller):
     </script>
     <script src="/web/static/lib/owl/owl.js"></script>
     <script src="/dojo_kiosk/static/src/kiosk_app.js?v={_static_ver('static/src/kiosk_app.js')}"></script>
+    <script src="/dojo_kiosk/static/src/kiosk_companion.js?v={_static_ver('static/src/kiosk_companion.js')}"></script>
 </body>
 </html>"""
         return request.make_response(
