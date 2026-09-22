@@ -376,12 +376,80 @@
   }
 
   function renderHelp() {
-    state.body.innerHTML = '<button class="kc-back" data-nav="home">← Home</button><div class="kc-ai">' +
-      icon("auto_awesome") + '<div class="kc-eyebrow">DOJANG AI COMPANION</div><h2>How can I help?</h2>' +
-      '<p>I can guide you to member lookup, family accounts, membership status, class booking, waitlists, and check-in using live Odoo data.</p>' +
-      '<div class="kc-help-actions"><button class="kc-primary" data-nav="find">Find a member</button>' +
-      '<button class="kc-secondary" data-nav="classes">Classes</button></div></div>';
+    state.body.innerHTML =
+      '<button class="kc-back" data-nav="home">← Home</button>' +
+      '<div class="kc-ai-head">' + icon("auto_awesome") +
+      '<div><div class="kc-eyebrow">DOJANG AI COMPANION</div><h2>Ask Dojang</h2></div></div>' +
+      (state.member ? '<p class="kc-muted">Asking about <strong>' + esc(state.member.name) + '</strong>. ' +
+        '<button class="kc-inline-link" data-nav="find">Change member</button></p>' :
+        '<p class="kc-muted">Ask about today’s schedule, classes, members, belts, or how to use the kiosk.</p>') +
+      '<div class="kc-ai-suggestions">' +
+        '<button data-ai-prompt="What classes are today?">Today’s classes</button>' +
+        '<button data-ai-prompt="What can you do?">What can you do?</button>' +
+        (state.member ? '<button data-ai-prompt="What is this member\'s belt rank?">Belt rank</button>' : '') +
+      '</div>' +
+      '<div class="kc-chat-log" aria-live="polite"></div>' +
+      '<div class="kc-chat-compose"><input class="kc-chat-input" maxlength="500" placeholder="Ask a question…" aria-label="Ask Dojang"/>' +
+      '<button class="kc-primary kc-chat-send" aria-label="Send">' + icon("arrow_upward") + '</button></div>';
     wireNav();
+
+    const log = state.body.querySelector(".kc-chat-log");
+    const input = state.body.querySelector(".kc-chat-input");
+    const send = state.body.querySelector(".kc-chat-send");
+
+    const append = (role, message) => {
+      const row = document.createElement("div");
+      row.className = "kc-chat-msg kc-chat-msg--" + role;
+      row.textContent = message;
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+    };
+
+    const ask = async (prompt) => {
+      prompt = (prompt || "").trim();
+      if (!prompt) return;
+      resetIdle();
+      append("user", prompt);
+      input.value = "";
+      send.disabled = true;
+      const thinking = document.createElement("div");
+      thinking.className = "kc-chat-msg kc-chat-msg--ai kc-chat-thinking";
+      thinking.textContent = "Thinking…";
+      log.appendChild(thinking);
+      try {
+        const data = await post("/kiosk/companion/ask", {
+          text: prompt,
+          member_id: state.member?.id || null,
+        });
+        thinking.remove();
+        append("ai", data.response || "I couldn't answer that.");
+        if (data.state === "action_required" && data.handoff === "classes") {
+          const handoff = document.createElement("button");
+          handoff.className = "kc-secondary kc-wide";
+          handoff.innerHTML = icon("how_to_reg") + " Continue in secure check-in";
+          handoff.onclick = renderClasses;
+          log.appendChild(handoff);
+        }
+      } catch {
+        thinking.remove();
+        append("ai", "I couldn't reach the assistant. You can still use the kiosk actions above.");
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    };
+
+    send.onclick = () => ask(input.value);
+    input.onkeydown = (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        ask(input.value);
+      }
+    };
+    state.body.querySelectorAll("[data-ai-prompt]").forEach((btn) => {
+      btn.onclick = () => ask(btn.dataset.aiPrompt);
+    });
+    setTimeout(() => input.focus(), 50);
   }
 
   function renderCapabilityNotice(kind) {
