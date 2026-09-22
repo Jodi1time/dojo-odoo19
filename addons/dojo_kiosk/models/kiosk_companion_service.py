@@ -256,6 +256,47 @@ class DojoKioskCompanionService(models.AbstractModel):
         }
 
     @api.model
+    def get_testing_options(self, member_id):
+        member = self._member_or_false(member_id)
+        if not member:
+            return {"success": False, "error": "Member not found.", "tests": []}
+        if not self._has_model("dojo.belt.test"):
+            return {"success": False, "error": "Testing is not enabled.", "tests": []}
+
+        today = fields.Date.today()
+        tests = self.env["dojo.belt.test"].search([
+            ("state", "in", ["scheduled", "in_progress"]),
+            ("test_date", ">=", today),
+            ("company_id", "in", [self.env.company.id, False]),
+        ], order="test_date asc", limit=20)
+
+        registrations = self.env["dojo.belt.test.registration"].search([
+            ("member_id", "=", member.id),
+            ("test_id", "in", tests.ids),
+        ])
+        reg_by_test = {reg.test_id.id: reg for reg in registrations}
+        rows = []
+        for test in tests:
+            reg = reg_by_test.get(test.id)
+            rows.append({
+                "id": test.id,
+                "name": test.name or "Belt Test",
+                "date": fields.Date.to_string(test.test_date) if test.test_date else "",
+                "location": test.location or "",
+                "program": test.program_id.name if test.program_id else "",
+                "state": test.state,
+                "registered": bool(reg),
+                "registration_result": reg.result if reg else "",
+                "target_rank": reg.target_rank_id.name if reg and reg.target_rank_id else "",
+            })
+        return {
+            "success": True,
+            "member": self._public_member_summary(member),
+            "test_invite_pending": bool(getattr(member, "test_invite_pending", False)),
+            "tests": rows,
+        }
+
+    @api.model
     def cancel_member_session(self, member_id, session_id):
         member = self._member_or_false(member_id)
         session = self.env["dojo.class.session"].browse(session_id).exists()
