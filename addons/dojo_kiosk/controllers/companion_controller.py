@@ -93,6 +93,21 @@ class KioskCompanionController(http.Controller):
         return svc.book_member_session(member_id, session_id)
 
     @http.route(
+        "/kiosk/companion/testing",
+        type="jsonrpc",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def companion_testing(self, token=None, member_id=None, **kw):
+        svc, error = self._validate(token)
+        if error:
+            return error
+        if not member_id:
+            return {"success": False, "error": "member_id_required", "tests": []}
+        return svc.get_testing_options(member_id)
+
+    @http.route(
         "/kiosk/companion/cancel-booking",
         type="jsonrpc",
         auth="public",
