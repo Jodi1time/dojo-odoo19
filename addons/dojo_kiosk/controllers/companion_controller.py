@@ -93,6 +93,87 @@ class KioskCompanionController(http.Controller):
         return svc.book_member_session(member_id, session_id)
 
     @http.route(
+        "/kiosk/companion/ask",
+        type="jsonrpc",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def companion_ask(self, token=None, text=None, member_id=None, **kw):
+        svc, error = self._validate(token)
+        if error:
+            return error
+
+        prompt = (text or "").strip()
+        if not prompt:
+            return {"success": False, "error": "text_required"}
+        if len(prompt) > 500:
+            return {"success": False, "error": "message_too_long"}
+
+        member = request.env["dojo.member"].sudo().browse(member_id).exists() if member_id else False
+        if member:
+            prompt = (
+                "[Kiosk context: selected member is %s, member id %s.]\n%s"
+                % (member.name, member.id, prompt)
+            )
+
+        try:
+            assistant = request.env["ai.assistant.service"].sudo()
+            result = assistant.handle_command(
+                prompt,
+                role="kiosk",
+                input_type="text",
+                channel="lookup",
+            )
+        except Exception:
+            return {
+                "success": False,
+                "error": "ai_unavailable",
+                "response": "I couldn't reach the Dojang assistant right now.",
+            }
+
+        intent = result.get("intent") or {}
+        intent_type = intent.get("intent_type") if isinstance(intent, dict) else None
+        schema = (
+            request.env["ai.intent.schema"].sudo().get_by_type(intent_type)
+            if intent_type
+            else request.env["ai.intent.schema"].browse()
+        )
+
+        # Public kiosk AI is read-only. Mutating intents hand back to deterministic
+        # kiosk flows rather than executing through a public AI route.
+        if (
+            result.get("state") == "pending_confirmation"
+            or (schema and schema.requires_confirmation)
+        ):
+            return {
+                "success": True,
+                "state": "action_required",
+                "intent_type": intent_type or "",
+                "response": (
+                    "I can help with that, but the kiosk needs you to complete "
+                    "the action using the secure on-screen flow."
+                ),
+                "handoff": (
+                    "classes"
+                    if intent_type in ("attendance_checkin", "attendance_checkout")
+                    else "home"
+                ),
+            }
+
+        return {
+            "success": bool(result.get("success", True)),
+            "state": result.get("state") or "executed",
+            "intent_type": intent_type or "",
+            "response": (
+                result.get("response")
+                or (result.get("result") or {}).get("message")
+                or "I found that for you."
+            ),
+            "suggestions": result.get("suggestions") or [],
+        }
+
+    @http.route(
         "/kiosk/companion/testing",
         type="jsonrpc",
         auth="public",
