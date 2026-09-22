@@ -41,7 +41,11 @@ class DojoKioskCompanionService(models.AbstractModel):
             "family": self._has_model("res.partner"),
             "events_testing": self._has_model("dojo.belt.test"),
             "pos": self._has_model("pos.order"),
-            "access_credentials": self._has_model("dojo.access.credential"),
+            "access_credentials": True,
+            "credential_barcode": True,
+            "credential_qr_payload": True,
+            "credential_nfc": self._has_model("dojo.access.credential"),
+            "credential_wallet": self._has_model("dojo.access.credential"),
             "facility_map": self._has_model("dojo.facility") or self._has_model("dojo.location"),
             "ai_companion": True,
         }
@@ -68,6 +72,25 @@ class DojoKioskCompanionService(models.AbstractModel):
             payload["member"] = self._public_member_summary(member)
             payload["member"]["sessions"] = self.get_enrolled_sessions_today(member.id)
         return payload
+
+    @api.model
+    def resolve_companion_credential(self, credential, kind="barcode"):
+        value = (credential or "").strip()
+        kind = (kind or "barcode").strip().lower()
+        if not value:
+            return {"success": False, "found": False, "error": "credential_required"}
+        if kind not in ("barcode", "qr"):
+            return {
+                "success": False,
+                "found": False,
+                "error": "credential_type_not_enabled",
+            }
+
+        member = self.lookup_member_by_barcode(value)
+        if not member:
+            return {"success": True, "found": False}
+        # lookup_member_by_barcode already returns the public kiosk payload.
+        return {"success": True, "found": True, "member": member, "kind": kind}
 
     @api.model
     def get_household_context(self, member_id):
