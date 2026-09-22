@@ -13,6 +13,7 @@
     member: null,
     idleTimer: null,
     searchAbort: null,
+    online: navigator.onLine,
   };
 
   const esc = (value) => String(value ?? "")
@@ -23,6 +24,7 @@
     .replaceAll("'", "&#039;");
 
   const post = async (url, params = {}, options = {}) => {
+    if (!navigator.onLine) throw new Error("offline");
     const response = await fetch(url, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -139,10 +141,40 @@
       '<div class="kc-eyebrow">IDENTIFY</div><h2>Who’s checking in?</h2>' +
       '<div class="kc-search-wrap">' + icon("search") +
       '<input class="kc-search" autocomplete="off" inputmode="search" placeholder="Name or member number" aria-label="Search members"/>' +
-      '</div><div class="kc-results"><p class="kc-muted">Start typing a member name.</p></div>';
+      '</div>' +
+      '<div class="kc-code-row"><input class="kc-code-input" autocomplete="off" placeholder="Scan / enter member or QR code" aria-label="Member or QR code"/>' +
+      '<button class="kc-secondary kc-code-go">' + icon("qr_code_scanner") + '</button></div>' +
+      '<div class="kc-results"><p class="kc-muted">Start typing a member name, or scan a code.</p></div>';
     wireNav();
     const input = state.body.querySelector(".kc-search");
     const results = state.body.querySelector(".kc-results");
+    const codeInput = state.body.querySelector(".kc-code-input");
+    const codeGo = state.body.querySelector(".kc-code-go");
+
+    const resolveCode = async () => {
+      const credential = codeInput.value.trim();
+      if (!credential) return;
+      resetIdle();
+      results.innerHTML = '<div class="kc-inline-loading">' + icon("progress_activity") + ' Checking code…</div>';
+      try {
+        const data = await post("/kiosk/companion/credential", {credential, kind: "qr"});
+        if (!data.success || !data.found || !data.member?.member_id) {
+          results.innerHTML = '<p class="kc-error">No member matched that code.</p>';
+          return;
+        }
+        await loadContext(Number(data.member.member_id));
+        renderHome();
+      } catch (e) {
+        results.innerHTML = '<p class="kc-error">' +
+          (e.message === "offline" ? "Kiosk is offline. Reconnect before identifying a member." : "Could not read that code.") +
+          '</p>';
+      }
+    };
+    codeGo.onclick = resolveCode;
+    codeInput.onkeydown = (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); resolveCode(); }
+    };
+
     let timer;
     input.oninput = () => {
       resetIdle();
@@ -252,6 +284,10 @@
 
   async function handleSessionAction(button) {
     resetIdle();
+    if (!navigator.onLine) {
+      showToast("Kiosk is offline. Reconnect before booking or checking in.", true);
+      return;
+    }
     const sessionId = Number(button.dataset.session);
     const action = button.dataset.sessionAction;
     button.disabled = true;
@@ -497,12 +533,25 @@
     state.overlay.className = "kc-overlay";
     state.overlay.innerHTML = '<div class="kc-scrim"></div><aside class="kc-panel" role="dialog" aria-label="Dojang AI Companion">' +
       '<header><div class="kc-brand">' + icon("auto_awesome") + '<span>Dojang</span></div>' +
-      '<button class="kc-close" aria-label="Close">×</button></header><div class="kc-body"></div></aside>';
+      '<div class="kc-header-tools"><span class="kc-network"></span><button class="kc-close" aria-label="Close">×</button></div></header><div class="kc-body"></div></aside>';
     state.body = state.overlay.querySelector(".kc-body");
     state.overlay.querySelector(".kc-scrim").onclick = () => closePanel(true);
     state.overlay.querySelector(".kc-close").onclick = () => closePanel(true);
     state.overlay.addEventListener("pointerdown", resetIdle);
     state.overlay.addEventListener("keydown", resetIdle);
+
+    const updateNetwork = () => {
+      state.online = navigator.onLine;
+      const badge = state.overlay.querySelector(".kc-network");
+      badge.textContent = state.online ? "Online" : "Offline";
+      badge.classList.toggle("kc-network--offline", !state.online);
+      if (!state.online && state.overlay.classList.contains("kc-open")) {
+        showToast("Kiosk is offline. Read-only cached screens may be stale.", true);
+      }
+    };
+    window.addEventListener("online", updateNetwork);
+    window.addEventListener("offline", updateNetwork);
+    updateNetwork();
 
     document.body.append(launcher, state.overlay);
   }
