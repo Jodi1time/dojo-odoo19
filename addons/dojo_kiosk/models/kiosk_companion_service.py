@@ -93,6 +93,156 @@ class DojoKioskCompanionService(models.AbstractModel):
         return {"success": True, "found": True, "member": member, "kind": kind}
 
     @api.model
+    def identify_by_credential(self, credential_type, value):
+        """Resolve a member from a kiosk credential without creating a second identity store.
+
+        Barcode and QR credentials currently resolve against dojo.member.member_number.
+        NFC / wallet stay capability-gated until an authoritative credential provider
+        is installed in Odoo.
+        """
+        credential_type = (credential_type or "").strip().lower()
+        value = (value or "").strip()
+        if not value:
+            return {"success": False, "error": "credential_required"}
+
+        if credential_type in ("barcode", "qr", "member_number"):
+            member = self.env["dojo.member"].search([
+                ("member_number", "=", value),
+                ("active", "=", True),
+            ], limit=1)
+            if not member:
+                return {"success": False, "error": "member_not_found"}
+            return {
+                "success": True,
+                "credential_type": credential_type,
+                "member": self._public_member_summary(member),
+            }
+
+        if credential_type in ("nfc", "wallet"):
+            return {
+                "success": False,
+                "error": "credential_provider_not_configured",
+                "credential_type": credential_type,
+            }
+
+        return {"success": False, "error": "unsupported_credential_type"}
+
+    @api.model
+    def ask_companion(self, text, member_id=None):
+        """Run the existing AI assistant in kiosk role with a deliberately narrow surface.
+
+        Natural-language reads are allowed. Mutating kiosk intents never execute here;
+        they are converted into secure UI navigation so the normal kiosk policy/action
+        endpoints remain authoritative.
+        """
+        text = (text or "").strip()
+        if not text:
+            return {"success": False, "error": "text_required"}
+
+        member = self._member_or_false(member_id)
+        if member:
+            text_for_ai = "%s\nSelected kiosk member: %s (member id %s)." % (
+                text, member.name, member.id,
+            )
+        else:
+            text_for_ai = text
+
+        result = self.env["ai.assistant.service"].sudo().handle_command(
+            text_for_ai,
+            role="kiosk",
+            input_type="text",
+            context={"kiosk_member_id": member.id if member else False},
+        )
+
+        intent = result.get("intent") or {}
+        intent_type = (
+            intent.get("intent_type")
+            or intent.get("type")
+            or result.get("intent_type")
+            or "unknown"
+        )
+
+        safe_read_intents = {
+            "class_list",
+            "schedule_today",
+            "belt_lookup",
+            "capability_list",
+            "help_request",
+            "member_enrollment_list",
+            "enrollment_availability",
+            "next_class_session",
+            "previous_class_session",
+            "unknown",
+        }
+        routed_write_intents = {"attendance_checkin", "attendance_checkout"}
+
+        if intent_type in routed_write_intents:
+            if not member:
+                return {
+                    "success": True,
+                    "mode": "route",
+                    "intent_type": intent_type,
+                    "response": "Select a member first, then I can take you to the secure check-in flow.",
+                    "action": "find_member",
+                }
+            return {
+                "success": True,
+                "mode": "route",
+                "intent_type": intent_type,
+                "response": (
+                    "I can help with that. Choose the class below so Dojang can validate "
+                    "membership, capacity, booking and attendance before writing to Odoo."
+                ),
+                "action": "classes",
+                "member": self._public_member_summary(member),
+            }
+
+        if intent_type not in safe_read_intents:
+            return {
+                "success": True,
+                "mode": "route",
+                "intent_type": intent_type,
+                "response": "That action is not available from the shared kiosk. I can help with classes, check-in, family, membership and testing.",
+                "action": "home",
+            }
+
+        member_scoped = {"belt_lookup", "member_enrollment_list"}
+        if intent_type in member_scoped and not member:
+            return {
+                "success": True,
+                "mode": "route",
+                "intent_type": intent_type,
+                "response": "Select a member first so I only use the right account.",
+                "action": "find_member",
+            }
+
+        resolved = result.get("resolved_data") or {}
+        if member and intent_type in member_scoped:
+            resolved_member_id = resolved.get("member_id")
+            if isinstance(resolved_member_id, (list, tuple)):
+                resolved_member_id = resolved_member_id[0] if resolved_member_id else False
+            if resolved_member_id and int(resolved_member_id) != member.id:
+                return {
+                    "success": False,
+                    "error": "member_context_mismatch",
+                    "response": "That request points to a different member. Switch members first.",
+                }
+
+        response = (
+            result.get("response")
+            or result.get("confirmation_prompt")
+            or (result.get("result") or {}).get("message")
+            or "I found the information in Odoo."
+        )
+        return {
+            "success": bool(result.get("success", True)),
+            "mode": "answer",
+            "intent_type": intent_type,
+            "response": response,
+            "suggestions": result.get("suggestions") or [],
+        }
+
+    @api.model
     def get_household_context(self, member_id):
         member = self._member_or_false(member_id)
         if not member:
