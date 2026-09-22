@@ -16,15 +16,15 @@ class DojoKioskCompanionService(models.AbstractModel):
         member = self.env["dojo.member"].browse(member_id).exists() if member_id else False
 
         def has_model(name):
-            return name in self.env
+            return name in self.env.registry.models
 
         capabilities = {
             "check_in": True,
             "classes": True,
             "member_search": True,
-            "trial_check_in": "crm.lead" in self.env,
-            "membership": has_model("dojo.subscription") or has_model("sale.subscription"),
-            "family": has_model("dojo.household") or has_model("dojo.guardian.relationship"),
+            "trial_check_in": has_model("crm.lead"),
+            "membership": has_model("sale.subscription"),
+            "family": has_model("res.partner"),
             "events_testing": has_model("dojo.belt.test"),
             "pos": has_model("pos.order"),
             "access_credentials": has_model("dojo.access.credential"),
