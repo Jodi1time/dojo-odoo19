@@ -2,7 +2,7 @@ FROM python:3.12-slim-bookworm
 
 ENV LANG C.UTF-8
 
-# Install system dependencies required by Odoo saas-19.2
+# Install system dependencies required by Odoo 20
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Build tools
     build-essential \
