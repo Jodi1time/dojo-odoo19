@@ -22,7 +22,7 @@ _logger = logging.getLogger(__name__)
 class BridgeHealthController(http.Controller):
 
     @http.route(
-        "/bridge/v1/health",
+        ["/bridge/v1/health", "/bridge/v2/health"],
         type="http",
         auth="public",
         methods=["GET"],
@@ -42,7 +42,7 @@ class BridgeHealthController(http.Controller):
         status_payload = {
             "status": "ok",
             "service": "dojo-bridge",
-            "version": "v1",
+            "version": "v2" if request.httprequest.path.startswith("/bridge/v2/") else "v1",
             "db": db_name,
             "bridge_configured": False,
         }
