@@ -32,6 +32,7 @@ Conventions for decorated controllers
 import functools
 import json
 import logging
+import uuid
 
 import odoo
 from odoo import api, fields, SUPERUSER_ID
@@ -51,36 +52,99 @@ _logger = logging.getLogger(__name__)
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _json_response(data: dict, status: int = 200) -> Response:
-    """Build a plain JSON HTTP response."""
+def _request_api_version() -> str:
+    """Infer bridge API version from the current request path."""
+    try:
+        path = request.httprequest.path or ""
+    except Exception:
+        path = ""
+    return "v2" if path.startswith("/bridge/v2/") else "v1"
+
+
+def _request_id() -> str:
+    """Use caller-provided request id when present, otherwise mint one."""
+    try:
+        supplied = (request.httprequest.headers.get("X-Request-Id") or "").strip()
+    except Exception:
+        supplied = ""
+    return supplied[:128] if supplied else uuid.uuid4().hex
+
+
+def _json_response(data: dict, status: int = 200, api_version: str | None = None) -> Response:
+    """Build a plain JSON HTTP response with stable version/request metadata."""
+    version = api_version or _request_api_version()
+    request_id = None
+    if version == "v2":
+        request_id = (
+            data.get("meta", {}).get("request_id")
+            if isinstance(data, dict)
+            else None
+        ) or _request_id()
+        if isinstance(data, dict):
+            data.setdefault("meta", {})
+            data["meta"].setdefault("api_version", "v2")
+            data["meta"].setdefault("request_id", request_id)
+
     body = json.dumps(data, default=str)
-    return Response(
-        body,
-        status=status,
-        headers=[
-            ("Content-Type", "application/json"),
-            ("X-Bridge-Version", "1"),
-        ],
-    )
+    headers = [
+        ("Content-Type", "application/json"),
+        ("X-Bridge-Version", "2" if version == "v2" else "1"),
+    ]
+    if request_id:
+        headers.append(("X-Request-Id", request_id))
+    return Response(body, status=status, headers=headers)
+
+
+def _v2_error_payload(code: str, message: str, details=None) -> dict:
+    return {
+        "ok": False,
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details or {},
+        },
+        "meta": {
+            "api_version": "v2",
+            "request_id": _request_id(),
+        },
+    }
 
 
 def _unauthorized(reason: str) -> Response:
     _logger.warning("Bridge auth rejected: %s", reason)
+    if _request_api_version() == "v2":
+        return _json_response(
+            _v2_error_payload("unauthorized", reason),
+            status=401,
+            api_version="v2",
+        )
     return _json_response({"error": "Unauthorized", "reason": reason}, status=401)
 
 
 def _forbidden(reason: str) -> Response:
     _logger.warning("Bridge forbidden: %s", reason)
+    if _request_api_version() == "v2":
+        return _json_response(
+            _v2_error_payload("forbidden", reason),
+            status=403,
+            api_version="v2",
+        )
     return _json_response({"error": "Forbidden", "reason": reason}, status=403)
 
 
 def _service_error(reason: str) -> Response:
     _logger.error("Bridge internal error: %s", reason)
+    if _request_api_version() == "v2":
+        return _json_response(
+            _v2_error_payload("internal_error", reason),
+            status=500,
+            api_version="v2",
+        )
     return _json_response({"error": "Internal Error", "reason": reason}, status=500)
 
 
 _CORS_METHODS = "GET, POST, DELETE, OPTIONS"
-_CORS_HEADERS_ALLOWED = "Authorization, Content-Type, X-Bridge-Signature, X-Requested-With"
+_CORS_HEADERS_ALLOWED = "Authorization, Content-Type, X-Bridge-Signature, X-Requested-With, X-Request-Id, X-Idempotency-Key"
 _CORS_MAX_AGE = "86400"
 
 
@@ -248,7 +312,11 @@ def require_bridge_auth(fn):
                 if not identity:
                     return _unauthorized(
                         "No active bridge identity found for this user. "
-                        "Call /bridge/v1/auth/resolve first."
+                        + (
+                            "Call /bridge/v2/auth/resolve first."
+                            if _request_api_version() == "v2"
+                            else "Call /bridge/v1/auth/resolve first."
+                        )
                     )
 
                 # 8. Stamp last_seen (lightweight write)
@@ -290,14 +358,39 @@ def require_bridge_auth(fn):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def bridge_response(data: dict | list, status: int = 200) -> Response:
-    """Wrap a data payload in the standard bridge response envelope."""
+    """Wrap a data payload in the version-appropriate bridge envelope."""
+    if _request_api_version() == "v2":
+        envelope = {
+            "ok": status < 400,
+            "data": data,
+            "meta": {
+                "api_version": "v2",
+                "request_id": _request_id(),
+            },
+        }
+        return _json_response(envelope, status=status, api_version="v2")
+
     envelope = {
         "ok": status < 400,
         "data": data,
     }
-    return _json_response(envelope, status=status)
+    return _json_response(envelope, status=status, api_version="v1")
 
 
-def bridge_error(message: str, status: int = 400, **extra) -> Response:
+def bridge_error(
+    message: str,
+    status: int = 400,
+    code: str | None = None,
+    details: dict | None = None,
+    **extra,
+) -> Response:
+    if _request_api_version() == "v2":
+        payload = _v2_error_payload(
+            code or "request_failed",
+            message,
+            details=details or extra,
+        )
+        return _json_response(payload, status=status, api_version="v2")
+
     payload = {"ok": False, "error": message, **extra}
-    return _json_response(payload, status=status)
+    return _json_response(payload, status=status, api_version="v1")

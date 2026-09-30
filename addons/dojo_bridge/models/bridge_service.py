@@ -202,10 +202,8 @@ class BridgeService(models.AbstractModel):
                         "program_name": template.program_id.name
                         if template.program_id
                         else None,
-                        "max_capacity": template.max_capacity
-                        if hasattr(template, "max_capacity")
-                        else None,
                     },
+                    "capacity": s.capacity if hasattr(s, "capacity") else None,
                     "seats_taken": s.seats_taken
                     if hasattr(s, "seats_taken")
                     else None,
@@ -254,10 +252,8 @@ class BridgeService(models.AbstractModel):
                 "program_name": template.program_id.name
                 if template.program_id
                 else None,
-                "max_capacity": template.max_capacity
-                if hasattr(template, "max_capacity")
-                else None,
             },
+            "capacity": session.capacity if hasattr(session, "capacity") else None,
             "seats_taken": session.seats_taken
             if hasattr(session, "seats_taken")
             else None,
@@ -270,49 +266,79 @@ class BridgeService(models.AbstractModel):
 
     @api.model
     def do_enroll(self, session_id: int, member_id: int, company_id: int) -> dict:
-        """
-        Enroll a member in a session.
-        Raises UserError for business-rule violations (full, cancelled, etc.).
+        """Book a member into a live session using current Dojang enrollment states.
+
+        Full sessions use the existing waitlist state rather than failing or
+        inventing a parallel booking model.
         """
         session = self._get_session(session_id, company_id)
-        self._get_member(member_id, company_id)
+        member = self._get_member(member_id, company_id)
 
-        if session.state in ("cancelled", "completed"):
-            raise UserError(
-                f"Cannot enroll in a session with state '{session.state}'."
-            )
+        if session.state != "open":
+            raise UserError("Only open sessions can accept bookings.")
+
+        if member.membership_state in ("cancelled", "paused", "lead"):
+            raise UserError("Membership is not active for class booking.")
+
+        active_sub = getattr(member, "active_subscription_id", False)
+        if not active_sub or getattr(active_sub, "state", "") != "active":
+            raise UserError("No active subscription found for this member.")
 
         existing = self.env["dojo.class.enrollment"].search(
             [
                 ("session_id", "=", session_id),
                 ("member_id", "=", member_id),
-                ("status", "not in", ["cancelled"]),
             ],
             limit=1,
         )
-        if existing:
-            raise UserError("Member is already enrolled in this session.")
-
-        enrollment = self.env["dojo.class.enrollment"].create(
-            {
-                "session_id": session_id,
-                "member_id": member_id,
-                "status": "confirmed",
+        if existing and existing.status in ("registered", "waitlist"):
+            return {
+                "enrollment_id": existing.id,
+                "status": existing.status,
+                "already_existed": True,
             }
+
+        status = (
+            "waitlist"
+            if session.capacity > 0 and session.seats_taken >= session.capacity
+            else "registered"
         )
+
+        if existing:
+            existing.write({
+                "status": status,
+                "attendance_state": "pending",
+            })
+            enrollment = existing
+        else:
+            enrollment = self.env["dojo.class.enrollment"].create(
+                {
+                    "session_id": session_id,
+                    "member_id": member_id,
+                    "status": status,
+                    "attendance_state": "pending",
+                }
+            )
+
         _logger.info(
-            "Bridge: enrolled member_id=%s in session_id=%s (enrollment_id=%s)",
+            "Bridge: booked member_id=%s in session_id=%s "
+            "(enrollment_id=%s status=%s)",
             member_id,
             session_id,
             enrollment.id,
+            enrollment.status,
         )
-        return {"enrollment_id": enrollment.id, "status": enrollment.status}
+        return {
+            "enrollment_id": enrollment.id,
+            "status": enrollment.status,
+            "already_existed": False,
+        }
 
     @api.model
     def do_cancel_enrollment(
         self, session_id: int, member_id: int, company_id: int
     ) -> dict:
-        """Cancel the member's active enrollment in a session."""
+        """Cancel a registered/waitlisted booking for the member."""
         self._get_session(session_id, company_id)
         self._get_member(member_id, company_id)
 
@@ -320,12 +346,12 @@ class BridgeService(models.AbstractModel):
             [
                 ("session_id", "=", session_id),
                 ("member_id", "=", member_id),
-                ("status", "not in", ["cancelled"]),
+                ("status", "in", ["registered", "waitlist"]),
             ],
             limit=1,
         )
         if not enrollment:
-            raise UserError("No active enrollment found to cancel.")
+            raise UserError("No active booking found to cancel.")
 
         enrollment.write({"status": "cancelled"})
         _logger.info(
@@ -338,12 +364,41 @@ class BridgeService(models.AbstractModel):
 
     @api.model
     def do_checkin(self, session_id: int, member_id: int, company_id: int) -> dict:
+        """Record session-first attendance for a member.
+
+        Invariants:
+        - the session must be open
+        - the member must belong to the same tenant/company
+        - the member must have an active membership/subscription
+        - the member must already be on the actual session roster
+        - replay is idempotent
         """
-        Record attendance for a member in a session.
-        Idempotent: returns existing log if already checked in.
-        """
-        self._get_session(session_id, company_id)
-        self._get_member(member_id, company_id)
+        session = self._get_session(session_id, company_id)
+        member = self._get_member(member_id, company_id)
+
+        if session.state != "open":
+            raise UserError("This session is not open for check-in.")
+
+        if member.membership_state in ("cancelled", "paused", "lead"):
+            raise UserError("Membership is not active. Please see the front desk.")
+
+        active_sub = getattr(member, "active_subscription_id", False)
+        if not active_sub or getattr(active_sub, "state", "") != "active":
+            raise UserError("No active subscription found. Please see the front desk.")
+
+        enrollment = self.env["dojo.class.enrollment"].search(
+            [
+                ("session_id", "=", session_id),
+                ("member_id", "=", member_id),
+                ("status", "=", "registered"),
+            ],
+            limit=1,
+        )
+        if not enrollment:
+            raise UserError(
+                "Member is not on this session roster. "
+                "Book the member or use an authorized staff override first."
+            )
 
         existing = self.env["dojo.attendance.log"].search(
             [
@@ -355,35 +410,55 @@ class BridgeService(models.AbstractModel):
         if existing:
             return {
                 "attendance_id": existing.id,
-                "checkin_datetime": existing.checkin_datetime.isoformat()
-                if existing.checkin_datetime
-                else None,
-                "status": existing.status
-                if hasattr(existing, "status")
-                else "already_checked_in",
+                "checkin_datetime": (
+                    existing.checkin_datetime.isoformat()
+                    if existing.checkin_datetime
+                    else None
+                ),
+                "status": getattr(existing, "status", "already_checked_in"),
                 "already_existed": True,
+                "session_id": session.id,
+                "member_id": member.id,
             }
+
+        now = fields.Datetime.now()
+        attendance_status = (
+            "late"
+            if session.start_datetime and now > session.start_datetime
+            else "present"
+        )
 
         log = self.env["dojo.attendance.log"].create(
             {
                 "session_id": session_id,
                 "member_id": member_id,
-                "checkin_datetime": fields.Datetime.now(),
+                "enrollment_id": enrollment.id,
+                "status": attendance_status,
+                "checkin_datetime": now,
             }
         )
+        enrollment.write({"attendance_state": "present"})
+
         _logger.info(
-            "Bridge: checked in member_id=%s to session_id=%s (log_id=%s)",
+            "Bridge: checked in member_id=%s to session_id=%s "
+            "(log_id=%s status=%s)",
             member_id,
             session_id,
             log.id,
+            attendance_status,
         )
         return {
             "attendance_id": log.id,
-            "checkin_datetime": log.checkin_datetime.isoformat()
-            if log.checkin_datetime
-            else None,
-            "status": log.status if hasattr(log, "status") else "checked_in",
+            "checkin_datetime": (
+                log.checkin_datetime.isoformat()
+                if log.checkin_datetime
+                else None
+            ),
+            "status": attendance_status,
             "already_existed": False,
+            "session_id": session.id,
+            "member_id": member.id,
+            "session_name": session.name,
         }
 
     # ═══════════════════════════════════════════════════════════════════════════

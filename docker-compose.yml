@@ -6,12 +6,12 @@ services:
       - POSTGRES_PASSWORD=odoo
       - POSTGRES_USER=odoo
     volumes:
-      - odoo-db-data-19-2:/var/lib/postgresql/data
+      - odoo-db-data-20:/var/lib/postgresql/data
     restart: unless-stopped
 
   web:
     build: .
-    image: odoo-saas-19-2:latest
+    image: odoo-20:latest
     depends_on:
       - db
     ports:
@@ -53,6 +53,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  odoo-db-data-19-2:
+  odoo-db-data-20:
   odoo-web-data:
   n8n-data:

@@ -1,7 +1,7 @@
-# Odoo saas-19.2 — Setup Guide
+# Odoo 20 — Setup Guide
 
 This repo contains the custom addons, Docker setup, and configuration for running
-Odoo `saas-19.2`. Two installation paths are supported:
+Odoo `20.0`. Two installation paths are supported:
 
 | Path                                                            | Best for                          |
 | --------------------------------------------------------------- | --------------------------------- |
@@ -19,7 +19,7 @@ repo-root/
 ├── requirements.txt          ← extra Python deps (Twilio, Stripe, etc.)
 ├── config/
 │   └── odoo.conf.example     ← copy → odoo.conf and fill in secrets
-├── odoo/                     ← Odoo saas-19.2 source (clone manually, gitignored)
+├── odoo/                     ← Odoo 20 source (clone manually, gitignored)
 ├── enterprise/               ← enterprise addons (optional, gitignored)
 └── addons/                   ← all custom modules live here
 ```
@@ -36,20 +36,20 @@ repo-root/
 ### 1. Clone this repo
 
 ```bash
-git clone <your-repo-url> odoo19.2
-cd odoo19.2
+git clone <your-repo-url> odoo20
+cd odoo20
 ```
 
-### 2. Clone the Odoo saas-19.2 source
+### 2. Clone the Odoo 20 source
 
 ```bash
-git clone --depth=1 --branch saas-19.2 https://github.com/odoo/odoo ./odoo
+git clone --depth=1 --branch 20.0 https://github.com/odoo/odoo ./odoo
 ```
 
 ### 3. Clone enterprise addons (optional — requires Odoo partner access)
 
 ```bash
-git clone --depth=1 --branch saas-19.2 https://github.com/odoo/enterprise ./enterprise
+git clone --depth=1 --branch 20.0 https://github.com/odoo/enterprise ./enterprise
 ```
 
 Leave `./enterprise` empty if you don't have access — it will still mount fine.
@@ -75,7 +75,7 @@ The first build takes several minutes as it compiles all system and Python depen
 The database container starts empty — you must install the Odoo schema before the web UI works:
 
 ```bash
-docker compose run --rm web --config=/etc/odoo/odoo.conf -d odoo19 -i base --stop-after-init
+docker compose run --rm web --config=/etc/odoo/odoo.conf -d odoo20 -i base --stop-after-init
 ```
 
 This takes 1–3 minutes. You'll see `Modules loaded.` when it's done.
@@ -124,83 +124,83 @@ sudo npm install -g rtlcss
 ### 2. Create the odoo system user
 
 ```bash
-sudo useradd -ms /bin/bash odoo19
+sudo useradd -ms /bin/bash odoo20
 ```
 
-### 3. Clone the Odoo saas-19.2 source
+### 3. Clone the Odoo 20 source
 
 ```bash
-sudo mkdir -p /opt/odoo19
-sudo git clone --depth=1 --branch saas-19.2 https://github.com/odoo/odoo /opt/odoo19/odoo
-sudo chown -R odoo19:odoo19 /opt/odoo19
+sudo mkdir -p /opt/odoo20
+sudo git clone --depth=1 --branch 20.0 https://github.com/odoo/odoo /opt/odoo20/odoo
+sudo chown -R odoo20:odoo20 /opt/odoo20
 ```
 
 ### 4. Set up a Python virtual environment
 
 ```bash
-sudo -u odoo19 python3 -m venv /opt/odoo19/venv
-sudo -u odoo19 /opt/odoo19/venv/bin/pip install --upgrade pip
-sudo -u odoo19 /opt/odoo19/venv/bin/pip install -r /opt/odoo19/odoo/requirements.txt
+sudo -u odoo20 python3 -m venv /opt/odoo20/venv
+sudo -u odoo20 /opt/odoo20/venv/bin/pip install --upgrade pip
+sudo -u odoo20 /opt/odoo20/venv/bin/pip install -r /opt/odoo20/odoo/requirements.txt
 ```
 
 ### 5. Install extra Python dependencies from this repo
 
 ```bash
-sudo -u odoo19 /opt/odoo19/venv/bin/pip install -r /path/to/this-repo/requirements.txt
+sudo -u odoo20 /opt/odoo20/venv/bin/pip install -r /path/to/this-repo/requirements.txt
 ```
 
 ### 6. Clone this repo (custom addons)
 
 ```bash
-sudo git clone <your-repo-url> /opt/odoo19/custom-addons
-sudo chown -R odoo19:odoo19 /opt/odoo19/custom-addons
+sudo git clone <your-repo-url> /opt/odoo20/custom-addons
+sudo chown -R odoo20:odoo20 /opt/odoo20/custom-addons
 ```
 
 ### 7. (Optional) Clone enterprise addons
 
 ```bash
-sudo -u odoo19 git clone --depth=1 --branch saas-19.2 \
-    https://github.com/odoo/enterprise /opt/odoo19/enterprise
+sudo -u odoo20 git clone --depth=1 --branch 20.0 \
+    https://github.com/odoo/enterprise /opt/odoo20/enterprise
 ```
 
 ### 8. Create the Odoo config file
 
 ```bash
-sudo cp /opt/odoo19/custom-addons/config/odoo.conf.example /etc/odoo19.conf
-sudo nano /etc/odoo19.conf
+sudo cp /opt/odoo20/custom-addons/config/odoo.conf.example /etc/odoo20.conf
+sudo nano /etc/odoo20.conf
 # fill in db credentials, admin_passwd, addons_path
 ```
 
 Key `addons_path` for a direct install:
 
 ```ini
-addons_path = /opt/odoo19/odoo/addons,/opt/odoo19/custom-addons/addons,/opt/odoo19/enterprise
+addons_path = /opt/odoo20/odoo/addons,/opt/odoo20/custom-addons/addons,/opt/odoo20/enterprise
 ```
 
 ### 9. Set up PostgreSQL
 
 ```bash
-sudo -u postgres createuser -s odoo19
-sudo -u postgres psql -c "ALTER USER odoo19 WITH PASSWORD 'yourpassword';"
+sudo -u postgres createuser -s odoo20
+sudo -u postgres psql -c "ALTER USER odoo20 WITH PASSWORD 'yourpassword';"
 ```
 
 ### 10. Create a systemd service
 
 ```bash
-sudo nano /etc/systemd/system/odoo19.service
+sudo nano /etc/systemd/system/odoo20.service
 ```
 
 Paste:
 
 ```ini
 [Unit]
-Description=Odoo 19
+Description=Odoo 20
 After=network.target postgresql.service
 
 [Service]
-User=odoo19
-ExecStart=/opt/odoo19/venv/bin/python3 /opt/odoo19/odoo/odoo-bin \
-    --config=/etc/odoo19.conf
+User=odoo20
+ExecStart=/opt/odoo20/venv/bin/python3 /opt/odoo20/odoo/odoo-bin \
+    --config=/etc/odoo20.conf
 Restart=on-failure
 RestartSec=5
 
@@ -210,8 +210,8 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now odoo19
-sudo systemctl status odoo19
+sudo systemctl enable --now odoo20
+sudo systemctl status odoo20
 ```
 
 ### 11. Open Odoo
@@ -221,13 +221,13 @@ Go to `http://<your-server-ip>:8069` and create your first database.
 ### Day-to-day commands
 
 ```bash
-sudo systemctl restart odoo19                        # restart after Python/model changes
+sudo systemctl restart odoo20                        # restart after Python/model changes
 
 # Upgrade a module (no restart needed after)
-sudo -u odoo19 /opt/odoo19/venv/bin/python3 /opt/odoo19/odoo/odoo-bin \
-    -c /etc/odoo19.conf -d <db_name> -u <module_name> --stop-after-init
+sudo -u odoo20 /opt/odoo20/venv/bin/python3 /opt/odoo20/odoo/odoo-bin \
+    -c /etc/odoo20.conf -d <db_name> -u <module_name> --stop-after-init
 
-sudo journalctl -u odoo19 -f                         # tail logs
+sudo journalctl -u odoo20 -f                         # tail logs
 ```
 
 ---
@@ -423,12 +423,12 @@ The hostname `db` matches the service name in `docker-compose.yml`. Without it, 
 The database exists but has never been initialized. Run the one-time init command (Step 6 above):
 
 ```bash
-docker compose run --rm web --config=/etc/odoo/odoo.conf -d odoo19 -i base --stop-after-init
+docker compose run --rm web --config=/etc/odoo/odoo.conf -d odoo20 -i base --stop-after-init
 ```
 
 ### `localhost:8069` loads nothing / connection refused from host
 
-Odoo's default in saas-19.2 is to bind to `127.0.0.1` inside the container, which blocks Docker's port forwarding. Add this to `config/odoo.conf`:
+Odoo's default in 20.0 is to bind to `127.0.0.1` inside the container, which blocks Docker's port forwarding. Add this to `config/odoo.conf`:
 
 ```ini
 http_interface = 0.0.0.0
@@ -467,8 +467,8 @@ db_host = db
 db_port = 5432
 db_user = odoo
 db_password = odoo
-db_name = odoo19
-dbfilter = ^odoo19$
+db_name = odoo20
+dbfilter = ^odoo20$
 list_db = True
 http_interface = 0.0.0.0
 EOF
@@ -479,6 +479,6 @@ EOF
 The `Dockerfile` copies the Odoo source from `./odoo/` which is gitignored. Clone it first (Step 2 above):
 
 ```bash
-git clone --depth=1 --branch saas-19.2 https://github.com/odoo/odoo ./odoo
+git clone --depth=1 --branch 20.0 https://github.com/odoo/odoo ./odoo
 docker compose build --no-cache
 ```
