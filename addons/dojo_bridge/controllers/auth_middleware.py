@@ -312,7 +312,11 @@ def require_bridge_auth(fn):
                 if not identity:
                     return _unauthorized(
                         "No active bridge identity found for this user. "
-                        ("Call /bridge/v2/auth/resolve first." if _request_api_version() == "v2" else "Call /bridge/v1/auth/resolve first.")
+                        + (
+                            "Call /bridge/v2/auth/resolve first."
+                            if _request_api_version() == "v2"
+                            else "Call /bridge/v1/auth/resolve first."
+                        )
                     )
 
                 # 8. Stamp last_seen (lightweight write)
