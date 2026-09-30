@@ -40,7 +40,7 @@ _logger = logging.getLogger(__name__)
 class BridgeAuthController(http.Controller):
 
     @http.route(
-        "/bridge/v1/auth/resolve",
+        ["/bridge/v1/auth/resolve", "/bridge/v2/auth/resolve"],
         type="http",
         auth="public",
         methods=["POST", "OPTIONS"],
