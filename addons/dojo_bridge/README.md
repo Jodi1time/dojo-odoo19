@@ -332,3 +332,86 @@ dojo_belt_progression
 - [ ] Rotate JWT secrets regularly (NestJS and Odoo must be updated simultaneously)
 - [ ] Enable Odoo access logs for `/bridge/v1/*` paths in nginx/traefik
 - [ ] Set `session_id` cookie to `SameSite=None; Secure` in proxy if serving over HTTPS
+
+
+---
+
+## API v2 (Odoo 20 migration)
+
+The Odoo 20 migration branch introduces a domain-oriented `/bridge/v2/*` contract while keeping `/bridge/v1/*` available during migration.
+
+### v2 response envelope
+
+Success:
+
+```json
+{
+  "ok": true,
+  "data": {},
+  "meta": {
+    "api_version": "v2",
+    "request_id": "..."
+  }
+}
+```
+
+Error:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "checkin_not_allowed",
+    "message": "Member is not on this session roster.",
+    "details": {}
+  },
+  "meta": {
+    "api_version": "v2",
+    "request_id": "..."
+  }
+}
+```
+
+### v2 endpoints in the first migration slice
+
+```text
+GET    /bridge/v2/health
+POST   /bridge/v2/auth/resolve
+GET    /bridge/v2/members/me
+GET    /bridge/v2/classes/sessions
+GET    /bridge/v2/classes/sessions/<session_id>
+POST   /bridge/v2/classes/sessions/<session_id>/bookings
+DELETE /bridge/v2/classes/sessions/<session_id>/bookings
+POST   /bridge/v2/attendance/check-ins
+```
+
+### Check-in invariant
+
+The v2 attendance endpoint enforces the session-first kiosk rule:
+
+```text
+live session
+-> actual roster
+-> member identity
+-> active membership/subscription
+-> attendance write
+-> receipt
+```
+
+A member must already have a registered enrollment for the selected session.
+Repeated check-in requests return the existing attendance record instead of creating a duplicate.
+
+### Headers
+
+Clients may send:
+
+```text
+X-Request-Id
+X-Idempotency-Key
+```
+
+The v2 response returns the request ID for tracing. Booking and attendance responses also echo the supplied idempotency key while the underlying domain operations remain duplicate-safe.
+
+### Odoo 20 external API note
+
+Do not expose generic Odoo model CRUD as the product-facing contract. JSON-2 may be used by an adapter where appropriate, but Next.js/control-plane clients should call domain actions such as bookings and attendance through the bridge/domain API.
