@@ -202,10 +202,8 @@ class BridgeService(models.AbstractModel):
                         "program_name": template.program_id.name
                         if template.program_id
                         else None,
-                        "max_capacity": template.max_capacity
-                        if hasattr(template, "max_capacity")
-                        else None,
                     },
+                    "capacity": s.capacity if hasattr(s, "capacity") else None,
                     "seats_taken": s.seats_taken
                     if hasattr(s, "seats_taken")
                     else None,
@@ -254,10 +252,8 @@ class BridgeService(models.AbstractModel):
                 "program_name": template.program_id.name
                 if template.program_id
                 else None,
-                "max_capacity": template.max_capacity
-                if hasattr(template, "max_capacity")
-                else None,
             },
+            "capacity": session.capacity if hasattr(session, "capacity") else None,
             "seats_taken": session.seats_taken
             if hasattr(session, "seats_taken")
             else None,
