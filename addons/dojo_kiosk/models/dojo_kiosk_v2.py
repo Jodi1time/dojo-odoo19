@@ -184,6 +184,15 @@ class DojoKioskV2Service(models.AbstractModel):
             ("%s:%s" % (session.id, member.id)).encode("utf-8")
         ).hexdigest()
 
+        # Serialize retries for this tenant/key before reading or writing a receipt.
+        advisory_lock = int(
+            hashlib.sha256(
+                ("%s:%s" % (config.company_id.id, key)).encode("utf-8")
+            ).hexdigest()[:15],
+            16,
+        )
+        self.env.cr.execute("SELECT pg_advisory_xact_lock(%s)", [advisory_lock])
+
         Receipt = self.env["dojo.kiosk.command.receipt"].sudo()
         existing_command = Receipt.search([
             ("company_id", "=", config.company_id.id),
@@ -211,6 +220,12 @@ class DojoKioskV2Service(models.AbstractModel):
         ], limit=1)
         if not enrollment:
             return {"success": False, "code": "NOT_ON_ROSTER"}
+
+        # Serialize different request keys for the same member/session roster row.
+        self.env.cr.execute(
+            "SELECT id FROM dojo_class_enrollment WHERE id = %s FOR UPDATE",
+            [enrollment.id],
+        )
 
         if member.membership_state in ("lead", "paused", "cancelled"):
             return {"success": False, "code": "MEMBERSHIP_INACTIVE"}
