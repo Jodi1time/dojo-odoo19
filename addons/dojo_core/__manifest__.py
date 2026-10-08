@@ -15,6 +15,11 @@
         'hr',
         'account',
         'project',
+        'crm',
+        'sales_team',
+        'event',
+        'purchase',
+        'mass_mailing',
     ],
     'post_init_hook': 'post_init_hook',
     'data': [
