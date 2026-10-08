@@ -12,7 +12,7 @@
         "dojo_crm",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "views/dojo_kiosk_views.xml",
         "views/dojo_kiosk_announcement_views.xml",
     ],

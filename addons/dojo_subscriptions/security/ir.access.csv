@@ -1,0 +1,10 @@
+id,name,model_id,group_id/id,operation,domain
+access_dojo_subscription_plan_admin,dojo.subscription.plan admin,dojo.subscription.plan,dojo_core.group_dojo_admin,crud,
+access_dojo_subscription_plan_instructor,dojo.subscription.plan instructor,dojo.subscription.plan,dojo_core.group_dojo_instructor,crud,
+access_dojo_subscription_plan_parent,dojo.subscription.plan parent,dojo.subscription.plan,dojo_core.group_dojo_parent_student,r,
+access_sale_subscription_dojo_admin,sale.subscription dojo admin,sale.subscription,dojo_core.group_dojo_admin,crud,
+access_sale_subscription_dojo_instructor,sale.subscription dojo instructor,sale.subscription,dojo_core.group_dojo_instructor,crud,
+access_sale_subscription_dojo_parent,sale.subscription dojo parent,sale.subscription,dojo_core.group_dojo_parent_student,r,
+access_dojo_program_enrollment_admin,dojo.program.enrollment admin,dojo.program.enrollment,dojo_core.group_dojo_admin,crud,
+access_dojo_program_enrollment_instructor,dojo.program.enrollment instructor,dojo.program.enrollment,dojo_core.group_dojo_instructor,crud,
+access_dojo_program_enrollment_parent,dojo.program.enrollment parent,dojo.program.enrollment,dojo_core.group_dojo_parent_student,r,

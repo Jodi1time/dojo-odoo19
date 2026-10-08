@@ -25,7 +25,7 @@
     'data': [
         # Security (load first)
         'security/dojo_security.xml',
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         # Data
         'data/sequences.xml',
         'data/dojo_class_recurrence_cron.xml',
