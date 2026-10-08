@@ -7,7 +7,6 @@
         <field name="model">dojo.member</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">dojo_sign.report_member_waiver_document</field>
-        <field name="report_file">dojo_sign.report_member_waiver_document</field>
         <field name="print_report_name">'Waiver - %s' % object.name</field>
         <field name="binding_model_id" ref="dojo_core.model_dojo_member"/>
         <field name="binding_type">report</field>
