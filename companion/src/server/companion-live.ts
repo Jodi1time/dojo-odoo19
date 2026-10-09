@@ -1,3 +1,4 @@
+import { workflowAnswer, workflowContext, workflowRequest, workflowCall, workflowProblem, isRecordId } from "./companion-workflow";
 import { randomUUID } from "node:crypto";
 import type { CompanionContext, Suggestion } from "../domain/companion";
 import { authorized, fail, handle, type Fetcher, type GatewayConfig } from "./odoo-gateway";
@@ -48,16 +49,47 @@ export async function liveCompanion(request: Request, config: GatewayConfig, kin
     if (!object(body)) return fail("INVALID_COMMAND", correlation, 400);
   }
   const memberId = kind === "context" ? new URL(request.url).searchParams.get("memberId") : (body as Record<string, unknown>).memberId;
-  if (kind === "context" && memberId === null) {
-    const context: CompanionContext = {label: "Staff attendance tool", heading: "Choose an authorized member", suggestions: [], intel: [{label: "Mode", value: "Guided lookup. No language model is active."}]};
-    return Response.json(context, {headers: responseHeaders});
+  const sessionId = kind === "context" ? new URL(request.url).searchParams.get("sessionId") : (body as Record<string, unknown>).sessionId;
+  if (sessionId != null && (!isRecordId(sessionId) || memberId != null)) return fail("INVALID_COMMAND", correlation, 400);
+  if (kind === "context") {
+    if (memberId !== null && !recordId(memberId)) return fail("INVALID_COMMAND", correlation, 400);
+    try {
+      const context = await workflowContext(config, memberId as string | null, sessionId as string | null, fetcher);
+      if (memberId) {
+        const response = await handle(request, config, "member", memberId as string, fetcher);
+        if (!response.ok) return response;
+        context.suggestions = [suggestion(memberId as string, await response.json())];
+      }
+      return Response.json(context, {headers: responseHeaders});
+    } catch { return fail("CAPABILITY_DISABLED", correlation); }
   }
+  if (kind === "request" && object(body) && body.followUp !== undefined) return workflowRequest(request, config, body, fetcher);
+  if (kind === "request" && sessionId) {
+    const input = body as Record<string, unknown>;
+    if (typeof input.text !== "string" || input.text.length > 500 || !Array.isArray(input.onScreenIds)) return fail("INVALID_COMMAND", correlation, 400);
+    // Class answers use Odoo facts, never change pending students to absent.
+    if (!/^(?:who|show|summarize|review|check).*(?:check|roster|class|attendance)/i.test(input.text)) return workflowAnswer(config, input, fetcher);
+    try {
+      const context = await workflowContext(config, null, sessionId as string, fetcher);
+      const missingOnly = /not|n.t|missing|yet/i.test(input.text);
+      const rows = (context.records || []).filter(r=>!missingOnly || r.detail === "Not yet checked in");
+      return Response.json({outcome:"answer", answer: rows.map(r => `${r.label}: ${r.detail}`).join("\n") || (missingOnly ? "No pending check-ins in this authorized roster." : "No registered students in this authorized session."), mode:"Verified Odoo roster"}, {headers:responseHeaders});
+    } catch { return fail("CAPABILITY_DISABLED",correlation); }
+  }
+  if (kind === "request" && memberId === null) return workflowAnswer(config, body as Record<string,unknown>, fetcher);
   if (!recordId(memberId)) return fail("INVALID_COMMAND", correlation, 400);
   if (kind === "approval") {
     const command = body as Record<string, unknown>;
     if (Object.keys(command).sort().join() !== ["correlationId", "idempotencyKey", "memberId", "suggestionId"].sort().join() ||
-        !key(command.idempotencyKey) || !key(command.correlationId) || command.suggestionId !== `attendance-review:${memberId}`) return fail("INVALID_COMMAND", correlation, 400);
+        !key(command.idempotencyKey) || !key(command.correlationId) || (command.suggestionId !== `attendance-review:${memberId}` && !(typeof command.suggestionId === "string" && /^followup:[1-9][0-9]{0,9}$/.test(command.suggestionId)))) return fail("INVALID_COMMAND", correlation, 400);
     try {
+      if (String(command.suggestionId).startsWith("followup:")) {
+        const result = await workflowCall(config, "approve", command, fetcher);
+        const issue = workflowProblem(result); if (issue) return issue;
+        const r = result.receipt, e = result.evidence;
+        if (!object(r) || !recordId(r.id) || r.suggestionId !== command.suggestionId || typeof r.summary !== "string" || r.summary.length > 2000 || typeof r.actor !== "string" || typeof r.at !== "string" || !Number.isFinite(Date.parse(r.at)) || result.correlationId !== command.correlationId || typeof result.replayed !== "boolean" || !object(e) || e.memberId !== memberId || e.source !== "odoo-test") throw new Error("Invalid receipt");
+        return Response.json({receipt:r,replayed:result.replayed,correlationId:result.correlationId},{headers:responseHeaders});
+      }
       const upstream = await fetcher(config.backend + "/kiosk/v2/staff/companion-review", {
         method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10000),
         headers: {"content-type": "application/json", authorization: `Bearer ${config.staffKey}`},
@@ -76,10 +108,10 @@ export async function liveCompanion(request: Request, config: GatewayConfig, kin
   if (kind === "request") {
     const input = body as Record<string, unknown>;
     if (typeof input.text !== "string" || input.text.length > 500 || !Array.isArray(input.onScreenIds) || input.onScreenIds.length > 20 || input.onScreenIds.some(id => typeof id !== "string")) return fail("INVALID_COMMAND", correlation, 400);
-    // A closed vocabulary selects this one read tool. Text cannot select a URL,
-    // method, role, member, payment, outgoing message, or arbitrary ORM operation.
+    // Guided attendance lookup stays available without a model. Other questions
+    // use a read-only explanation over server-scoped records, never ORM tools.
     if (!/^(?:(?:show|check|review|verify|view|summarize)\s+)?(?:(?:the|this member's|my)\s+)?(?:attendance|check[ -]?ins|latest check[ -]?in)(?:\s+please)?[.!?]*$/i.test(input.text.trim())) {
-      return Response.json({outcome: "notUnderstood"}, {headers: responseHeaders});
+      return workflowAnswer(config, input, fetcher);
     }
   }
   const response = await handle(request, config, "member", memberId, fetcher);

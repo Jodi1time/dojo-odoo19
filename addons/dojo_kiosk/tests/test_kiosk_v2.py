@@ -157,3 +157,101 @@ class TestKioskSessionFirstV2(TransactionCase):
             self.assertIn("problem", self.call())
         self.assertEqual(self.attendance_count(), 0)
         self.assertEqual(self.env["dojo.kiosk.command.receipt"].sudo().search_count([("config_id", "=", self.kiosk.id)]), 0)
+
+    def followup(self, operation="prepare", payload=None, gateway=None):
+        self.kiosk.integration_companion_followup_enabled = True
+        command = {"memberId": str(self.member.id), "sessionId": str(self.session.id),
+                   "text": "My child cannot attend. Could we arrange a makeup?",
+                   "idempotencyKey": "followup-request-key-0001", "correlationId": "followup-correlation-0001"}
+        return self.service._companion_dispatch(self.kiosk.kiosk_token,
+            self.staff_key if gateway is None else gateway, operation, command if payload is None else payload)
+
+    def approve_followup(self, plan, **updates):
+        command = {"memberId": str(self.member.id), "suggestionId": plan["suggestion"]["id"],
+                   "idempotencyKey": "followup-approval-key-0001", "correlationId": "followup-correlation-0002"}
+        command.update(updates)
+        return self.followup("approve", command)
+
+    def test_followup_prepare_does_not_change_attendance_or_publish_to_queue(self):
+        result = self.followup()
+        self.assertEqual(result["outcome"], "newTask")
+        self.assertEqual(result["suggestion"]["capability"], "followup.save_internal")
+        self.assertEqual(self.attendance_count(), 0)
+        self.assertEqual(self.followup("context", {"memberId": str(self.member.id)})["followUps"], [])
+
+    def test_followup_approval_updates_same_member_and_class_queue_once(self):
+        plan = self.followup()
+        approved = self.approve_followup(plan)
+        self.assertNotIn("problem", approved)
+        repeated = self.approve_followup(plan)
+        self.assertTrue(repeated["replayed"])
+        self.assertEqual(approved["receipt"], repeated["receipt"])
+        for scope in ({"memberId": str(self.member.id)}, {"sessionId": str(self.session.id)}, {}):
+            rows = self.followup("context", scope)["followUps"]
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["memberId"], str(self.member.id))
+            self.assertEqual(rows[0]["sessionId"], str(self.session.id))
+        self.assertEqual(self.attendance_count(), 0)
+
+    def test_followup_prepare_retry_reuses_plan(self):
+        first, second = self.followup(), self.followup()
+        self.assertEqual(first["suggestion"]["id"], second["suggestion"]["id"])
+        self.assertEqual(self.env["dojo.companion.followup"].sudo().search_count([("config_id", "=", self.kiosk.id)]), 1)
+
+    def test_followup_public_credential_is_rejected(self):
+        self.assertEqual(self.followup(gateway=self.gateway_key)["problem"]["code"], "FORBIDDEN")
+
+    def test_followup_scope_revoked_before_approval_is_rejected(self):
+        plan = self.followup()
+        self.kiosk.integration_member_ids = [(5, 0, 0)]
+        self.assertEqual(self.approve_followup(plan)["problem"]["code"], "MEMBER_UNAVAILABLE")
+
+    def test_followup_attendance_changed_before_approval_requires_new_plan(self):
+        plan = self.followup()
+        self.call()
+        self.assertEqual(self.approve_followup(plan)["problem"]["code"], "VERSION_CONFLICT")
+
+    def test_followup_without_registered_enrollment_rejected(self):
+        self.enrollment.status = "cancelled"
+        self.assertEqual(self.followup()["problem"]["code"], "NOT_ON_ROSTER")
+
+    def test_followup_never_calls_model_without_explicit_enablement(self):
+        Processor = type(self.env["ai.processor"])
+        with patch.object(Processor, "_process_conversational_openai", side_effect=AssertionError("Model must not run")):
+            plan = self.followup()
+        self.assertIn("AI not enabled", str(plan["suggestion"]["preview"]))
+
+    def test_followup_ai_is_only_drafting_and_cannot_execute(self):
+        self.kiosk.integration_companion_ai_enabled = True
+        Processor = type(self.env["ai.processor"])
+        with patch.object(Processor, "_get_provider", return_value="openai"), patch.object(Processor, "_process_conversational_openai", return_value="Thanks for letting us know. We will review makeup options."):
+            plan = self.followup()
+        self.assertEqual(plan["suggestion"]["capability"], "followup.save_internal")
+        self.assertIn("AI-assisted", str(plan["suggestion"]["preview"]))
+        self.assertEqual(self.attendance_count(), 0)
+
+    def test_followup_disabled_is_not_silently_enabled(self):
+        self.kiosk.integration_companion_followup_enabled = False
+        result = self.service._companion_dispatch(self.kiosk.kiosk_token, self.staff_key, "prepare", {})
+        self.assertEqual(result["problem"]["code"], "CAPABILITY_DISABLED")
+
+    def test_followup_request_key_cannot_change_report(self):
+        self.followup()
+        changed = {"memberId": str(self.member.id), "sessionId": str(self.session.id),
+                   "text": "A different report", "idempotencyKey": "followup-request-key-0001",
+                   "correlationId": "followup-correlation-0003"}
+        self.assertEqual(self.followup(payload=changed)["problem"]["code"], "IDEMPOTENCY_CONFLICT")
+
+    def test_followup_old_proposal_requires_preparation_again(self):
+        plan = self.followup()
+        record = self.env["dojo.companion.followup"].sudo().browse(int(plan["suggestion"]["id"].split(":")[1]))
+        record.create_date = fields.Datetime.now() - timedelta(hours=1)
+        self.assertEqual(self.approve_followup(plan)["problem"]["code"], "VERSION_CONFLICT")
+
+    def test_followup_ai_error_returns_explicit_template(self):
+        from odoo.exceptions import UserError
+        self.kiosk.integration_companion_ai_enabled = True
+        Processor = type(self.env["ai.processor"])
+        with patch.object(Processor, "_get_provider", return_value="openai"), patch.object(Processor, "_process_conversational_openai", side_effect=UserError("synthetic provider unavailable")):
+            plan = self.followup()
+        self.assertIn("AI unavailable", str(plan["suggestion"]["preview"]))
