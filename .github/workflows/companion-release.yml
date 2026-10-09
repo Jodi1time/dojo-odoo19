@@ -2,7 +2,7 @@ name: Publish and validate Companion integration
 on:
   push:
     branches: [integration/monday-release]
-    paths: ['delivery/**', 'tools/assemble_companion.py', '.github/workflows/companion-release.yml']
+    paths: ['delivery/**', 'companion/**', 'tools/assemble_companion.py', '.github/workflows/companion-release.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,16 +22,37 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - name: Assemble reviewed source
-        run: python tools/assemble_companion.py
-      - name: Publish only the assembled source to the isolated candidate branch
+      - name: Assemble source or restore explicitly reviewed missing manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d companion ]; then python tools/assemble_companion.py; fi
+          if [ ! -f companion/package.json ] || [ ! -f companion/package-lock.json ]; then
+            SOURCE="$(mktemp -d)"
+            git -C "$SOURCE" init
+            git -C "$SOURCE" fetch --depth=1 https://github.com/jDelille/companion.git c108399f38093c01f2e1f187e7feaa929a43eace
+            git -C "$SOURCE" show FETCH_HEAD:package.json > companion/package.json
+            git -C "$SOURCE" show FETCH_HEAD:package-lock.json > companion/package-lock.json
+            python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('companion/package.json')
+          data=json.loads(p.read_text())
+          data['scripts']['test:odoo-integration']='bash tools/test-odoo-gateway.sh'
+          p.write_text(json.dumps(data,indent=2)+'\n')
+          PY
+            rm -rf "$SOURCE"
+          fi
+      - name: Publish candidate source without touching other branches
         id: publish
         shell: bash
         run: |
           set -euo pipefail
           git add -- companion
-          git -c user.name='Jodi Ojeikhoa' -c user.email='162644954+Jodi1time@users.noreply.github.com' commit -m 'Connect the pinned Companion UI to the scoped Odoo gateway'
-          git push origin HEAD:refs/heads/integration/monday-release
+          git add -f -- companion/package.json companion/package-lock.json
+          if ! git diff --cached --quiet; then
+            git -c user.name='Jodi Ojeikhoa' -c user.email='162644954+Jodi1time@users.noreply.github.com' commit -m 'Track the reviewed Companion manifests and integration source'
+            git push origin HEAD:refs/heads/integration/monday-release
+          fi
           echo "source=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   frontend:
     needs: assemble
@@ -45,13 +66,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned dependencies
+      - name: Install exact locked dependencies
         working-directory: companion
         run: npm ci
-      - name: Verify contract and gateway tests
+      - name: Read bundled framework guidance
         working-directory: companion
         run: |
           mkdir -p ../frontend-evidence
+          find node_modules/next/dist/docs -type f -iname '*route*' -o -iname '*cookies*' > ../frontend-evidence/framework-guidance-files.txt || true
+      - name: Verify contract and gateway tests
+        working-directory: companion
+        shell: bash
+        run: |
+          set -euo pipefail
           npm run test:odoo-integration 2>&1 | tee ../frontend-evidence/gateway-tests.log
       - name: Lint
         id: lint
@@ -63,10 +90,16 @@ jobs:
         working-directory: companion
         env:
           NEXT_PUBLIC_DEMO_MODE: 'true'
-        run: npm run build 2>&1 | tee ../frontend-evidence/build.log
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee ../frontend-evidence/build.log
       - name: Verify entire application types
         working-directory: companion
-        run: npx tsc --noEmit 2>&1 | tee ../frontend-evidence/typecheck.log
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsc --noEmit 2>&1 | tee ../frontend-evidence/typecheck.log
       - name: Record exact source and lint gate
         if: always()
         run: |
