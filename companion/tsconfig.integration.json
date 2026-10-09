@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","compilerOptions":{"noEmit":false,"incremental":false,"module":"commonjs","moduleResolution":"node","outDir":".integration-build","rootDir":"src","isolatedModules":false,"declaration":false},"include":["src/server/odoo-gateway.ts","src/integrations/offline-attendance.ts","src/contracts/kiosk-attendance.ts"],"exclude":["node_modules"]}

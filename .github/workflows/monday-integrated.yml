@@ -1,0 +1,73 @@
+name: Monday integrated rehearsal
+on:
+  push:
+    branches: [release/monday-demo]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: monday-integrated-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  integrated-rehearsal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Materialize the pinned UI and Odoo compatibility fixes
+        run: |
+          set -euo pipefail
+          python tools/monday/assemble.py
+          python tools/monday/finalize_frontend.py
+          cd companion
+          npm install --ignore-scripts --no-audit --no-fund
+      - name: Publish the actual integrated source to the review branch
+        run: |
+          set -euo pipefail
+          git config user.name 'Jodi Ojeikhoa'
+          git config user.email '162644954+Jodi1time@users.noreply.github.com'
+          git add addons companion tools/monday docs/MONDAY-RELEASE.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate pinned Companion screens with Odoo gateway and rehearsal tests'
+            git push origin HEAD:release/monday-demo
+          fi
+          mkdir -p readiness-results
+          git rev-parse HEAD > readiness-results/materialized-commit.txt
+          echo "MATERIALIZED_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Execute the complete synthetic runtime rehearsal
+        run: bash tools/monday/run_ci.sh
+      - name: Redact generated test credentials from evidence
+        if: always()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.private/.env.local')
+          secrets=[line.split('=',1)[1] for line in p.read_text().splitlines() if '=' in line and any(x in line.split('=',1)[0] for x in ('KEY','TOKEN','SECRET'))] if p.exists() else []
+          for root in ['readiness-results','companion/test-results']:
+              for f in Path(root).rglob('*'):
+                  if f.is_file() and f.suffix in ('.txt','.log','.json','.md'):
+                      s=f.read_text(errors='replace')
+                      for value in secrets: s=s.replace(value,'[REDACTED_TEST_SECRET]')
+                      f.write_text(s)
+          PY
+      - name: Save execution evidence and browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monday-rehearsal-${{ github.run_id }}
+          path: |
+            readiness-results/
+            companion/test-results/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Summarize exact tested revision
+        if: always()
+        run: |
+          echo "## Monday integration rehearsal" >> "$GITHUB_STEP_SUMMARY"
+          echo "Materialized source: ${MATERIALIZED_COMMIT:-not-published}" >> "$GITHUB_STEP_SUMMARY"
+          if test -f readiness-results/release-gate.txt; then cat readiness-results/release-gate.txt >> "$GITHUB_STEP_SUMMARY"; else echo 'NOT PASSED. Inspect the first failing step and attached evidence.' >> "$GITHUB_STEP_SUMMARY"; fi

@@ -1,80 +1,35 @@
 from odoo import http
 from odoo.http import request
-from odoo.exceptions import AccessError
-
+from ..models.dojo_kiosk_v2 import problem
 
 class KioskV2Controller(http.Controller):
+    def _call(self, action, token, params):
+        header = request.httprequest.headers.get("Authorization", "")
+        key = header[7:] if header.startswith("Bearer ") else ""
+        return request.env["dojo.kiosk.service"].sudo()._v2_dispatch(action, token, key, params)
 
-    def _service(self):
-        return request.env["dojo.kiosk.service"].sudo()
+    @http.route("/kiosk/v2/sessions", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def sessions(self, token=None, **kw):
+        return self._call("sessions", token, kw)
 
-    def _invalid_token(self):
-        return {"success": False, "code": "INVALID_KIOSK_TOKEN"}
+    @http.route("/kiosk/v2/session/roster", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def roster(self, token=None, sessionId=None, **kw):
+        return self._call("roster", token, {"sessionId": sessionId})
 
-    @http.route(
-        "/kiosk/v2/session",
-        type="jsonrpc",
-        auth="public",
-        methods=["POST"],
-        csrf=False,
-    )
-    def session_context(self, token=None, session_id=None, **kw):
-        if not token or not session_id:
-            return {"success": False, "code": "INVALID_COMMAND"}
-        try:
-            return self._service().get_session_first_context(token, int(session_id))
-        except (AccessError, ValueError, TypeError):
-            return self._invalid_token()
+    @http.route("/kiosk/v2/attendance/check-ins", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def check_in(self, token=None, command=None, **kw):
+        if kw:
+            return problem("INVALID_COMMAND")
+        return self._call("checkin", token, {"command": command})
 
-    @http.route(
-        "/kiosk/v2/session/identify",
-        type="jsonrpc",
-        auth="public",
-        methods=["POST"],
-        csrf=False,
-    )
-    def identify(self, token=None, session_id=None, query=None, **kw):
-        if not token or not session_id:
-            return {"success": False, "code": "INVALID_COMMAND", "members": []}
-        try:
-            return self._service().search_session_roster(
-                token, int(session_id), query or ""
-            )
-        except (AccessError, ValueError, TypeError):
-            return self._invalid_token()
+    @http.route("/kiosk/v2/staff/member", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def member(self, token=None, memberId=None, **kw):
+        return self._call("member", token, {"memberId": memberId})
 
-    @http.route(
-        "/kiosk/v2/attendance/check-ins",
-        type="jsonrpc",
-        auth="public",
-        methods=["POST"],
-        csrf=False,
-    )
-    def check_in(
-        self,
-        token=None,
-        session_id=None,
-        member_id=None,
-        idempotency_key=None,
-        correlation_id=None,
-        **kw,
-    ):
-        if not all([
-            token,
-            session_id,
-            member_id,
-            idempotency_key,
-            correlation_id,
-        ]):
-            return {"success": False, "code": "INVALID_COMMAND"}
+    @http.route("/kiosk/v2/staff/members", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def members(self, token=None, **kw):
+        return self._call("members", token, {})
 
-        try:
-            return self._service().session_first_checkin(
-                token=token,
-                session_id=int(session_id),
-                member_id=int(member_id),
-                idempotency_key=idempotency_key,
-                correlation_id=correlation_id,
-            )
-        except (AccessError, ValueError, TypeError):
-            return self._invalid_token()
+    @http.route("/kiosk/v2/staff/companion", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def companion(self, token=None, **params):
+        return self._call("companion", token, params)
