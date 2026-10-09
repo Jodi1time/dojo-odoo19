@@ -175,7 +175,7 @@ class CompanionFollowUpService(models.AbstractModel):
             raise KioskProblem("IDEMPOTENCY_CONFLICT")
         if not replayed:
             enrollment = self._followup_enrollment(config, member, session)
-            if plan.create_date < fields.Datetime.now() - timedelta(minutes=30) or session.state != "open" or str(session_version(session)) != plan.session_version or enrollment.attendance_state != plan.attendance_state:
+            if plan.create_date <= fields.Datetime.now() - timedelta(minutes=30) or session.state != "open" or str(session_version(session)) != plan.session_version or enrollment.attendance_state != plan.attendance_state:
                 raise KioskProblem("VERSION_CONFLICT")
             plan.write({"state": "approved", "approval_key": command["idempotencyKey"], "approved_at": fields.Datetime.now()})
         return {"receipt": {"id": str(plan.id), "suggestionId": sid,
