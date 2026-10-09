@@ -1,0 +1,81 @@
+name: Publish and validate Companion integration
+on:
+  push:
+    branches: [integration/monday-release]
+    paths: ['delivery/**', 'tools/assemble_companion.py', '.github/workflows/companion-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: companion-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  assemble:
+    if: github.repository == 'Jodi1time/dojo-odoo19' && github.ref == 'refs/heads/integration/monday-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      source: ${{ steps.publish.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Assemble reviewed source
+        run: python tools/assemble_companion.py
+      - name: Publish only the assembled source to the isolated candidate branch
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- companion
+          git -c user.name='Jodi Ojeikhoa' -c user.email='162644954+Jodi1time@users.noreply.github.com' commit -m 'Connect the pinned Companion UI to the scoped Odoo gateway'
+          git push origin HEAD:refs/heads/integration/monday-release
+          echo "source=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  frontend:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.assemble.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned dependencies
+        working-directory: companion
+        run: npm ci
+      - name: Verify contract and gateway tests
+        working-directory: companion
+        run: |
+          mkdir -p ../frontend-evidence
+          npm run test:odoo-integration 2>&1 | tee ../frontend-evidence/gateway-tests.log
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        working-directory: companion
+        run: npm run lint > ../frontend-evidence/lint.log 2>&1
+      - name: Production build
+        id: build
+        working-directory: companion
+        env:
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+        run: npm run build 2>&1 | tee ../frontend-evidence/build.log
+      - name: Verify entire application types
+        working-directory: companion
+        run: npx tsc --noEmit 2>&1 | tee ../frontend-evidence/typecheck.log
+      - name: Record exact source and lint gate
+        if: always()
+        run: |
+          mkdir -p frontend-evidence
+          printf 'source=%s\nlint=%s\nbuild=%s\n' '${{ needs.assemble.outputs.source }}' '${{ steps.lint.outcome }}' '${{ steps.build.outcome }}' > frontend-evidence/result.txt
+          test '${{ steps.lint.outcome }}' = success
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dojang-frontend-evidence-${{ needs.assemble.outputs.source }}
+          path: frontend-evidence/
+          retention-days: 7
