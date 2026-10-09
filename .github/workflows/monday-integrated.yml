@@ -39,8 +39,20 @@ jobs:
           mkdir -p readiness-results
           git rev-parse HEAD > readiness-results/materialized-commit.txt
           echo "MATERIALIZED_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Restore pinned Odoo runtime image
+        id: odoo-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/odoo-image.tar
+          key: dojang-monday-odoo-${{ runner.os }}-d40b7c8c-${{ hashFiles('Dockerfile', 'requirements.txt') }}
       - name: Execute the complete synthetic runtime rehearsal
         run: bash tools/monday/run_ci.sh
+      - name: Cache the runtime image for subsequent test iterations
+        if: always() && steps.odoo-cache.outputs.cache-hit != 'true' && hashFiles('.ci-cache/odoo-image.tar') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-cache/odoo-image.tar
+          key: dojang-monday-odoo-${{ runner.os }}-d40b7c8c-${{ hashFiles('Dockerfile', 'requirements.txt') }}
       - name: Redact generated test credentials from evidence
         if: always()
         run: |
