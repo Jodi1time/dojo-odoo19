@@ -1,0 +1,3 @@
+id,name,model_id,group_id/id,operation,domain
+access_dojo_onboarding_record,dojo.onboarding.record user,dojo.onboarding.record,base.group_user,crud,
+access_dojo_onboarding_wizard,dojo.onboarding.wizard user,dojo.onboarding.wizard,base.group_user,cru,

@@ -44,3 +44,8 @@ next-env.d.ts
 playwright-report/
 test-results/
 .env.local
+
+.integration-build/
+playwright-report/
+test-results/
+.env.local

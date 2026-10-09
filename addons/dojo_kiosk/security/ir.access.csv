@@ -1,0 +1,4 @@
+id,name,model_id,group_id/id,operation,domain
+access_dojo_kiosk_config,dojo.kiosk.config user,dojo.kiosk.config,base.group_user,crud,
+access_dojo_kiosk_announcement,dojo.kiosk.announcement user,dojo.kiosk.announcement,base.group_user,crud,
+access_dojo_kiosk_pin_attempt,dojo.kiosk.pin.attempt user,dojo.kiosk.pin.attempt,base.group_user,r,
