@@ -15,6 +15,7 @@ Original references: [architecture write-up](https://docs.google.com/document/d/
 | Requirement | Present evidence | Remaining acceptance condition |
 | --- | --- | --- |
 | Kiosk writes attendance used by CRM and instructor roster | Session-first gateway, Odoo attendance model, member and class views; real database rehearsal | Passing exact-commit rehearsal and deployed cross-device test |
+| Student exit / checkout | Downloaded EB Gym has a `check_out` field; this connected kiosk slice implements check-in | Confirm class/session checkout semantics and wire the authorized exit command and timeline event; no checkout claim for this build |
 | Staff navigation and contextual companion | Shared staff layout, `/ops`, `/integration/members`, `/people/<id>`, `/ops/sessions/<id>`; phone navigation and panel controls | Rehearsal must show context/receipts survive client navigation, and records survive reload |
 | Parent report → instructor summary → useful action | Staff-entered report, enrolled class, durable proposal, neutral summary, optional AI reply, internal approval receipt | Verified inbound guardian identity, live model, delivery and eligible makeup booking are not connected |
 | Odoo 20 + EB Gym backend | Pinned Odoo runtime; existing repo uses `dojo.member`, `dojo.class.session`, `dojo.attendance.log`; downloaded EB Gym is `19.0.1.3.0` | Obtain Justin's migrated EB Gym addon and test install; map `res.partner`, `gym.membership`, `gym.attendance` to existing dojo records without duplicate canonical attendance |
@@ -22,6 +23,7 @@ Original references: [architecture write-up](https://docs.google.com/document/d/
 | Dreams Gym UI integration | React template available; current shell uses Justin's imported companion design | Apply agreed panel/navigation designs to connected routes; don't treat static template controls as implemented business functions |
 | Onboarding provisions all user types | Starter onboarding saves steps/data | Implement tenant/site, owner/manager/instructor/member/guardian principals, guardian links, permissions and provider provisioning with retryable status |
 | Same-login IAM | Separate signed synthetic kiosk/staff device cookies and scoped backend checks exist | Real individual identities, role-to-capability mapping, tenant isolation, revocation and actor-attributed receipts; pairing is not production IAM |
+| CRM member, class and belt changes immediately update Odoo | Existing Odoo modules contain business models; connected member UI currently reads identity and attendance | Map each editable UI action to the actual migrated model/method, validate permissions and versions, persist once and refresh all affected views/history |
 | AgentPhone / AgentMail / Workspace | Provider integration designs and starter adapters/templates exist | Correct transport and account configuration, authenticated webhooks, tenant binding, thread/history persistence, approval and delivery receipts; no live provider test yet |
 | Voice Do for Me | Frontend composer has voice input | Browser microphone/transcription test and the same bounded tool/approval path as text; no independent voice authority |
 | Firebase / GKE live access | Deployment architecture described in meetings; existing Firebase functions config names project `unitywrkos`, with no Companion hosting entry | Verify intended staging project/URL, deployed commit and configuration, then test from Justin's separate session |
@@ -88,6 +90,10 @@ The instructor summary is deliberately neutral and rule-based, without medical d
 ## Verification and release gate
 
 Local audit checks: 53 Node gateway/recovery tests pass; Next production build including TypeScript passes; ESLint has no errors and five existing unused-variable warnings; Python/JavaScript syntax and diff whitespace checks pass. These checks do not substitute for the native/browser run.
+
+Dependency audit: updated Next and its ESLint config from `16.3.6` to `16.3.8`, Sharp to `0.35.5`, and source-map-js to `1.2.2`. The production dependency audit reports zero known advisories on 2026-10-09; CI now checks production dependencies as well as the 53 gateway tests and lint. This audit result covers the Companion production dependency tree, not every purchased template or development dependency.
+
+The first repaired run at `f955ffba1883670e6cfcccfc52d6831ee3528ae9` passed all 35 native Odoo cases, then failed to reach Odoo over the host HTTP port. The runner now saves startup logs on failure, separately probes Odoo inside its container, and can relay a Linux internal-network service to host loopback while retaining Odoo's external network isolation. The full browser gate must still pass on the current candidate; native success alone is insufficient.
 
 The merged PR #6 backend and browser checks failed before browser execution because an expiry test tried to modify Odoo's protected `create_date` field. The readiness branch advances the clock instead and tests expiry at 30 minutes, approval before expiry, and receipt replay after expiry. It runs the native suite and real Odoo/Postgres/browser rehearsal through `.github/workflows/roster-readiness-audit.yml`. Read the exact commit's [Actions results](https://github.com/Jodi1time/dojo-odoo19/actions) and attached evidence; a queued/running run is not a pass.
 
