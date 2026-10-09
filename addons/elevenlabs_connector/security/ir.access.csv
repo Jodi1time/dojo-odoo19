@@ -1,0 +1,6 @@
+id,name,model_id,group_id/id,operation,domain
+access_elevenlabs_service_user,elevenlabs.service user,elevenlabs.service,base.group_user,cru,
+access_voice_service_user,voice.service user,voice.service,base.group_user,cru,
+access_voice_conversation_user,voice.conversation user,voice.conversation,base.group_user,crud,
+access_ai_processor_user,ai.processor user,ai.processor,base.group_user,cru,
+access_voice_query_processor_user,voice.query.processor user,voice.query.processor,base.group_user,cru,

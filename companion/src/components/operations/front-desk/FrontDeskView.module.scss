@@ -1,0 +1,67 @@
+@use "../../../../styles/breakpoints" as bp;
+
+.frontDesk {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+
+  @include bp.compact {
+    padding: 1rem;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  
+
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+
+  @include bp.workspace-narrow { 
+
+   } 
+
+}
+
+.search {
+  height: var(--touch-height);
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+
+  &::placeholder {
+  color: var(--text-secondary);
+
+  }
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;                   // narrow: stacked
+
+  @include bp.workspace-split {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); // card + queue side by side
+  }
+}

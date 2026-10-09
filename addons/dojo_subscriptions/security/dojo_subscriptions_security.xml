@@ -1,30 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="rule_dojo_subscription_plan_instructor_company" model="ir.rule">
-        <field name="name">Subscription Plan Instructor Company</field>
-        <field name="model_id" ref="model_dojo_subscription_plan"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_subscription_plan_parent_company" model="ir.rule">
-        <field name="name">Subscription Plan Parent Company</field>
-        <field name="model_id" ref="model_dojo_subscription_plan"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_member_subscription_instructor_company" model="ir.rule">
-        <field name="name">Sale Subscription Instructor Company</field>
-        <field name="model_id" ref="subscription_oca.model_sale_subscription"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_member_subscription_parent_self_or_household" model="ir.rule">
-        <field name="name">Sale Subscription Parent Self or Household</field>
-        <field name="model_id" ref="subscription_oca.model_sale_subscription"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('member_id.partner_id', '=', user.partner_id.id), ('member_id.partner_id.parent_id.primary_guardian_id', '=', user.partner_id.id)]</field>
-    </record>
 </odoo>

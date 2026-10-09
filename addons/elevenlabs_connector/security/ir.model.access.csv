@@ -1,6 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_elevenlabs_service_user,elevenlabs.service user,model_elevenlabs_service,base.group_user,1,1,1,0
-access_voice_service_user,voice.service user,model_voice_service,base.group_user,1,1,1,0
-access_voice_conversation_user,voice.conversation user,model_voice_conversation,base.group_user,1,1,1,1
-access_ai_processor_user,ai.processor user,model_ai_processor,base.group_user,1,1,1,0
-access_voice_query_processor_user,voice.query.processor user,model_voice_query_processor,base.group_user,1,1,1,0
