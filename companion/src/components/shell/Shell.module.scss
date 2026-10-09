@@ -69,6 +69,7 @@
 
   .workspaceSlot {
     display: flex;
+    color: var(--text);
     flex-direction: column;
     flex: 1; // fills what's left: beside the panes on desktop, above the bottom nav on phones
     min-width: 0;
