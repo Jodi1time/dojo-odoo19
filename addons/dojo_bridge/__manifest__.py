@@ -9,7 +9,7 @@ dojo.member identity resolution, and typed webhook ingestion.
 All routes use auth=none. Odoo session auth is never involved.
 The JWT issued by NestJS (after Firebase verification) is the sole gate.
 """,
-    "version": "saas~19.2.2.0.0",
+    "version": "20.0.2.0.0",
     "author": "Dojang Platform",
     "category": "Hidden",
     "depends": [

@@ -628,14 +628,14 @@ class AIProcessorIntentExt(models.AbstractModel):
         if not api_key:
             raise UserError("Gemini API key not configured.")
 
-        model = "gemini-1.5-flash"
+        model = "gemini-flash-latest"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
         full_prompt = f"{system_prompt}\n\nUser: {text}"
 
         payload = {
             "contents": [{"parts": [{"text": full_prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1000},
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048},
         }
 
         headers = {"Content-Type": "application/json; charset=utf-8"}
@@ -725,7 +725,7 @@ class AIProcessorIntentExt(models.AbstractModel):
             raise UserError("Gemini API key not configured.")
 
         # Use a stable model
-        model = "gemini-1.5-flash"
+        model = "gemini-flash-latest"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
         # Gemini doesn't have native JSON mode, so we instruct it firmly
@@ -737,7 +737,7 @@ class AIProcessorIntentExt(models.AbstractModel):
             }],
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 1000,
+                "maxOutputTokens": 2048,
             }
         }
 
@@ -844,9 +844,11 @@ class AIProcessorIntentExt(models.AbstractModel):
         start_idx = raw_response.find(_INTENT_START)
         end_idx = raw_response.find(_INTENT_END)
 
-        if start_idx == -1 or end_idx == -1 or end_idx <= start_idx:
+        if start_idx == -1:
             # No intent block found
             return raw_response, None
+        if end_idx == -1 or end_idx <= start_idx:
+            end_idx = len(raw_response)
 
         # Extract text before and after the intent block
         response_text = raw_response[:start_idx].strip()
@@ -861,7 +863,19 @@ class AIProcessorIntentExt(models.AbstractModel):
             intent.setdefault("confidence", 0.5)
             return response_text, intent
         except json.JSONDecodeError:
-            _logger.warning("Could not parse intent block: %s", intent_json[:100])
+            _c = intent_json.strip()
+            _s = _c.find("{")
+            _e = _c.rfind("}")
+            if _s != -1 and _e > _s:
+                try:
+                    intent = json.loads(_c[_s:_e + 1])
+                    intent.setdefault("intent_type", "unknown")
+                    intent.setdefault("parameters", {})
+                    intent.setdefault("confidence", 0.5)
+                    return response_text, intent
+                except json.JSONDecodeError:
+                    pass
+            _logger.warning("Could not parse intent block: %s", intent_json[:150])
             return raw_response, None
 
     def _empty_intent(self, reason=""):

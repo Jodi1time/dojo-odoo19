@@ -1,6 +1,6 @@
 {
     'name': 'Dojo Management',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'summary': 'Comprehensive Martial Arts School (Dojo) Management with Belt Ranking & Analytics',
     'description': """
 Dojo Management - Complete Martial Arts School Administration

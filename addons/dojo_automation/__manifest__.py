@@ -1,6 +1,6 @@
 {
     "name": "Dojang Automation",
-    "version": "saas~19.2.1.1.0",
+    "version": "20.0.1.1.0",
     "summary": "Spark-Membership-style automation builder for Dojang workflows",
     "author": "Dojo",
     "category": "Hidden",

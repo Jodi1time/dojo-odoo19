@@ -1,6 +1,6 @@
 {
     'name': 'AI Voice Assistant',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'summary': 'Hands‑free voice assistant for Odoo 19 (ElevenLabs STT + OpenAI / Gemini)',
     'description': """
 AI Voice Assistant for Odoo 19

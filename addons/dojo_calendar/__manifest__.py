@@ -1,6 +1,6 @@
 {
     "name": "Dojang Calendar",
-    "version": "saas~19.2.1.0.0",
+    "version": "20.0.1.0.0",
     "summary": "Class Calendar — sync Dojang sessions to calendar.event with roster & attendance controls",
     "author": "Dojang",
     "category": "Dojo",

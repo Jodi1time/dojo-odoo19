@@ -1,6 +1,6 @@
 {
     "name": "Dojang Communications",
-    "version": "saas~19.2.1.0.0",
+    "version": "20.0.1.0.0",
     "summary": "Automated SMS/email for check-in parent alerts, session reminders, and instructor messaging",
     "author": "Dojang",
     "category": "Dojo",

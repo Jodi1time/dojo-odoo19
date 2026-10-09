@@ -1,6 +1,6 @@
 {
     'name': 'Dojang Sign & Waivers',
-    'version': 'saas~19.2.2.0.0',
+    'version': '20.0.2.0.0',
     'summary': 'Inline waiver signing during member onboarding (Community-compatible)',
     'description': """
         Replaces the Odoo Enterprise Sign dependency with an inline, blocking waiver

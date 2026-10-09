@@ -1,6 +1,6 @@
 {
     'name': 'Dojang Onboarding',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'summary': 'Step-by-step member onboarding wizard for admins and instructors',
     'description': """
         Provides a multi-step onboarding wizard to register a new dojo member

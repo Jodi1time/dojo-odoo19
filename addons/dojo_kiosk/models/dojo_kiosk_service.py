@@ -884,18 +884,30 @@ class DojoKioskService(models.AbstractModel):
         Creates or updates the attendance log and enrollment state.
         """
         valid = ("present", "late", "absent", "excused")
-        if attendance_status not in valid:
-            return {"success": False, "error": "Invalid status."}
-
         session = self.env["dojo.class.session"].browse(session_id)
         member = self.env["dojo.member"].browse(member_id)
         if not session.exists() or not member.exists():
             return {"success": False, "error": "Session or member not found."}
-
         log = self.env["dojo.attendance.log"].search([
             ("session_id", "=", session_id),
             ("member_id", "=", member_id),
         ], limit=1)
+        # "pending" = instructor is un-marking (removing) attendance:
+        # delete the log and reset the enrollment back to pending.
+        if attendance_status == "pending":
+            if log:
+                log.unlink()
+            enrollment = self.env["dojo.class.enrollment"].search([
+                ("session_id", "=", session_id),
+                ("member_id", "=", member_id),
+                ("status", "=", "registered"),
+            ], limit=1)
+            if enrollment:
+                enrollment.attendance_state = "pending"
+            member.invalidate_recordset()
+            return {"success": True, "removed": True}
+        if attendance_status not in valid:
+            return {"success": False, "error": "Invalid status."}
 
         if log:
             log.status = attendance_status

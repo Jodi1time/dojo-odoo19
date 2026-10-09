@@ -1,0 +1,8 @@
+/* Keep custom Dojang views readable under the Liquid Glass theme */
+.o_di_root, .o_mc_root, .o_mp_root,
+.o_di_root h1, .o_di_root h2, .o_di_root h3, .o_di_root h4, .o_di_root h5, .o_di_root p, .o_di_root span, .o_di_root div, .o_di_root label, .o_di_root td, .o_di_root th, .o_di_root li, .o_di_root small,
+.o_mc_root h1, .o_mc_root h2, .o_mc_root h3, .o_mc_root h4, .o_mc_root h5, .o_mc_root p, .o_mc_root span, .o_mc_root div, .o_mc_root label, .o_mc_root td, .o_mc_root th, .o_mc_root li, .o_mc_root small,
+.o_mp_root h1, .o_mp_root h2, .o_mp_root h3, .o_mp_root h4, .o_mp_root h5, .o_mp_root p, .o_mp_root span, .o_mp_root div, .o_mp_root label, .o_mp_root td, .o_mp_root th, .o_mp_root li, .o_mp_root small {
+    color: #1c1b1b !important;
+}
+.o_di_root a, .o_mc_root a, .o_mp_root a { color: #b41e16 !important; }

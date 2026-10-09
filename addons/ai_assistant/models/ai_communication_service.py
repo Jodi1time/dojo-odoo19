@@ -137,7 +137,63 @@ class AiCommunicationService(models.AbstractModel):
     # ═══════════════════════════════════════════════════════════════════════════
     # Handler: send_sms
     # ═══════════════════════════════════════════════════════════════════════════
+    @api.model
+    def _handle_make_call(self, intent_data, resolved_data, action_log):
+        """Place an outbound AI voice call to a member/guardian (ElevenLabs + Twilio).
+        Falls back to a simulated call when the calling module or credentials aren't available.
+        Parameters:
+          - member_name / contact_name / email: who to call
+          - purpose / message / reason: what the call is about
+        """
+        params = intent_data.get("parameters", {}) if intent_data else {}
+        partner, display_name = self._resolve_target_partner(params, resolved_data)
+        if not partner:
+            return {"success": False, "error": display_name}
+        phone = getattr(partner, "mobile", False) or partner.phone
+        if not phone:
+            return {"success": False, "error": f"{display_name} has no phone number on file."}
+        purpose = params.get("purpose") or params.get("message") or params.get("reason") or "a quick check-in"
 
+        # VoIP calling lives in the dojo_ai_caller module — degrade to a simulated
+        # call if that module isn't installed or credentials aren't configured.
+        voip_available = ("dojo.elevenlabs.caller" in self.env) and ("dojo.elevenlabs.phone" in self.env)
+        api_key = False
+        phone_rec = None
+        agent_id = self.env["ir.config_parameter"].sudo().get_str("dojo_ai_caller.default_agent_id")
+        if voip_available:
+            phone_rec = self.env["dojo.elevenlabs.phone"].sudo().search([], limit=1)
+            try:
+                api_key = self.env["dojo.elevenlabs.caller"].sudo()._get_api_key()
+            except Exception:
+                api_key = False
+
+        if not (voip_available and api_key and phone_rec and agent_id):
+            _logger.info("AI make_call (mock): would call %s at %s about '%s'", display_name, phone, purpose)
+            return {
+                "success": True,
+                "message": f"Call to {display_name} ({phone}) simulated — about '{purpose}'. "
+                           f"Configure ElevenLabs + Twilio to place a real call.",
+                "data": {"partner_id": partner.id, "partner_name": partner.name,
+                         "phone": phone, "purpose": purpose, "mocked": True},
+            }
+
+        try:
+            result = self.env["dojo.elevenlabs.caller"].sudo()._trigger_outbound_call(
+                agent_id=agent_id,
+                phone_number_id=phone_rec.elevenlabs_id,
+                to_number=phone,
+                dynamic_variables={"member_name": partner.name, "purpose": purpose},
+            )
+            conv_id = (result or {}).get("conversation_id")
+            return {
+                "success": True,
+                "message": f"Calling {display_name} ({phone}) about '{purpose}'. Conversation ID: {conv_id}",
+                "data": {"partner_id": partner.id, "phone": phone, "purpose": purpose, "conversation_id": conv_id},
+            }
+        except Exception as exc:
+            _logger.error("AI make_call failed: %s", exc, exc_info=True)
+            return {"success": False, "error": str(exc)}
+        
     @api.model
     def _handle_send_sms(self, intent_data, resolved_data, action_log):
         """Send an SMS to a member or guardian via dojo.send.message.wizard.
@@ -186,7 +242,7 @@ class AiCommunicationService(models.AbstractModel):
             if not partner:
                 return {"success": False, "error": display_name}
 
-            phone = partner.mobile or partner.phone
+            phone = getattr(partner, "mobile", False) or partner.phone
             if not phone:
                 return {"success": False, "error": f"{display_name} has no phone number on file."}
 

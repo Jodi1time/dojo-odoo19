@@ -1,7 +1,7 @@
 {
     "name": "Dojang Migration",
     "summary": "SparkMembership → Odoo CSV migration tool (admin only)",
-    "version": "saas~19.2.1.0.0",
+    "version": "20.0.1.0.0",
     "category": "Dojo",
     "license": "LGPL-3",
     "author": "Dojang",

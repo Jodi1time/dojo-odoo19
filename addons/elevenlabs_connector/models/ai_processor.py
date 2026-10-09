@@ -297,9 +297,9 @@ Database Context:
             
             # Find first model that supports generateContent
             # Prefer stable models over experimental ones (avoid -exp suffix)
-            # Also prefer common models like gemini-pro, gemini-1.5-flash which have better free tier quotas
+            # Also prefer common models like gemini-pro, gemini-flash-latest which have better free tier quotas
             available_model = None
-            preferred_models = ['gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro']
+            preferred_models = ['gemini-pro', 'gemini-flash-latest', 'gemini-1.5-pro']
             
             if 'models' in models_data:
                 # First pass: Look for preferred stable models

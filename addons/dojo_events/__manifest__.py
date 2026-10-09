@@ -1,6 +1,6 @@
 {
     "name": "Dojang Events",
-    "version": "saas~19.2.1.0.0",
+    "version": "20.0.1.0.0",
     "summary": "Links dojo members to Odoo Events — seminars, tournaments, belt test ceremonies, workshops",
     "author": "Dojang",
     "category": "Dojo",

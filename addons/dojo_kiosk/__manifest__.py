@@ -1,7 +1,7 @@
 {
     "name": "Dojang Kiosk",
     "summary": "Tablet check-in kiosk for Dojang members and instructors",
-    "version": "saas~19.2.1.1.0",
+    "version": "20.0.1.1.0",
     "category": "Dojo",
     "license": "LGPL-3",
     "author": "Dojang",

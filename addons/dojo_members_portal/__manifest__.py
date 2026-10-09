@@ -1,6 +1,6 @@
 {
     'name': 'Dojang Member Portal',
-    'version': 'saas~19.2.3.0.0',
+    'version': '20.0.3.0.0',
     'summary': 'Self-service portal for Dojang parents and students',
     'description': """
         Extends the Odoo website portal (/my) with dojo-specific pages:

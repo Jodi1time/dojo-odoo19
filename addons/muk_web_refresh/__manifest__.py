@@ -6,7 +6,7 @@
         30 seconds. The refresh will reload and update the data
         of the view.
     ''',
-    'version': 'saas~19.2.1.0.5',
+    'version': '20.0.1.0.5',
     'category': 'Tools/UI',
     'license': 'LGPL-3', 
     'author': 'MuK IT',

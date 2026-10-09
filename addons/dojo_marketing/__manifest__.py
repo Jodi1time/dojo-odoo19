@@ -1,7 +1,7 @@
 {
     "name": "Dojo Promotions",
     "summary": "Promotional cards with QR codes — published to kiosk carousel and member portal",
-    "version": "saas~19.2.3.0.0",
+    "version": "20.0.3.0.0",
     "category": "Dojo",
     "license": "LGPL-3",
     "author": "Dojang",

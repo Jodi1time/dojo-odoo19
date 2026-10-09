@@ -1,6 +1,6 @@
 {
     'name': 'Dojang AI Assistant',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'summary': 'Reusable AI voice assistant service for Dojang modules',
     'description': """
         Provides a centralized AI assistant service that can be used across different Dojang modules:

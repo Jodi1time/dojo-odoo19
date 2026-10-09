@@ -1,6 +1,6 @@
 {
     'name': 'Dojang Core',
-    'version': 'saas~19.2.4.0.0',
+    'version': '20.0.4.0.0',
     'category': 'Dojo',
     'summary': 'Core martial arts school management: members, classes, attendance, belt progression, instructor dashboard',
     'author': 'Dojo Team',

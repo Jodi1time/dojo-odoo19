@@ -2888,7 +2888,7 @@ class AiAssistantService(models.AbstractModel):
             already = self.env["dojo.class.enrollment"].search([
                 ("member_id", "=", member_id),
                 ("session_id", "=", session_id),
-                ("state", "not in", ("cancelled", "no_show")),
+                ("status", "not in", ("cancelled",)),
             ], limit=1)
             if already:
                 return {
@@ -4755,9 +4755,8 @@ class AiAssistantService(models.AbstractModel):
 
         # ── Search dojo.member ────────────────────────────────────────────
         try:
-            member_domain = ["|", "|",
+            member_domain = ["|",
                 ("phone", "ilike", stripped),
-                ("mobile", "ilike", stripped),
                 ("phone", "ilike", phone),
             ]
             members = self.env["dojo.member"].with_context(active_test=False).search(
@@ -4768,7 +4767,7 @@ class AiAssistantService(models.AbstractModel):
                     "type": "member",
                     "id": m.id,
                     "name": m.name,
-                    "phone": m.phone or m.mobile or "",
+                    "phone": m.phone or getattr(m, "mobile", False) or "",
                     "email": m.email or "",
                     "membership_state": getattr(m, "membership_state", ""),
                 })
@@ -4779,16 +4778,14 @@ class AiAssistantService(models.AbstractModel):
         if "crm.lead" in self.env:
             try:
                 leads = self.env["crm.lead"].sudo().search([
-                    "|",
                     ("phone", "ilike", stripped),
-                    ("mobile", "ilike", stripped),
                 ], limit=5)
                 for lead in leads:
                     results.append({
                         "type": "lead",
                         "id": lead.id,
                         "name": lead.contact_name or lead.partner_name or lead.name or "Unknown",
-                        "phone": lead.phone or lead.mobile or "",
+                        "phone": lead.phone or getattr(lead, "mobile", False) or "",
                         "email": lead.email_from or "",
                         "stage": lead.stage_id.name if lead.stage_id else "",
                         "is_converted": bool(getattr(lead, "probability", 0) == 100),

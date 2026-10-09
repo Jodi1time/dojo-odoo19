@@ -1,6 +1,6 @@
 {
     'name': 'AI Vector Intelligence',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'summary': 'Vector embedding layer for AI intent routing and multi-agent orchestration',
     'description': """
         Adds semantic vector routing to the AI Assistant:

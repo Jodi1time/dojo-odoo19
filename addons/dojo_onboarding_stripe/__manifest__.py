@@ -1,6 +1,6 @@
 {
     'name': 'Dojang Onboarding — Stripe Payment',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'summary': 'Collects a Stripe payment method during member onboarding',
     'description': "Bridge between dojo_onboarding and dojo_stripe. "
                    "Adds a Stripe payment capture step to the onboarding wizard so staff "

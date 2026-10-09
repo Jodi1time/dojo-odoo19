@@ -1,0 +1,111 @@
+name: Kiosk native readiness
+
+on:
+  push:
+    branches: [integration/session-first-odoo20]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kiosk-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-odoo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ODOO_COMMIT: d40b7c8c5de81ce8d1528a6b31608468f5f30d4d
+      TEAM_BASELINE: e54466e91e3cf848fcc4046dc1711ded988de0d5
+      ORIGINAL_BASELINE: 0566576641b23e24ddf8da5dd9abe4170d107b81
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare disposable comparison with team migration fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p readiness-results
+          printf 'integration_commit=%s\nteam_commit=%s\nodoo_commit=%s\n' "$GITHUB_SHA" "$TEAM_BASELINE" "$ODOO_COMMIT" > readiness-results/baseline.txt
+          git fetch --no-tags https://github.com/jDelille/dojo-odoo19.git "$TEAM_BASELINE"
+          git diff --binary "$ORIGINAL_BASELINE" "$TEAM_BASELINE" -- addons > readiness-results/team-compatibility.patch
+          git apply --check readiness-results/team-compatibility.patch
+          git apply readiness-results/team-compatibility.patch
+          echo 'Team compatibility changes applied only to this disposable runner. No remote branches changed.' >> readiness-results/baseline.txt
+          git init odoo
+          git -C odoo fetch --depth=1 https://github.com/odoo/odoo.git "$ODOO_COMMIT"
+          git -C odoo checkout --detach FETCH_HEAD
+          test "$(git -C odoo rev-parse HEAD)" = "$ODOO_COMMIT"
+      - name: Build pinned Odoo image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -t dojang-kiosk-readiness . > readiness-results/build.log 2>&1
+      - name: Run native kiosk tests on synthetic isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+          NET="dojang-readiness-${GITHUB_RUN_ID}"
+          DB="dojang-readiness-db-${GITHUB_RUN_ID}"
+          DB_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$DB_PASSWORD"
+          export PGPASSWORD="$DB_PASSWORD"
+          cleanup() {
+            docker rm -f "$DB" >/dev/null 2>&1 || true
+            docker network rm "$NET" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker network create "$NET" >/dev/null
+          docker run -d --name "$DB" --network "$NET" \
+            -e POSTGRES_USER=odoo -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+            -e POSTGRES_DB=postgres postgres:16 >/dev/null
+          for attempt in $(seq 1 60); do
+            if docker exec "$DB" pg_isready -U odoo >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec "$DB" pg_isready -U odoo
+          set +e
+          docker run --rm --network "$NET" \
+            -v "$PWD/addons:/mnt/extra-addons:ro" \
+            dojang-kiosk-readiness \
+            --db_host="$DB" --db_user=odoo --db_password="$DB_PASSWORD" \
+            -d dojang_ci_readiness \
+            --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons \
+            -i dojo_kiosk,dojo_credits --without-demo=all --stop-after-init \
+            --max-cron-threads=0 --test-enable \
+            --test-tags=/dojo_kiosk:TestKioskSessionFirstV2 \
+            > readiness-results/native-tests.log 2>&1
+          status=$?
+          set -e
+          echo "$status" > readiness-results/native-exit-code.txt
+          test "$status" -eq 0
+          python - <<'PY'
+          import pathlib, re
+          log = pathlib.Path('readiness-results/native-tests.log').read_text(errors='replace')
+          expected = {
+              'test_registered_member_can_check_in_when_session_capacity_is_full',
+              'test_same_idempotency_key_replays_without_duplicate_attendance',
+              'test_member_not_on_selected_session_roster_is_rejected',
+              'test_closed_session_is_rejected',
+              'test_idempotency_key_cannot_be_reused_for_different_action',
+          }
+          missing = [name for name in expected if not re.search(r'Starting .*TestKioskSessionFirstV2\.' + re.escape(name) + r'\b', log)]
+          if missing:
+              raise SystemExit('Native tests missing from execution log: ' + ', '.join(missing))
+          summaries = re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests', log)
+          if not summaries or any(int(f) or int(e) for f,e,n in summaries) or max(int(n) for f,e,n in summaries) < len(expected):
+              raise SystemExit('No successful nonempty native test summary found')
+          pathlib.Path('readiness-results/native-gate.txt').write_text('PASS: five native kiosk test methods executed. This is not UI, auth, offline or full demo sign-off.\n')
+          PY
+      - name: Upload readiness evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiosk-native-readiness-${{ github.sha }}
+          path: readiness-results/
+          if-no-files-found: error
+          retention-days: 7

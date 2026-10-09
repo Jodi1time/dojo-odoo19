@@ -24,6 +24,8 @@ class AiWalkiePinAttempt(models.Model):
     )
 
     def clear_state(self):
+        if not self.failed_attempts and not self.locked_until:
+            return
         self.write({
             "failed_attempts": 0,
             "locked_until": False,

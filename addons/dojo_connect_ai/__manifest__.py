@@ -1,6 +1,6 @@
 {
     "name": "Dojo Connect AI",
-    "version": "saas~19.2.1.0.0",
+    "version": "20.0.1.0.0",
     "summary": "AI receptionist (Kai) with CRM lead generation from phone calls",
     "description": """
         Bridges Twilio phone calls (connect module) with ElevenLabs Conversational AI

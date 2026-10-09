@@ -1,6 +1,6 @@
 {
     'name': 'Dojo AI Caller',
-    'version': 'saas~19.2.1.0.0',
+    'version': '20.0.1.0.0',
     'category': 'CRM',
     'summary': 'AI-powered outbound calling campaigns via ElevenLabs Conversational AI',
     'author': 'Dojo Team',

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "AI MCP Server",
-    "version": "saas~19.2.1.0.0",
+    "version": "20.0.1.0.0",
     "category": "Technical",
     "summary": "Model Context Protocol server — exposes AI tools to external LLMs",
     "description": """
