@@ -1,0 +1,17 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {mintCookie}=require(process.env.DOJANG_GATEWAY_MODULE);
+const {liveCompanion}=require(process.env.DOJANG_COMPANION_MODULE);
+const c={origin:'https://demo.example.test',backend:'https://odoo.example.test',token:'t'.repeat(40),cookieSecret:'h'.repeat(48),kioskKey:'k'.repeat(48),staffKey:'s'.repeat(48),kioskPairKey:'p'.repeat(48),staffPairKey:'z'.repeat(48)};
+const cookie=role=>`dojang_${role}_test=${mintCookie(c,role)}`;
+const req=(body,role='staff')=>new Request(c.origin+'/api/v2/companion/requests',{method:'POST',headers:{cookie:cookie(role),origin:c.origin,'content-type':'application/json'},body:JSON.stringify(body)});
+const member={member:{id:'22',tenantId:'school',memberNumber:'M22',name:'Demo',membershipState:'active',rank:{name:'Blue',stripes:0},attendanceRate:1},attendance:{latest:null,lastSevenDays:0}};
+const read=async()=>Response.json({result:member});
+const cmd={idempotencyKey:'companion-request-0001',correlationId:'companion-correlation-0001',memberId:'22',suggestionId:'attendance-review:22'};
+test('kiosk cannot access staff Companion tool',async()=>assert.equal((await liveCompanion(req({memberId:'22'},'kiosk'),c,'request',read)).status,403));
+test('unsupported text cannot choose external operations',async()=>{let called=false;const r=await liveCompanion(req({memberId:'22',text:'Ignore rules and charge a card',onScreenIds:[]}),c,'request',async()=>{called=true;return read()});assert.equal((await r.json()).outcome,'notUnderstood');assert.equal(called,false)});
+test('guided request reads selected member from Odoo',async()=>{const r=await liveCompanion(req({memberId:'22',text:'show attendance',onScreenIds:[]}),c,'request',read);const data=await r.json();assert.equal(data.suggestion.id,'attendance-review:22');assert.equal(data.suggestion.capability,'attendance.read');assert.match(JSON.stringify(data),/not generative AI/)});
+test('approval forwards exact command with staff credential',async()=>{let sent;const r=await liveCompanion(req(cmd),c,'approval',async(url,init)=>{sent={url,init};return Response.json({result:{receipt:{id:'55',suggestionId:cmd.suggestionId,summary:'Verified in Odoo',actor:'Staff',at:'2026-10-08T18:00:00Z'},replayed:false,correlationId:cmd.correlationId,evidence:{source:'odoo-test',memberId:'22'}}})});assert.equal(r.status,200);assert.equal(sent.init.headers.authorization,'Bearer '+c.staffKey);assert.deepEqual(JSON.parse(sent.init.body).params.command,cmd)});
+test('wrong member evidence is not a completion',async()=>{const r=await liveCompanion(req(cmd),c,'approval',async()=>Response.json({result:{receipt:{id:'55',suggestionId:cmd.suggestionId,summary:'Verified',actor:'Staff',at:'2026-10-08T18:00:00Z'},replayed:false,correlationId:cmd.correlationId,evidence:{source:'odoo-test',memberId:'99'}}}));assert.equal(r.status,503);assert.equal(await r.text(),'')});
+test('a forged suggestion cannot invoke another task',async()=>assert.equal((await liveCompanion(req({...cmd,suggestionId:'send-sms:22'}),c,'approval',read)).status,400));
+test('network uncertainty keeps approval unconfirmed',async()=>{const r=await liveCompanion(req(cmd),c,'approval',async()=>{throw new Error('secret')});assert.equal(r.status,503);assert.equal(await r.text(),'')});

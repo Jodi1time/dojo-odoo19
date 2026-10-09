@@ -1,0 +1,52 @@
+name: Connected browser rehearsal
+on:
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        required: true
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: browser-rehearsal-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  real-odoo-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify generated hooks are already committed
+        run: |
+          python tools/finalize_companion.py
+          git diff --exit-code -- companion
+      - name: Install frontend and pinned browser tooling
+        working-directory: companion
+        run: |
+          npm ci
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Fetch pinned Odoo runtime
+        run: |
+          git init odoo
+          git -C odoo fetch --depth=1 https://github.com/odoo/odoo.git d40b7c8c5de81ce8d1528a6b31608468f5f30d4d
+          git -C odoo checkout --detach FETCH_HEAD
+          test "$(git -C odoo rev-parse HEAD)" = d40b7c8c5de81ce8d1528a6b31608468f5f30d4d
+      - name: Rehearse real browser and database round trips
+        env:
+          GITHUB_SHA: ${{ inputs.source || github.sha }}
+        run: bash tools/run_rehearsal.sh
+      - name: Preserve sanitized evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dojang-browser-rehearsal-${{ inputs.source || github.sha }}
+          path: rehearsal-evidence/
+          retention-days: 7
