@@ -17,7 +17,7 @@ export default function AdaptiveShell({children, context, companion, connectedTe
   return (
     <div className={styles.adaptiveShell} data-context-open={contextOpen} data-companion-open={companionOpen}>
       <div className={styles.railSlot}>
-        {connectedTest ? <nav aria-label="Connected test navigation"><a href="/integration/members">Test members</a></nav> : <Rail />}
+        {connectedTest ? <nav aria-label="Connected test navigation"><a href="/ops">Classes &amp; follow-ups</a><br /><a href="/integration/members">Test members</a></nav> : <Rail />}
       </div>
       <div className={styles.contextSlot}>
         <button className={styles.contextClose} onClick={() => setContextOpen(false)} aria-label="Close context panel">✕</button>
