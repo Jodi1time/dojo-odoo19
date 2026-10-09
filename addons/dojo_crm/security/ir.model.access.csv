@@ -1,4 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dojo_book_trial_wizard,dojo.book.trial.wizard user,model_dojo_book_trial_wizard,base.group_user,1,1,1,1
-access_dojo_convert_lead_wizard,dojo.convert.lead.wizard user,model_dojo_convert_lead_wizard,base.group_user,1,1,1,1
-access_crm_pipeline_service,crm.pipeline.service user,model_crm_pipeline_service,base.group_user,1,1,1,1
