@@ -65,7 +65,15 @@ export class AttendanceOutbox {
     if (!validQueuedCommand(command) || !this.contextValid(context)) return false;
     const state = this.read();
     const id = await this.commandId(command);
-    if (state.entries.some(e => e.id === id && e.scope === context.scope)) return true;
+    // SAME_KEY_PAYLOAD_CHECK
+    const existing = state.entries.find(e => e.id === id && e.scope === context.scope);
+    if (existing) {
+      try {
+        const clear = await this.crypt.subtle.decrypt({name: "AES-GCM", iv: new Uint8Array(existing.iv)}, await this.cryptoKey(context), new Uint8Array(existing.ciphertext));
+        const saved = JSON.parse(new TextDecoder().decode(clear));
+        return validQueuedCommand(saved) && saved.payload.memberId === command.payload.memberId && saved.payload.sessionId === command.payload.sessionId && saved.expectedVersion === command.expectedVersion;
+      } catch { return false; }
+    }
     if (state.entries.length >= 50) return false;
     const iv = this.crypt.getRandomValues(new Uint8Array(12));
     const ciphertext = await this.crypt.subtle.encrypt({name: "AES-GCM", iv}, await this.cryptoKey(context), new TextEncoder().encode(JSON.stringify(command)));

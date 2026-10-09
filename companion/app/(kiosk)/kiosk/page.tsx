@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useEffect, useReducer } from "react";
+import RecoveryStatus from "@/components/kiosk/recovery/RecoveryStatus";
 import IdleWarning from "@/components/kiosk/idle-warning/IdleWarning";
 import { useIdleTimer } from "@/components/kiosk/idle-warning/useIdleTimer";
 import ConfirmScreen from "@/components/kiosk/screens/confirm-screen/ConfirmScreen";
@@ -235,6 +236,7 @@ export default function KioskPage() {
     <>
       {renderScreen()}
       <IdleWarning secondsLeft={idle.secondsLeft} onStillHere={idle.stillHere} />
+      <RecoveryStatus />
     </>
   );
 }
