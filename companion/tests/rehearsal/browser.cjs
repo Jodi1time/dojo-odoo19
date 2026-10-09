@@ -107,7 +107,12 @@ const choose=async(page,name)=>{
   const saved=await followupResponse;
   assert.equal(saved.status(),200);
   const savedReceipt=await saved.json();
-  assert.equal(savedReceipt.evidence.memberId,fixture.followupMemberId);
+  assert.equal(saved.headers()['x-dojang-data-source'],'odoo-test');
+  const savedCommand=saved.request().postDataJSON();
+  assert.equal(savedCommand.memberId,fixture.followupMemberId);
+  assert.equal(savedReceipt.receipt.suggestionId,savedCommand.suggestionId);
+  const memberContext=await (await staff.request.get(BASE+'/api/v2/companion/context?memberId='+fixture.followupMemberId)).json();
+  assert.equal(memberContext.followUps.some(f=>f.id===savedReceipt.receipt.id&&f.memberId===fixture.followupMemberId&&f.sessionId===fixture.sessionId),true);
   assert.match(savedReceipt.receipt.summary,/No message sent/);
   const savedAgain=await (await staff.request.post(BASE+'/api/v2/companion/approvals',{headers:{origin:BASE},data:saved.request().postDataJSON()})).json();
   assert.equal(savedAgain.replayed,true);
