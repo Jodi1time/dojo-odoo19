@@ -1,3 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dojo_credit_transaction,dojo.credit.transaction user,model_dojo_credit_transaction,base.group_user,1,1,1,1
-access_dojo_credit_adjustment_wizard,dojo.credit.adjustment.wizard user,model_dojo_credit_adjustment_wizard,base.group_user,1,1,1,1

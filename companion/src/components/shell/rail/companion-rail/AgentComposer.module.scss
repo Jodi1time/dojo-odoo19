@@ -1,0 +1,63 @@
+// Status line + composer, always full size at the bottom of the rail
+.composerArea {
+  margin-top: auto;
+  margin-bottom: 1rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// What happened to the last request. Empty (no height) when idle, but never
+// display: none, or screen readers stop announcing it.
+.requestStatus {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+
+  &:not(:empty) {
+    margin-bottom: 6px;
+  }
+
+  &[data-status="thinking"] {
+    color: var(--agent);
+  }
+
+  &[data-status="unavailable"] {
+    color: var(--warning);
+  }
+}
+
+.agentComposer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--dark-border);
+  border-radius: 8px;
+  background-color: var(--raised);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+  }
+
+  .agentBtn,
+  .micBtn {
+    all: unset;
+    background-color: var(--agent);
+    border-radius: 8px;
+    height: 30px;
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+}

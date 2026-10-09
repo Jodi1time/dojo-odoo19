@@ -1,0 +1,200 @@
+@use "../../../styles/breakpoints" as bp;
+
+.adaptiveShell {
+  display: flex;
+  width: 100%;
+  height: 100dvh;
+  background: var(--canvas);
+
+  // Phones: stack workspace above the bottom nav
+  @include bp.compact {
+    flex-direction: column;
+  }
+
+  /* ---------- Rail ---------- */
+
+  .railSlot {
+    @include bp.compact {
+      display: none; // replaced by the bottom nav on phones
+    }
+  }
+
+  /* ---------- Context pane ---------- */
+
+  .contextSlot {
+    @include bp.below-expanded {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: min(300px, 85vw);
+      z-index: 20;
+      background: var(--panel);
+      transform: translateX(-100%); // parked off-screen to the left
+      transition: transform 200ms ease;
+    }
+
+    .contextClose {
+      display: none; // no close button when it's a permanent column
+
+      @include bp.below-expanded {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: var(--radius-control);
+        background: var(--interactive);
+        color: var(--text);
+        cursor: pointer;
+        z-index: 2;
+      }
+    }
+  }
+
+  &[data-context-open="true"] .contextSlot {
+    @include bp.below-expanded {
+      transform: none;
+    }
+  }
+
+  /* ---------- Workspace ---------- */
+
+  .workspaceSlot {
+    display: flex;
+    flex-direction: column;
+    flex: 1; // fills what's left: beside the panes on desktop, above the bottom nav on phones
+    min-width: 0;
+    min-height: 0;
+  }
+
+  // The page content scrolls here, so tall pages stay inside the shell
+  .workspaceBody {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    container: workspace / inline-size; // pages size themselves to this, see bp.workspace-split
+    scrollbar-width: none; // still scrolls (wheel, trackpad, touch), just no visible bar
+
+    &::-webkit-scrollbar {
+      display: none; // older Safari
+    }
+  }
+
+  // Expanded only: the open Companion shares the space instead of covering it
+  &[data-companion-open="true"] .workspaceSlot {
+    @include bp.expanded {
+      margin-right: var(--companion-width);
+    }
+  }
+
+  /* ---------- Companion ---------- */
+
+  .companionSlot {
+    // Below wide: side panel parked off-screen to the right
+    @include bp.below-wide {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: min(var(--companion-width), 90vw);
+      z-index: 20;
+      background: var(--panel);
+      transform: translateX(100%);
+      // Closed = hidden, not just off-screen. Otherwise switching between the side panel and the
+      // bottom tray (crossing the phone breakpoint) animates it across the page.
+      // visibility waits for the 200ms slide-out before hiding.
+      visibility: hidden;
+      transition:
+        transform 200ms ease,
+        visibility 0s linear 200ms;
+    }
+
+    // Phones: bottom tray parked below the screen (overrides the side panel above)
+    @include bp.compact {
+      top: auto;
+      left: 1rem; // same 1rem gaps and border as the modal bottom sheet
+      right: 1rem;
+      bottom: calc(1rem + env(safe-area-inset-bottom)); // floats above the bottom edge
+      width: auto;
+      height: 60dvh; // real height, not just a cap
+      max-height: 75dvh;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-tray);
+      overflow: hidden; // clip the rail's square corners to the rounded ones
+      transform: translateY(calc(100% + 2rem)); // parked fully below the screen, past the gap
+    }
+
+    .companionClose {
+      display: none;
+
+      @include bp.below-wide {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: var(--radius-control);
+        background: var(--interactive);
+        color: var(--text);
+        cursor: pointer;
+        z-index: 1;
+      }
+    }
+  }
+
+  // Open = no offset, whether it came in from the side or the bottom
+  &[data-companion-open="true"] .companionSlot {
+    @include bp.below-wide {
+      transform: none;
+      visibility: visible;
+      transition:
+        transform 200ms ease,
+        visibility 0s; // show right away, then slide in
+    }
+  }
+
+  .companionTrigger {
+    display: none;
+
+    @include bp.below-wide {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 15;
+      width: 45px;
+      height: 45px;
+      border: none;
+      border-radius: 50%;
+      background: var(--agent);
+      color: var(--text);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    @include bp.compact {
+      bottom: 88px; // sits above the bottom nav
+    }
+  }
+
+  /* ---------- Bottom nav (phones only) ---------- */
+
+  .bottomNavSlot {
+    display: none;
+
+    @include bp.compact {
+      display: block;
+    }
+  }
+}
