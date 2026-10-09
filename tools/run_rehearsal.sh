@@ -10,9 +10,14 @@ DB="$NET-db"
 ODOO="$NET-odoo"
 PRIVATE="$(mktemp -d)"
 NEXT_PID=""
+RELAY_PID=""
 CREATED_ENV=0
 cleanup() {
+  # Capture startup failures too; the previous runner discarded the only server evidence.
+  docker logs "$ODOO" > rehearsal-evidence/odoo-http.log 2>&1 || true
+  docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} ports={{json .NetworkSettings.Ports}}' "$ODOO" > rehearsal-evidence/odoo-container-state.txt 2>&1 || true
   if [ -n "$NEXT_PID" ]; then kill "$NEXT_PID" 2>/dev/null || true; fi
+  if [ -n "$RELAY_PID" ]; then kill "$RELAY_PID" 2>/dev/null || true; fi
   docker rm -f "$ODOO" "$DB" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
   rm -rf "$PRIVATE"
@@ -48,8 +53,24 @@ set +a
 while IFS='=' read -r key value; do case "$key" in *KEY*|*TOKEN*|*SECRET*) echo "::add-mask::$value";; esac; done < "$PRIVATE/frontend.env"
 export DOJANG_FIXTURE_OUTPUT="$PRIVATE/fixture.json"
 docker run -d --name "$ODOO" "${MOUNTS[@]}" -p 127.0.0.1:8069:8069 dojang-rehearsal "${COMMON[@]}" --http-interface=0.0.0.0 --no-database-list --db-filter='^dojang_demo_rehearsal$' >/dev/null
-for attempt in $(seq 1 90); do if curl --silent --fail http://127.0.0.1:8069/web/login >/dev/null; then break; fi; sleep 2; done
-curl --silent --fail http://127.0.0.1:8069/web/login >/dev/null
+# Distinguish a failed Odoo process from a missing host port mapping on an internal network.
+for attempt in $(seq 1 60); do
+  if [ "$(docker inspect --format '{{.State.Running}}' "$ODOO")" != true ]; then echo 'Odoo exited during startup; see odoo-http.log.' >&2; exit 1; fi
+  if docker exec "$ODOO" curl --silent --fail --max-time 2 http://127.0.0.1:8069/web/login >/dev/null; then break; fi
+  sleep 1
+done
+docker exec "$ODOO" curl --silent --fail --max-time 5 http://127.0.0.1:8069/web/login >/dev/null
+if ! curl --silent --fail --max-time 3 http://127.0.0.1:8069/web/login >/dev/null; then
+  # Linux hosts can reach an internal bridge's container IP directly. Keep Odoo's
+  # external network isolation and expose only this test service on host loopback.
+  test "$(uname -s)" = Linux
+  ODOO_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$ODOO")
+  curl --noproxy '*' --silent --fail --max-time 5 "http://$ODOO_IP:8069/web/login" >/dev/null
+  node tools/rehearsal_loopback.cjs "$ODOO_IP" > rehearsal-evidence/loopback-relay.log 2>&1 &
+  RELAY_PID=$!
+fi
+for attempt in $(seq 1 20); do if curl --silent --fail --max-time 2 http://127.0.0.1:8069/web/login >/dev/null; then break; fi; sleep 1; done
+curl --silent --fail --max-time 5 http://127.0.0.1:8069/web/login >/dev/null
 (cd companion && npm run build) > rehearsal-evidence/connected-build.log 2>&1
 (cd companion && npm run start -- --hostname 127.0.0.1) > rehearsal-evidence/next-server.log 2>&1 &
 NEXT_PID=$!

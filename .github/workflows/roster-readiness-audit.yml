@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: roster-readiness-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   connected-rehearsal:
     uses: ./.github/workflows/browser-rehearsal.yml

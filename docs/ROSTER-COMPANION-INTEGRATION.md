@@ -24,7 +24,7 @@ Original references: [architecture write-up](https://docs.google.com/document/d/
 | Same-login IAM | Separate signed synthetic kiosk/staff device cookies and scoped backend checks exist | Real individual identities, role-to-capability mapping, tenant isolation, revocation and actor-attributed receipts; pairing is not production IAM |
 | AgentPhone / AgentMail / Workspace | Provider integration designs and starter adapters/templates exist | Correct transport and account configuration, authenticated webhooks, tenant binding, thread/history persistence, approval and delivery receipts; no live provider test yet |
 | Voice Do for Me | Frontend composer has voice input | Browser microphone/transcription test and the same bounded tool/approval path as text; no independent voice authority |
-| Firebase / GKE live access | Deployment architecture described in meetings | Identify authorized project, staging URL, deployed commit and configuration, then test from Justin's separate session |
+| Firebase / GKE live access | Deployment architecture described in meetings; existing Firebase functions config names project `unitywrkos`, with no Companion hosting entry | Verify intended staging project/URL, deployed commit and configuration, then test from Justin's separate session |
 
 The inspected `jDelille/dojo-odoo19` migration branch at `e54466e91e3cf848fcc4046dc1711ded988de0d5` contains no `eb_gym_management` addon. Its custom MCP bridge is not proof of native Odoo user-scoped MCP authorization. This is a specific missing source/configuration boundary, not a request to rebuild the purchased templates.
 
