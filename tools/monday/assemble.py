@@ -1,4 +1,4 @@
-"""Materialize one integrated review tree. Never touches Justin's remote branches."""
+"""Materialize one integrated review tree without changing teammate branches."""
 from pathlib import Path
 import json, shutil, subprocess, tempfile
 ROOT=Path(__file__).resolve().parents[2]
@@ -11,11 +11,21 @@ def replace(path,before,after):
  if after in s:return
  if s.count(before)!=1:raise RuntimeError('Edit marker changed: '+path+' '+before[:80])
  p.write_text(s.replace(before,after,1))
+def at(revision,path):
+ p=subprocess.run(['git','show',revision+':'+path],cwd=ROOT,capture_output=True)
+ return p.stdout if p.returncode==0 else None
 run('git','fetch','--no-tags','https://github.com/jDelille/dojo-odoo19.git',TEAM,cwd=ROOT)
-diff=subprocess.check_output(['git','diff','--binary',OLD,TEAM,'--','addons'],cwd=ROOT)
-check=subprocess.run(['git','apply','--check','-'],input=diff,cwd=ROOT,capture_output=True)
-if check.returncode==0:run('git','apply','-',input=diff,cwd=ROOT)
-else:run('git','apply','--reverse','--check','-',input=diff,cwd=ROOT)
+# Reconcile each upstream compatibility file independently. Earlier ignore rules
+# omitted newly added ACL files from a commit; do not mistake that partial state
+# for a clean full patch or overwrite a conflicting local change.
+paths=subprocess.check_output(['git','diff','--name-only','--no-renames',OLD,TEAM,'--','addons'],cwd=ROOT,text=True).splitlines()
+for name in paths:
+ target=ROOT/name;before=at(OLD,name);after=at(TEAM,name)
+ current=target.read_bytes() if target.exists() else None
+ if current==after:continue
+ if current!=before:raise RuntimeError('Compatibility conflict needs review: '+name)
+ if after is None:target.unlink()
+ else:target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(after)
 front=ROOT/'companion'
 if not (front/'package.json').exists():
  with tempfile.TemporaryDirectory() as tmp:

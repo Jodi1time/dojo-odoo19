@@ -22,11 +22,13 @@ jobs:
       - name: Materialize the pinned UI and Odoo compatibility fixes
         run: |
           set -euo pipefail
-          python tools/monday/assemble.py
-          python tools/monday/finalize_frontend.py
+          mkdir -p readiness-results
+          git rev-parse HEAD > readiness-results/input-commit.txt
+          python tools/monday/assemble.py 2>&1 | tee readiness-results/assembly.log
+          python tools/monday/finalize_frontend.py 2>&1 | tee readiness-results/frontend-assembly.log
           cd companion
           npm install --ignore-scripts --no-audit --no-fund
-      - name: Publish the actual integrated source to the review branch
+      - name: Publish and verify the actual integrated source
         run: |
           set -euo pipefail
           git config user.name 'Jodi Ojeikhoa'
@@ -36,7 +38,7 @@ jobs:
             git commit -m 'Integrate pinned Companion screens with Odoo gateway and rehearsal tests'
             git push origin HEAD:release/monday-demo
           fi
-          mkdir -p readiness-results
+          python tools/monday/assert_published.py | tee readiness-results/publication-check.txt
           git rev-parse HEAD > readiness-results/materialized-commit.txt
           echo "MATERIALIZED_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Restore pinned Odoo runtime image

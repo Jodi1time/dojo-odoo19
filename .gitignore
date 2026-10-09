@@ -1,19 +1,16 @@
-# =============================================================================
-# Odoo Source (must be cloned manually — never commit)
-# =============================================================================
+# Odoo source is fetched at its pinned revision, not committed.
 odoo/
 
-# =============================================================================
-# Secrets & local config
-# =============================================================================
+# Secrets and private runtime state
 config/odoo.conf
 odoo_pg_pass
 *.env
 .env.*
+.private/
+.ci-cache/
+readiness-results/
 
-# =============================================================================
 # Python
-# =============================================================================
 *.pyc
 *.pyo
 *.pyd
@@ -21,37 +18,35 @@ odoo_pg_pass
 *.egg-info/
 .eggs/
 
-# =============================================================================
-# Node / frontend tooling
-# =============================================================================
+# Node and frontend tooling
 node_modules/
 package-lock.json
 package.json
+!companion/package.json
+!companion/package-lock.json
+companion/.integration-build/
+companion/test-results/
+companion/playwright-report/
 
-# =============================================================================
-# OS & editor artifacts
-# =============================================================================
+# OS and editor files
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
 .vscode/settings.json
 
-# =============================================================================
-# Project-specific scratchpads (not for other devs)
-# =============================================================================
+# Local scratchpads
 ai-context.md
 commands.md
 STATUS.md
 CLAUDE.md
+!companion/CLAUDE.md
 .playwright-mcp/
 
-# =============================================================================
-# Data exports / generated files
-# =============================================================================
+# Exports are ignored, but addon access rules are source code.
 *.zip
 *.csv
 !addons/**/security/ir.model.access.csv
+!addons/**/security/ir.access.csv
 dojo_schema.sql
 dojo_schema.md
-CLAUDE.md
