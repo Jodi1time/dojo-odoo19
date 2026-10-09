@@ -1,5 +1,7 @@
 # Monday integration candidate
 
+Current handoff: [Roster meeting decisions, implementation and acceptance](ROSTER-COMPANION-INTEGRATION.md). Use that document for the EB Gym / WhatsMax / onboarding architecture and readiness gaps.
+
 This branch combines Jodi's kiosk integration with Justin's addon migration fixes at e54466e91e3cf848fcc4046dc1711ded988de0d5. The fixes are committed, not temporarily applied by the test runner.
 
 The Odoo runtime is pinned to d40b7c8c5de81ce8d1528a6b31608468f5f30d4d. Only synthetic data is permitted in the rehearsal environment. Integration is disabled until explicitly configured with separate kiosk and staff credentials and authorized test-record scopes.

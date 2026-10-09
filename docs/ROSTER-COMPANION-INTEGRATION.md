@@ -1,9 +1,49 @@
-# Roster Companion integration candidate
+# Roster integration: meeting decisions, implementation and acceptance
 
-Based on `integration/monday-release` at `128a6c7`. Justin's imported UI remains the base. This branch extends the existing Odoo test gateway; it is not a production auth or messaging rollout.
+This is the current implementation handoff for Justin and Jodi. It consolidates the meeting decisions instead of asking the team to choose between competing write-ups. Review changes are in [PR #7](https://github.com/Jodi1time/dojo-odoo19/pull/7), based on the merged `integration/monday-release` commit `35a0bc05477ee1ee890a6b2fb6b61e07e8d18ad9`. Justin's imported UI remains the base.
+
+## What Paul is asking for
+
+One headless dojo workspace: Odoo holds business records; EB Gym is the selected gym business foundation; Roster is the companion interface; Dreams Gym supplies reusable UI; WhatsMax supplies the nested communications and marketing hub. Do for Me uses authorized server-side tools to read or act on the signed-in user's behalf. The instructor roster is a class list, while Roster AI is the assistant that works with those records.
+
+The frontend must carry the selected tenant, member and class context across panels. Signing into a shell does not itself provision provider credentials or authorize every Odoo app. Every tool execution must resolve the real principal, tenant, role and record scope on the server. No frontend provider secrets, caller-selected roles or arbitrary model-generated ORM operations.
+
+Original references: [architecture write-up](https://docs.google.com/document/d/1p4LcjUvZYRnKBKi7DUzWuODOMW4k9IoPaUm2cYgXWG0/edit), [template folder](https://drive.google.com/drive/folders/17itxxYy2RVL70yqx6M6d8N8wBlZnBC2Q). The meeting names “What's Next” and similar variations refer to the supplied WhatsMax template; “Bioloop/Violoop” refers to the supplied Roster companion. Code/package names below are from the inspected archives.
+
+## Meeting requirements mapped to evidence
+
+| Requirement | Present evidence | Remaining acceptance condition |
+| --- | --- | --- |
+| Kiosk writes attendance used by CRM and instructor roster | Session-first gateway, Odoo attendance model, member and class views; real database rehearsal | Passing exact-commit rehearsal and deployed cross-device test |
+| Staff navigation and contextual companion | Shared staff layout, `/ops`, `/integration/members`, `/people/<id>`, `/ops/sessions/<id>`; phone navigation and panel controls | Rehearsal must show context/receipts survive client navigation, and records survive reload |
+| Parent report → instructor summary → useful action | Staff-entered report, enrolled class, durable proposal, neutral summary, optional AI reply, internal approval receipt | Verified inbound guardian identity, live model, delivery and eligible makeup booking are not connected |
+| Odoo 20 + EB Gym backend | Pinned Odoo runtime; existing repo uses `dojo.member`, `dojo.class.session`, `dojo.attendance.log`; downloaded EB Gym is `19.0.1.3.0` | Obtain Justin's migrated EB Gym addon and test install; map `res.partner`, `gym.membership`, `gym.attendance` to existing dojo records without duplicate canonical attendance |
+| WhatsMax nested hub | Supplied Next/MySQL template has actual conversations, channels and social integrations | Mount/adapt the hub into the shell, bind tenant and contact identities, connect real account credentials; it is not mounted in this branch |
+| Dreams Gym UI integration | React template available; current shell uses Justin's imported companion design | Apply agreed panel/navigation designs to connected routes; don't treat static template controls as implemented business functions |
+| Onboarding provisions all user types | Starter onboarding saves steps/data | Implement tenant/site, owner/manager/instructor/member/guardian principals, guardian links, permissions and provider provisioning with retryable status |
+| Same-login IAM | Separate signed synthetic kiosk/staff device cookies and scoped backend checks exist | Real individual identities, role-to-capability mapping, tenant isolation, revocation and actor-attributed receipts; pairing is not production IAM |
+| AgentPhone / AgentMail / Workspace | Provider integration designs and starter adapters/templates exist | Correct transport and account configuration, authenticated webhooks, tenant binding, thread/history persistence, approval and delivery receipts; no live provider test yet |
+| Voice Do for Me | Frontend composer has voice input | Browser microphone/transcription test and the same bounded tool/approval path as text; no independent voice authority |
+| Firebase / GKE live access | Deployment architecture described in meetings | Identify authorized project, staging URL, deployed commit and configuration, then test from Justin's separate session |
+
+The inspected `jDelille/dojo-odoo19` migration branch at `e54466e91e3cf848fcc4046dc1711ded988de0d5` contains no `eb_gym_management` addon. Its custom MCP bridge is not proof of native Odoo user-scoped MCP authorization. This is a specific missing source/configuration boundary, not a request to rebuild the purchased templates.
+
+## Bridge implementation order
+
+1. Start with the existing Odoo service boundaries and migrated EB Gym source. Define tenant-qualified mappings for member ↔ partner/membership, class/session, enrollment and attendance. Preserve existing IDs through explicit mappings; never assume two applications' numeric IDs refer to the same person.
+2. Resolve login identity and capabilities in a backend-for-frontend. Carry selection IDs from the UI but reauthorize every read/write at the service boundary. The public kiosk receives only kiosk capabilities.
+3. Make onboarding provision those identities, relationships and account connections. Report each provisioning step's real state; saving form JSON does not mean an account was created.
+4. Embed/adapt WhatsMax views under Roster. The inspected contract uses `/api/v1/auth/me`, workspace-scoped `/api/v1/conversations`, and `/api/v1/messages/send` with `contact_id`, `channel`, `body`. Bind the Odoo tenant to the returned workspace and verified guardian to the channel contact. The generic send route inspected supports WhatsApp/SMS; other providers need their actual adapters.
+5. Receive a verified parent event, deduplicate its provider ID and persist the source/thread against the authorized guardian/member. Roster reads the same records and prepares an explicit action with recipient, message and proposed class change.
+6. At approval, recheck scope, contact authority, class capacity/eligibility and record versions. Execute supported actions with stable idempotency keys; persist provider acknowledgment, delivery/failure state and Odoo history. An uncertain network result is not a completed action.
+7. Deploy the tested commit to the intended Firebase/GKE staging environment. Prove a second staff session sees the same saved record. Only then label that journey live.
+
+The separate reviewed Beta03 starter handoff remains a candidate adapter implementation, not code deployed by this PR. Its communications endpoint deliberately refuses external sends until durable approval and guardian/contact resolution exist. Do not copy it into this repo and claim the whole hub is connected.
 
 ## Connected behavior
 
+- `/` opens the authorized class workspace in connected mode, without selecting a hard-coded demo member.
+- `/integration/members` uses the same persistent staff shell as class/member pages. Desktop and phone navigation use client links; the companion preserves per-page receipts while navigating. Persisted follow-ups are reloaded from Odoo after a full refresh.
 - `/ops` displays authorized Odoo sessions and the reviewed follow-up queue.
 - `/ops/sessions/<id>` displays the actual scoped class roster and that session's reviewed follow-ups. Pending means not yet checked in, never inferred absence.
 - `/people/<id>` keeps the existing attendance view and adds persisted follow-up history.
@@ -45,10 +85,16 @@ The instructor summary is deliberately neutral and rule-based, without medical d
 - Native Odoo cases in `addons/dojo_kiosk/tests/test_kiosk_v2.py` cover persisted plans, approval/replay, same-record queue views, stale attendance, revoked scope, enrollment, explicit enablement and provider boundaries. The existing Monday CI is extended to this branch to run them against the pinned Odoo runtime.
 - Provider methods are mocked in native tests. A successful test is not evidence of live model access or external-message delivery.
 
-## Verification recorded for this handoff
+## Verification and release gate
 
-Local checks passed: 53 Node gateway/recovery tests, Next production build (including TypeScript), ESLint with no errors (five existing unused-variable warnings), and Python compilation.
+Local audit checks: 53 Node gateway/recovery tests pass; Next production build including TypeScript passes; ESLint has no errors and five existing unused-variable warnings; Python/JavaScript syntax and diff whitespace checks pass. These checks do not substitute for the native/browser run.
 
-The browser fixture test is included at `companion/tests/rehearsal/companion-ui.cjs`; run it from `companion` after a build with Playwright and Chromium installed. It exercises the real Next routes against a synthetic HTTP fixture, not a native Odoo database. It could not complete in the authoring environment because Chromium was absent and browser downloads returned invalid archives. The production Next server did start successfully.
+The merged PR #6 backend and browser checks failed before browser execution because an expiry test tried to modify Odoo's protected `create_date` field. The readiness branch advances the clock instead and tests expiry at 30 minutes, approval before expiry, and receipt replay after expiry. It runs the native suite and real Odoo/Postgres/browser rehearsal through `.github/workflows/roster-readiness-audit.yml`. Read the exact commit's [Actions results](https://github.com/Jodi1time/dojo-odoo19/actions) and attached evidence; a queued/running run is not a pass.
 
-The new native Odoo tests were added but not executed locally: this environment has no Docker/Odoo/PostgreSQL runtime. Live model credentials, parent inbox, actual external delivery, and a deployed end-to-end flow have not been verified. GitHub publication was blocked by automatic approval review pending the user's explicit permission, so the branch CI has not run.
+`companion/tests/rehearsal/browser.cjs` uses actual Odoo, with three synthetic students: online check-in, offline recovery, and parent follow-up. It checks role separation, idempotent attendance, the same member attendance, internal proposal/approval/replay, persisted member/class follow-up, factual pending-attendance answer, client navigation, reload, phone controls and no browser exceptions. Final SQL verification requires exactly two attendance rows, one review receipt and one approved follow-up. Screenshots, browser results and SQL counts are CI artifacts.
+
+`companion/tests/rehearsal/companion-ui.cjs` is a separate synthetic HTTP fixture test. It is not evidence of native Odoo, live AI or outbound delivery. Native tests mock provider methods; the real database rehearsal leaves generative AI off and labels template replies.
+
+Before presenting the larger hub as ready, collect: the migrated EB Gym source; passing Odoo/addon install; tenant/principal mappings; approved staging provider account configuration; real inbound parent event; explicit approval; provider receipt and matching Odoo history; Firebase/GKE URL and deployed commit; a separate authorized staff login that sees the same result. Credentials stay in the deployment's secret mechanism, not this document or chat.
+
+A successful synthetic rehearsal proves the bounded attendance/internal follow-up slice. It does not prove production IAM, automated onboarding, WhatsMax embedding, a live model, external communication, makeup booking, all Odoo modules, or a public deployment. Keep that distinction explicit in Monday's demonstration.
