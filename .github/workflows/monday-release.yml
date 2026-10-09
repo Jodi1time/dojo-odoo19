@@ -1,7 +1,7 @@
 name: Monday integrated release checks
 on:
   push:
-    branches: [integration/monday-release]
+    branches: [integration/monday-release, integration/roster-companion-followup]
   workflow_dispatch:
 permissions:
   contents: read
