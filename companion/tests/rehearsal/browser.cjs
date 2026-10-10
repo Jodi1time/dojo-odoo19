@@ -33,6 +33,10 @@ const choose=async(page,name)=>{
   const anonymous=await browser.newContext();contexts.push(anonymous);
   assert.equal((await anonymous.request.get(BASE+'/api/v2/sessions')).status(),403);
   assert.equal((await anonymous.request.get(BASE+'/api/v2/members')).status(),403);
+  assert.equal((await anonymous.request.get(BASE+'/api/integration/readiness')).status(),403);
+  const publicHealth=await (await anonymous.request.get(BASE+'/api/health')).json();
+  assert.equal(publicHealth.mode,'odoo-test');
+  assert.equal(publicHealth.backend,'not_checked');
   record('unpaired kiosk and staff requests are rejected');
   for (const route of ['/api/v1/kiosk/concierge','/api/v1/kiosk/concierge/actions']) {
     assert.equal((await anonymous.request.post(BASE+route,{data:{}})).status(),501);
@@ -49,6 +53,18 @@ const choose=async(page,name)=>{
   staffPage.on('pageerror',error=>browserErrors.push(error.message));
   assert.equal((await staff.request.get(BASE+'/api/v2/sessions')).status(),403);
   record('staff and kiosk device contexts stay separate');
+  assert.equal((await kiosk.request.get(BASE+'/api/integration/readiness')).status(),403);
+  const readyResponse=await staff.request.get(BASE+'/api/integration/readiness');
+  assert.equal(readyResponse.status(),200);
+  const ready=await readyResponse.json();
+  assert.equal(ready.status,'connected_test_ready');
+  assert.equal(ready.productionReady,false);
+  assert.equal(ready.capabilities.ai,'not_configured');
+  assert.equal(ready.capabilities.externalMessaging,'not_implemented');
+  assert.equal(ready.checks.kioskRead,true);
+  assert.equal(ready.checks.staffRead,true);
+  fs.writeFileSync(path.join(output,'deployment-readiness.json'),JSON.stringify(ready,null,2));
+  record('staff readiness verifies both Odoo roles and reports unconfigured services truthfully');
   const before=await (await staff.request.get(BASE+'/api/v2/members/'+fixture.memberId)).json();
   assert.equal(before.attendance.lastSevenDays,0);
   await choose(page,'Demo');

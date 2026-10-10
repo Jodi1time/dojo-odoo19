@@ -224,11 +224,46 @@ class TestKioskSessionFirstV2(TransactionCase):
     def test_followup_ai_is_only_drafting_and_cannot_execute(self):
         self.kiosk.integration_companion_ai_enabled = True
         Processor = type(self.env["ai.processor"])
-        with patch.object(Processor, "_get_provider", return_value="openai"), patch.object(Processor, "_process_conversational_openai", return_value="Thanks for letting us know. We will review makeup options."):
+        wording = {"summary": "Parent requested a makeup review. Staff should verify eligibility.",
+                   "reply": "Thanks for letting us know. We will review makeup options."}
+        with patch.object(Processor, "_get_provider", return_value="openai"), patch.object(Processor, "_process_conversational_openai", return_value=json.dumps(wording)):
             plan = self.followup()
         self.assertEqual(plan["suggestion"]["capability"], "followup.save_internal")
         self.assertIn("AI-assisted", str(plan["suggestion"]["preview"]))
+        self.assertIn(wording["summary"], str(plan["suggestion"]["preview"]))
         self.assertEqual(self.attendance_count(), 0)
+
+    def test_followup_model_cannot_add_actions_or_recipients(self):
+        self.kiosk.integration_companion_ai_enabled = True
+        Processor = type(self.env["ai.processor"])
+        with patch.object(Processor, "_get_provider", return_value="openai"), patch.object(Processor, "_process_conversational_openai", return_value=json.dumps({"summary": "Concern", "reply": "Thanks", "recipient": "someone@example.invalid", "action": "send"})):
+            plan = self.followup()
+        self.assertIn("generated output rejected", str(plan["suggestion"]["preview"]))
+        self.assertNotIn("someone@example.invalid", str(plan))
+        self.assertEqual(self.attendance_count(), 0)
+
+    def test_followup_invalid_generated_wording_uses_template(self):
+        self.kiosk.integration_companion_ai_enabled = True
+        Processor = type(self.env["ai.processor"])
+        for raw in ["not json", "[]", json.dumps({"summary": "", "reply": "Thanks"}), json.dumps({"summary": "x" * 601, "reply": "Thanks"})]:
+            with patch.object(Processor, "_get_provider", return_value="openai"), patch.object(Processor, "_process_conversational_openai", return_value=raw):
+                summary, reply, mode = self.service._followup_draft(self.kiosk, "Please review a makeup")
+            self.assertIn("generated output rejected", mode)
+            self.assertIn("Staff reported", summary)
+            self.assertIn("No booking has been changed", reply)
+
+    def test_readiness_is_staff_only_and_never_calls_provider(self):
+        self.assertEqual(self.service._companion_dispatch(self.kiosk.kiosk_token, self.gateway_key, "readiness", {})["problem"]["code"], "FORBIDDEN")
+        Processor = type(self.env["ai.processor"])
+        with patch.object(Processor, "_process_conversational_openai", side_effect=AssertionError("Readiness must not call provider")):
+            result = self.service._companion_dispatch(self.kiosk.kiosk_token, self.staff_key, "readiness", {})
+        self.assertEqual(result["schema"], "dojang-readiness-v1")
+        self.assertFalse(result["aiCredentialConfigured"])
+        self.assertNotIn(self.staff_key, json.dumps(result))
+
+    def test_readiness_rejects_caller_selected_configuration(self):
+        result = self.service._companion_dispatch(self.kiosk.kiosk_token, self.staff_key, "readiness", {"companyId": 1})
+        self.assertEqual(result["problem"]["code"], "INVALID_COMMAND")
 
     def test_followup_disabled_is_not_silently_enabled(self):
         self.kiosk.integration_companion_followup_enabled = False
