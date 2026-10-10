@@ -7,6 +7,7 @@ import styles from "./Shell.module.scss";
 const items = [
   {href: "/ops", label: "Classes", matches: (path: string) => path.startsWith("/ops")},
   {href: "/integration/members", label: "Members", matches: (path: string) => path.startsWith("/people/") || path === "/integration/members"},
+  {href: "/hub", label: "Follow-ups", matches: (path: string) => path === "/hub"},
 ];
 
 export default function ConnectedNavigation({mobile = false}: {mobile?: boolean}) {
