@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { RosterMember, SessionOption } from "@/contracts/kiosk-attendance";
-import MemberMatch from "@/components/kiosk/member-match/MemberMatch";
+import SearchResult from "@/components/kiosk/search-result/SearchResult";
 import SessionHeader from "@/components/kiosk/session-header/SessionHeader";
 import StatusMessage from "@/components/kiosk/status-message/StatusMessage";
 import PlainButton from "@/components/primitives/plain-button/PlainButton";
@@ -19,6 +19,7 @@ type Props = {
   onSelectMember: (member: RosterMember) => void;
   onRetry: () => void;
   onChangeSession: () => void;
+  onStaffHelp: () => void; // "no match -> offer search / call staff" (Miro 13)
   onBack: () => void;
 };
 
@@ -33,6 +34,7 @@ const IdentifyScreen = ({
   onSelectMember,
   onRetry,
   onChangeSession,
+  onStaffHelp,
   onBack,
 }: Props) => {
   const searchField = useRef<HTMLInputElement>(null);
@@ -85,6 +87,7 @@ const IdentifyScreen = ({
             actions={[
               { label: "Try again", onClick: onRetry },
               { label: "Change class", onClick: onChangeSession },
+              { label: "Get help from staff", onClick: onStaffHelp },
             ]}
           />
         )}
@@ -92,8 +95,11 @@ const IdentifyScreen = ({
         {rosterStatus === "ready" && search.status === "noMatch" && (
           <StatusMessage
             message={`We couldn't find that name in ${session.title}.`}
-            detail="Please see the front desk."
-            actions={[{ label: "Change class", onClick: onChangeSession }]}
+            detail="Check the spelling, or get help from staff."
+            actions={[
+              { label: "Change class", onClick: onChangeSession },
+              { label: "Get help from staff", onClick: onStaffHelp },
+            ]}
           />
         )}
 
@@ -101,7 +107,7 @@ const IdentifyScreen = ({
           <ul className={styles.matches} aria-label="Matching names">
             {search.matches.map((member) => (
               <li key={member.memberId}>
-                <MemberMatch
+                <SearchResult
                   candidate={member}
                   onSelect={() => onSelectMember(member)}
                 />

@@ -34,6 +34,10 @@ const choose=async(page,name)=>{
   assert.equal((await anonymous.request.get(BASE+'/api/v2/sessions')).status(),403);
   assert.equal((await anonymous.request.get(BASE+'/api/v2/members')).status(),403);
   record('unpaired kiosk and staff requests are rejected');
+  for (const route of ['/api/v1/kiosk/concierge','/api/v1/kiosk/concierge/actions']) {
+    assert.equal((await anonymous.request.post(BASE+route,{data:{}})).status(),501);
+  }
+  record('connected kiosk rejects simulated concierge replies and action receipts');
   const kiosk=await browser.newContext({viewport:{width:820,height:1180},recordVideo:{dir:path.join(output,'video'),size:{width:820,height:1180}}});contexts.push(kiosk);
   const page=await kiosk.newPage();
   await pair(page,'kiosk');
@@ -72,6 +76,15 @@ const choose=async(page,name)=>{
   await staffPage.getByRole('heading',{name:'Verified attendance'}).waitFor();
   await staffPage.screenshot({path:path.join(output,'02-member360-odoo-attendance.png'),fullPage:true});
   record('Member 360 reads the exact Odoo check-in rather than a mock store');
+  await staffPage.getByRole('tab',{name:'Attendance',exact:true}).click();
+  await staffPage.getByRole('heading',{name:'Check-ins',exact:true}).waitFor();
+  const history=staffPage.getByRole('tabpanel');
+  assert.equal(await history.locator('time').first().getAttribute('datetime'),receipt.receipt.checkedInAt);
+  assert.match(await history.innerText(),/Showing the latest check-in only/);
+  assert.equal(await staffPage.getByRole('tab',{name:'Billing',exact:true}).isDisabled(),true);
+  await staffPage.screenshot({path:path.join(output,'08-member-attendance-tab.png'),fullPage:true});
+  await staffPage.getByRole('tab',{name:'Overview',exact:true}).click();
+  record('Justin attendance tab shows the real latest receipt and labels the history limit');
   await poll(async()=>await page.getByRole('button',{name:/^Check In/i}).count()===1);
   assert.equal((await page.locator('body').innerText()).includes('Demo S.'),false);
   record('confirmation automatically clears member identity');
