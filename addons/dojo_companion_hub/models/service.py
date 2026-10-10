@@ -295,7 +295,9 @@ class HubService(models.AbstractModel):
 
     def _provision(self, site, grant, p):
         self._role(grant, "owner manager")
-        exact(p, "name login role memberIds sessionIds verificationRef")
+        if not isinstance(p, dict):
+            raise HubProblem("INVALID_COMMAND", 400)
+        exact(p, "name login role memberIds sessionIds verificationRef" + (" partnerId" if "partnerId" in p else ""))
         allowed = ("instructor", "guardian", "member") + (("manager",) if grant.role == "owner" else ())
         if p["role"] not in allowed or not isinstance(p["memberIds"], list) or len(p["memberIds"]) > 20 or not isinstance(p["sessionIds"], list) or len(p["sessionIds"]) > 100:
             raise HubProblem("INVALID_COMMAND", 400)
@@ -308,11 +310,20 @@ class HubService(models.AbstractModel):
         sessions = [self._session(site, grant, v).id for v in p["sessionIds"]]
         if p["role"] == "member" and members:
             raise HubProblem("EXISTING_MEMBER_REQUIRES_ADMIN_LINK")
+        partner = self.env["res.partner"]
         if p["role"] == "guardian":
-            # Guardian authority must already be verified; onboarding cannot assert it.
-            raise HubProblem("GUARDIAN_REQUIRES_ADMIN_PROVISIONING")
+            if not members or not p.get("partnerId"):
+                raise HubProblem("VERIFIED_GUARDIAN_REQUIRED")
+            partner = self.env["res.partner"].sudo().search([("id", "=", record_id(p["partnerId"])), ("active", "=", True)], limit=1)
+            bindings = self.env["dojo.hub.guardian"].sudo().search([("site_id", "=", site.id), ("partner_id", "=", partner.id),
+                ("active", "=", True), ("verification_ref", "=", p["verificationRef"])])
+            if not partner or partner.user_ids or not set(members) <= set(bindings.member_ids.ids):
+                raise HubProblem("VERIFIED_GUARDIAN_REQUIRED")
+        elif p.get("partnerId"):
+            raise HubProblem("INVALID_COMMAND", 400)
         user = self.env["res.users"].sudo().with_context(no_reset_password=True, mail_create_nosubscribe=True, tracking_disable=True).create({
-            "name": name, "login": login, "password": secrets.token_urlsafe(48), "company_id": site.company_id.id,
+            "name": partner.name if partner else name, **({"partner_id": partner.id} if partner else {}),
+            "login": login, "password": secrets.token_urlsafe(48), "company_id": site.company_id.id,
             "company_ids": [(6, 0, [site.company_id.id])], "group_ids": [(6, 0, [self.env.ref("base.group_portal").id])]})
         member = self.env["dojo.member"]
         if p["role"] == "member":

@@ -240,6 +240,7 @@ class TestCompanionHub(TransactionCase):
         self.assertFalse(self.env["dojo.class.enrollment"].search_count([("session_id", "=", target.id)]))
         self.subscription.paused = False
         result = self.act("book", {"memberId": str(self.member.id), "sessionId": str(target.id), "expectedVersion": session_version(target)})
+        self.assertNotIn("error", result, result)
         self.assertEqual(result["state"], "registered")
 
     def test_class_change_failure_preserves_original_enrollment(self):
@@ -288,3 +289,24 @@ class TestCompanionHub(TransactionCase):
         p = {"name": "Claim", "login": self.users["manager"].login, "role": "member", "memberIds": [], "sessionIds": [], "verificationRef": "staff-record"}
         self.assertEqual(self.act("provision", p)["error"]["code"], "EXISTING_USER_REQUIRES_ADMIN_LINK")
         self.assertEqual(self.act("provision", {**p, "role": "owner"})["error"]["code"], "INVALID_COMMAND")
+
+    def test_guardian_onboarding_requires_prior_verified_child_binding(self):
+        partner = self.env["res.partner"].create({"name": "Verified new guardian", "company_id": self.company.id})
+        p = {"name": partner.name, "login": "verified-new-guardian@example.invalid", "role": "guardian",
+             "partnerId": str(partner.id), "memberIds": [str(self.member.id)], "sessionIds": [], "verificationRef": "guardian-record-200"}
+        self.assertEqual(self.act("provision", p)["error"]["code"], "VERIFIED_GUARDIAN_REQUIRED")
+        self.env["dojo.hub.guardian"].create({"site_id": self.site.id, "partner_id": partner.id,
+            "member_ids": [(6, 0, [self.member.id])], "channel": "sms", "contact_ref": "43", "verification_ref": p["verificationRef"]})
+        result = self.act("provision", p)
+        self.assertNotIn("error", result, result)
+        user = self.env["res.users"].browse(int(result["userId"]))
+        self.assertEqual(user.partner_id, partner)
+        context = self.env["dojo.hub.service"].with_user(user)._dispatch(str(self.site.id), "context", {})
+        self.assertEqual(context["principal"]["role"], "guardian")
+        self.assertEqual([m["id"] for m in context["members"]], [str(self.member.id)])
+
+    def test_guardian_onboarding_cannot_reuse_an_existing_user_partner(self):
+        p = {"name": "Claim guardian", "login": "different-guardian@example.invalid", "role": "guardian",
+             "partnerId": str(self.users["guardian"].partner_id.id), "memberIds": [str(self.member.id)],
+             "sessionIds": [], "verificationRef": self.binding.verification_ref}
+        self.assertEqual(self.act("provision", p)["error"]["code"], "VERIFIED_GUARDIAN_REQUIRED")
