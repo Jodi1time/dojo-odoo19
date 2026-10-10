@@ -1,8 +1,10 @@
 """Native Odoo regression tests. Run on a disposable synthetic database only."""
 import hashlib
 import json
+import os
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from urllib.error import URLError
 
 from odoo import fields
 from odoo.exceptions import ValidationError
@@ -264,6 +266,48 @@ class TestKioskSessionFirstV2(TransactionCase):
     def test_readiness_rejects_caller_selected_configuration(self):
         result = self.service._companion_dispatch(self.kiosk.kiosk_token, self.staff_key, "readiness", {"companyId": 1})
         self.assertEqual(result["problem"]["code"], "INVALID_COMMAND")
+
+    def test_runtime_openai_secret_readiness_never_calls_provider_or_discloses_key(self):
+        from odoo.addons.ai_assistant.models import openai_conversation
+        self.kiosk.integration_companion_ai_enabled = True
+        self.env["ir.config_parameter"].sudo().set_param("elevenlabs_connector.ai_provider", "openai")
+        key = "synthetic-runtime-key-for-tests-only"
+        with patch.dict(os.environ, {"DOJANG_OPENAI_API_KEY": key, "DOJANG_OPENAI_CHAT_MODEL": "gpt-4o-mini"}), \
+                patch.object(openai_conversation, "build_opener", side_effect=AssertionError("No network for readiness")):
+            result = self.service._companion_readiness(self.kiosk)
+        self.assertTrue(result["aiCredentialConfigured"])
+        self.assertNotIn(key, json.dumps(result))
+
+    def test_runtime_openai_draft_passes_real_adapter_and_retains_review_gate(self):
+        from odoo.addons.ai_assistant.models import openai_conversation
+        self.kiosk.integration_companion_ai_enabled = True
+        self.env["ir.config_parameter"].sudo().set_param("elevenlabs_connector.ai_provider", "openai")
+        wording = {"summary": "Parent requests a makeup review.", "reply": "Staff will review options and eligibility."}
+        opener = MagicMock()
+        response = opener.open.return_value.__enter__.return_value
+        response.status = 200
+        response.read.return_value = json.dumps({"choices": [{"finish_reason": "stop", "message": {
+            "content": json.dumps(wording)}}]}).encode()
+        with patch.dict(os.environ, {"DOJANG_OPENAI_API_KEY": "synthetic-runtime-key-for-tests-only",
+                "DOJANG_OPENAI_CHAT_MODEL": "gpt-4o-mini"}), patch.object(openai_conversation, "build_opener", return_value=opener):
+            plan = self.followup()
+        self.assertIn("AI-assisted draft - human review required", str(plan["suggestion"]["preview"]))
+        self.assertEqual(plan["suggestion"]["capability"], "followup.save_internal")
+        self.assertEqual(self.attendance_count(), 0)
+
+    def test_runtime_openai_transport_failure_is_honest_template_fallback(self):
+        from odoo.addons.ai_assistant.models import openai_conversation
+        self.kiosk.integration_companion_ai_enabled = True
+        self.env["ir.config_parameter"].sudo().set_param("elevenlabs_connector.ai_provider", "openai")
+        key = "synthetic-runtime-key-for-tests-only"
+        opener = MagicMock()
+        opener.open.side_effect = URLError(key)
+        with patch.dict(os.environ, {"DOJANG_OPENAI_API_KEY": key, "DOJANG_OPENAI_CHAT_MODEL": "gpt-4o-mini"}), \
+                patch.object(openai_conversation, "build_opener", return_value=opener):
+            plan = self.followup()
+        self.assertIn("Template draft - AI unavailable", str(plan["suggestion"]["preview"]))
+        self.assertNotIn(key, str(plan))
+        self.assertEqual(opener.open.call_count, 1)
 
     def test_followup_disabled_is_not_silently_enabled(self):
         self.kiosk.integration_companion_followup_enabled = False

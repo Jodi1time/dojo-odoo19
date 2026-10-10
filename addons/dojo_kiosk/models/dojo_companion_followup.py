@@ -52,7 +52,9 @@ class CompanionFollowUpService(models.AbstractModel):
         if config.integration_companion_ai_enabled:
             provider = self.env["ai.processor"].sudo()._get_provider()
             prefix = "openai" if provider in ("openai", "odoo_native") else "gemini" if provider == "gemini" else None
-            if prefix:
+            if prefix == "openai":
+                configured = self.env["ai.processor"].sudo()._conversational_openai_configured()
+            elif prefix:
                 params = self.env["ir.config_parameter"].sudo()
                 configured = bool(params.get_str(prefix + ".api_key") or params.get_str("elevenlabs_connector." + prefix + "_api_key"))
         return {"schema": "dojang-readiness-v1",

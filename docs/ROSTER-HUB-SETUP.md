@@ -153,6 +153,11 @@ WhatsMax configures communication channels, not the existing Odoo model provider
 
 The current drafting path is `dojo.kiosk.service._followup_draft` → `ai.processor` conversational provider methods in `ai_assistant`. Inspect those deployed methods before enabling the account: model availability, provider billing and secret handling must be approved for that environment. Use a synthetic parent report for the first real request. A valid bounded response produces **AI-assisted draft - human review required**; missing keys, unsupported providers or rejected output must remain honestly labeled as template fallback. Verify the draft persists after refresh. No generated prose itself sends a message or changes a class.
 
+OpenAI conversational drafting now accepts private Odoo-process overrides
+`DOJANG_OPENAI_API_KEY` and `DOJANG_OPENAI_CHAT_MODEL`. See
+[LIVE-AI-AND-SYNC.md](LIVE-AI-AND-SYNC.md) for the current activation, scheduled
+inbound and controlled-reply handoff, including rollback and remaining gaps.
+
 For Monday, separately record evidence of (1) saved Odoo booking and durable receipt, (2) real AI-generated draft, and (3) approved outbound provider acceptance plus recipient-side delivery. The current WhatsMax template still has the documented automatic delivery-status relay gap. If any one is untested, label that portion of the demo accordingly; UI polish does not close an integration gap.
 
 ## EB Gym private validation

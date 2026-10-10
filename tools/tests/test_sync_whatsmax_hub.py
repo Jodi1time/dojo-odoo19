@@ -2,6 +2,8 @@ import importlib.util
 import json
 from pathlib import Path
 import sqlite3
+import os
+import tempfile
 import unittest
 from unittest.mock import Mock
 
@@ -74,6 +76,37 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.sync.run()["messagesForwarded"], 0)
         self.message.update(created_at="2026-10-10T00:00:00Z", body="x" * 1600)
         self.assertEqual(self.sync.run()["unsupportedMessages"], 1)
+
+    def test_checkpoint_lock_skips_overlap_and_releases_after_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "checkpoint.sqlite"
+            with self.assertRaises(RuntimeError):
+                with module.locked_checkpoint(path) as first:
+                    self.assertIsNotNone(first)
+                    with module.locked_checkpoint(path) as overlap:
+                        self.assertIsNone(overlap)
+                    raise RuntimeError("Synthetic job failure")
+            with module.locked_checkpoint(path) as retry:
+                self.assertIsNotNone(retry)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_checkpoint_is_persistent_across_runs_and_rejects_public_or_symlink(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "checkpoint.sqlite"
+            for expected in [1, 0]:
+                with module.locked_checkpoint(path) as db:
+                    task = module.Sync(self.sync.provider, self.sync.odoo, "1", "11", "t" * 48, "s" * 48,
+                        "2026-10-09T00:00:00Z", db, self.http)
+                    self.assertEqual(task.run()["messagesForwarded"], expected)
+            linked = Path(folder) / "link.sqlite"
+            linked.symlink_to(path)
+            with self.assertRaises(OSError):
+                with module.locked_checkpoint(linked):
+                    self.fail("Symlink must not be opened")
+            os.chmod(path, 0o644)
+            with self.assertRaises(ValueError):
+                with module.locked_checkpoint(path):
+                    self.fail("Public checkpoint must not be opened")
 
 
 if __name__ == "__main__":
