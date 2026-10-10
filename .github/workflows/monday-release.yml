@@ -1,7 +1,7 @@
 name: Monday integrated release checks
 on:
   push:
-    branches: [integration/monday-release, integration/roster-companion-followup]
+    branches: [integration/monday-release, integration/roster-companion-followup, integration/provider-independent-readiness]
   workflow_dispatch:
 permissions:
   contents: read
@@ -50,18 +50,26 @@ jobs:
           docker run --rm --network "$NET" -v "$PWD/addons:/mnt/extra-addons:ro" dojang-release-test \
             --db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_ci_release \
             --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons \
-            -i dojo_kiosk,dojo_credits --without-demo=all --stop-after-init --max-cron-threads=0 \
-            --test-enable --test-tags=/dojo_kiosk:TestKioskSessionFirstV2 > release-evidence/native.log 2>&1
+            -i dojo_companion_hub --without-demo=all --stop-after-init --max-cron-threads=0 \
+            --test-enable --test-tags=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub > release-evidence/native.log 2>&1
           status=$?
           set -e
           echo "$status" > release-evidence/native-exit-code.txt
           test "$status" -eq 0
           python - <<'PY'
           import ast, pathlib, re
-          source=pathlib.Path('addons/dojo_kiosk/tests/test_kiosk_v2.py').read_text()
-          names=[n.name for n in ast.walk(ast.parse(source)) if isinstance(n,ast.FunctionDef) and n.name.startswith('test_')]
+          sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),
+                   ('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub')]
+          names=[]
+          for source,klass in sources:
+              tree=ast.parse(pathlib.Path(source).read_text())
+              for node in tree.body:
+                  if isinstance(node,ast.ClassDef) and node.name==klass:
+                      names.extend(klass+'.'+n.name for n in node.body if isinstance(n,ast.FunctionDef) and n.name.startswith('test_'))
+          if not all(any(name.startswith(klass+'.') for name in names) for _,klass in sources):
+              raise SystemExit('Native gate failed: expected kiosk and Hub test classes')
           log=pathlib.Path('release-evidence/native.log').read_text(errors='replace')
-          missing=[n for n in names if not re.search(r'Starting .*TestKioskSessionFirstV2\.'+re.escape(n)+r'\b',log)]
+          missing=[n for n in names if not re.search(r'Starting .*'+re.escape(n)+r'\b',log)]
           totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
           if missing or not totals or any(int(f) or int(e) for f,e,n in totals) or max(int(n) for f,e,n in totals)<len(names):
               raise SystemExit('Native gate failed: '+str(missing))
