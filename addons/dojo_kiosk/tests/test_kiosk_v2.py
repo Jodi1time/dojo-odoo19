@@ -270,7 +270,7 @@ class TestKioskSessionFirstV2(TransactionCase):
     def test_runtime_openai_secret_readiness_never_calls_provider_or_discloses_key(self):
         from odoo.addons.ai_assistant.models import openai_conversation
         self.kiosk.integration_companion_ai_enabled = True
-        self.env["ir.config_parameter"].sudo().set_param("elevenlabs_connector.ai_provider", "openai")
+        self.env["ir.config_parameter"].sudo().set_str("elevenlabs_connector.ai_provider", "openai")
         key = "synthetic-runtime-key-for-tests-only"
         with patch.dict(os.environ, {"DOJANG_OPENAI_API_KEY": key, "DOJANG_OPENAI_CHAT_MODEL": "gpt-4o-mini"}), \
                 patch.object(openai_conversation, "build_opener", side_effect=AssertionError("No network for readiness")):
@@ -281,7 +281,7 @@ class TestKioskSessionFirstV2(TransactionCase):
     def test_runtime_openai_draft_passes_real_adapter_and_retains_review_gate(self):
         from odoo.addons.ai_assistant.models import openai_conversation
         self.kiosk.integration_companion_ai_enabled = True
-        self.env["ir.config_parameter"].sudo().set_param("elevenlabs_connector.ai_provider", "openai")
+        self.env["ir.config_parameter"].sudo().set_str("elevenlabs_connector.ai_provider", "openai")
         wording = {"summary": "Parent requests a makeup review.", "reply": "Staff will review options and eligibility."}
         opener = MagicMock()
         response = opener.open.return_value.__enter__.return_value
@@ -298,7 +298,7 @@ class TestKioskSessionFirstV2(TransactionCase):
     def test_runtime_openai_transport_failure_is_honest_template_fallback(self):
         from odoo.addons.ai_assistant.models import openai_conversation
         self.kiosk.integration_companion_ai_enabled = True
-        self.env["ir.config_parameter"].sudo().set_param("elevenlabs_connector.ai_provider", "openai")
+        self.env["ir.config_parameter"].sudo().set_str("elevenlabs_connector.ai_provider", "openai")
         key = "synthetic-runtime-key-for-tests-only"
         opener = MagicMock()
         opener.open.side_effect = URLError(key)
