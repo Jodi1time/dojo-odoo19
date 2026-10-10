@@ -1,5 +1,7 @@
 # Dojang Friday / Monday Demo Readiness
 
+> Historical planning baseline. Later meeting decisions and current implementation/acceptance evidence are consolidated in [ROSTER-COMPANION-INTEGRATION.md](ROSTER-COMPANION-INTEGRATION.md). The original status table and questions below are not the current task list.
+
 Baseline:
 - Source branch: jDelille/dojo-odoo19 migration/odoo20
 - Baseline commit: 0566576641b23e24ddf8da5dd9abe4170d107b81

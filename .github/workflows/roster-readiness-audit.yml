@@ -1,0 +1,15 @@
+name: Roster readiness audit
+on:
+  push:
+    branches: [integration/roster-readiness-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: roster-readiness-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  connected-rehearsal:
+    uses: ./.github/workflows/browser-rehearsal.yml
+    with:
+      source: ${{ github.sha }}

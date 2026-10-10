@@ -16,7 +16,7 @@ const tabs = [
   "Safety",
 ];
 
-const Tabs = () => {
+const Tabs = ({readOnly = false}: {readOnly?: boolean}) => {
   const [activeTab, setActiveTab] = useState("Overview");
 
   return (
@@ -26,6 +26,8 @@ const Tabs = () => {
           key={tab}
           role="tab"
           aria-selected={activeTab === tab}
+          disabled={readOnly && tab !== "Overview"}
+          title={readOnly && tab !== "Overview" ? "Not connected in this test workspace" : undefined}
           className={activeTab === tab ? styles.isActive : ""}
           onClick={() => setActiveTab(tab)}
         >

@@ -31,6 +31,9 @@ jobs:
         working-directory: companion
         run: |
           npm ci
+          npm run test:odoo-integration
+          npm run lint
+          npm audit --omit=dev --audit-level=high
           npm install --no-save --package-lock=false playwright@1.56.1
           npx playwright install --with-deps chromium
       - name: Fetch pinned Odoo runtime

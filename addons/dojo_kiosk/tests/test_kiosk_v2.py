@@ -245,8 +245,38 @@ class TestKioskSessionFirstV2(TransactionCase):
     def test_followup_old_proposal_requires_preparation_again(self):
         plan = self.followup()
         record = self.env["dojo.companion.followup"].sudo().browse(int(plan["suggestion"]["id"].split(":")[1]))
-        record.create_date = fields.Datetime.now() - timedelta(hours=1)
-        self.assertEqual(self.approve_followup(plan)["problem"]["code"], "VERSION_CONFLICT")
+        # Odoo discards writes to create_date after registry initialization.
+        # Advance the clock instead of attempting to mutate an audit field.
+        with patch.object(fields.Datetime, "now", return_value=record.create_date + timedelta(hours=1)):
+            result = self.approve_followup(plan)
+        self.assertEqual(result.get("problem", {}).get("code"), "VERSION_CONFLICT", result)
+        self.assertEqual(record.state, "proposed")
+
+    def test_followup_expires_at_thirty_minutes(self):
+        plan = self.followup()
+        record = self.env["dojo.companion.followup"].sudo().browse(int(plan["suggestion"]["id"].split(":")[1]))
+        with patch.object(fields.Datetime, "now", return_value=record.create_date + timedelta(minutes=30)):
+            result = self.approve_followup(plan)
+        self.assertEqual(result.get("problem", {}).get("code"), "VERSION_CONFLICT", result)
+        self.assertEqual(record.state, "proposed")
+
+    def test_followup_is_approvable_before_expiry(self):
+        plan = self.followup()
+        record = self.env["dojo.companion.followup"].sudo().browse(int(plan["suggestion"]["id"].split(":")[1]))
+        with patch.object(fields.Datetime, "now", return_value=record.create_date + timedelta(minutes=29)):
+            result = self.approve_followup(plan)
+        self.assertNotIn("problem", result)
+        self.assertEqual(record.state, "approved")
+
+    def test_approved_followup_retry_returns_receipt_after_expiry(self):
+        plan = self.followup()
+        first = self.approve_followup(plan)
+        record = self.env["dojo.companion.followup"].sudo().browse(int(plan["suggestion"]["id"].split(":")[1]))
+        with patch.object(fields.Datetime, "now", return_value=record.create_date + timedelta(hours=1)):
+            result = self.approve_followup(plan)
+        self.assertNotIn("problem", result)
+        self.assertTrue(result["replayed"])
+        self.assertEqual(first["receipt"], result["receipt"])
 
     def test_followup_ai_error_returns_explicit_template(self):
         from odoo.exceptions import UserError

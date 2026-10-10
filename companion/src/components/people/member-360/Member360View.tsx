@@ -17,7 +17,7 @@ const Member360View = ({ member, attendance, liveTest = false }: Props) => {
   return (
     <article className={styles.member360}>
       <Identity member={member} readOnly={liveTest}/>
-      <Tabs />
+      <Tabs readOnly={liveTest} />
 
       <MemberGrid attendance={attendance} liveMember={liveTest ? member : undefined} />
 
