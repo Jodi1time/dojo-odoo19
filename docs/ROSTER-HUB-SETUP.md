@@ -16,6 +16,18 @@ This is the current setup guide for PR #10 (`integration/roster-hub-actions`). I
 
 The instructor roster and Roster AI are different components reading the same records. No AI response itself changes a class or sends a message. The authenticated fixed action does that after review and produces an Odoo receipt.
 
+## Booking feedback follow-up (Justin's local rehearsal)
+
+The booking feedback patch is frontend-only; it does not relax Odoo policy or enable messaging. Copy the matching `companion/app/(hub)/hub/page.tsx`, `page.module.css`, and `companion/src/domain/hub-actions.ts` together if applying the fix to a separately rebranded repository. Prefer merging the reviewed commit before starting overlapping edits.
+
+- Success and failure appear beside the selected message's booking controls, with focus moved to the result. A confirmed booking shows its Odoo registration receipt and disables repeat submission until the operator changes the selection.
+- Replacing a registration is unavailable once its original class starts. The UI explains using **Add a class registration** for an eligible future makeup instead. A missing/unverifiable original class also cannot be replaced from this screen. Odoo still checks enrollment, attendance, credits, capacity and cancellation rules at submission.
+- If Odoo acknowledges the booking but the next screen refresh fails, the receipt remains successful with a refresh warning. Do not submit another booking to refresh the screen.
+- If the write result itself is unknown, **Check booking result** reuses the original request key and payload. No automatic resend or new booking key is created. This pending retry is held in the current tab's memory, not persisted through a full reload; resolve it before reloading or signing out.
+- Messaging remains intentionally disabled until the provider is configured and tested. A saved draft is not a sent message.
+
+`npm run test:odoo-integration` includes the feedback-state unit tests. The connected rehearsal additionally runs `tests/rehearsal/hub-feedback.cjs`: seven synthetic browser fault-injection cases, clearly separate from the real Odoo browser/database checks.
+
 ## What has been added
 
 - Real individual Odoo login at `/hub`; encrypted, HttpOnly, two-hour frontend session cookie. Actual Odoo UID, company and site grants govern every action. Roles supplied by the browser are rejected.
