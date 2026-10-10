@@ -268,6 +268,70 @@ class TestCompanionHub(TransactionCase):
         rows = self.act("context", role="instructor")["timeline"]
         self.assertTrue(rows)
         self.assertTrue(all(row["sessionId"] == str(self.session.id) for row in rows))
+        self.assertFalse(any(row["booking"] for row in rows))
+
+    def test_saved_booking_receipt_is_readable_after_a_fresh_context(self):
+        result = self.act("book", {"memberId": str(self.member.id), "sessionId": str(self.session.id),
+            "expectedVersion": session_version(self.session)})
+        self.assertNotIn("error", result)
+        before = self.env["dojo.class.enrollment"].search_count([])
+        for role in ("manager", "instructor", "guardian"):
+            # Context uses the saved receipt, not a new mutation or request key replay.
+            rows = self.act("context", role=role)["timeline"]
+            saved = next(row["booking"] for row in rows if row["action"] == "book")
+            self.assertEqual(saved, {"enrollmentId": result["enrollmentId"], "classTitle": self.template.name,
+                "startsAt": self.session.start_datetime.isoformat() + "Z", "state": "registered", "attendanceState": "pending"})
+        self.assertEqual(self.env["dojo.class.enrollment"].search_count([]), before)
+        other_site = self.site.copy({"name": "Other site", "kiosk_config_id": self.kiosk.copy({"name": "Other kiosk"}).id})
+        self.env["dojo.hub.grant"].create({"site_id": other_site.id, "user_id": self.users["manager"].id, "role": "manager"})
+        self.assertEqual(self.act("context", site=other_site)["timeline"], [])
+
+    def test_booking_receipt_reports_current_state_not_historical_success(self):
+        self.act("book", {"memberId": str(self.member.id), "sessionId": str(self.session.id),
+            "expectedVersion": session_version(self.session)})
+        self.enrollment.status = "cancelled"
+        self.session.state = "done"
+        data = self.act("context")
+        self.assertFalse(data["sessions"])
+        self.assertEqual(data["timeline"][0]["booking"]["state"], "cancelled")
+
+    def test_booking_receipt_is_removed_when_read_scope_is_revoked(self):
+        self.act("book", {"memberId": str(self.member.id), "sessionId": str(self.session.id),
+            "expectedVersion": session_version(self.session)})
+        self.assertTrue(self.act("context", role="guardian")["timeline"])
+        self.binding.active = False
+        self.grants["instructor"].session_ids = [(5, 0, 0)]
+        self.assertEqual(self.act("context", role="guardian")["timeline"], [])
+        self.assertEqual(self.act("context", role="instructor")["timeline"], [])
+
+    def test_receipt_projection_rejects_malformed_or_mismatched_enrollment(self):
+        self.act("book", {"memberId": str(self.member.id), "sessionId": str(self.session.id),
+            "expectedVersion": session_version(self.session)})
+        receipt = self.env["dojo.hub.receipt"].search([("site_id", "=", self.site.id), ("operation", "=", "book")], limit=1)
+        for raw in ("not json", "[]", "null", '{"enrollmentId": true}', '{"enrollmentId": "999999999999999999"}'):
+            receipt.response_json = raw
+            self.assertIsNone(self.act("context")["timeline"][0]["booking"])
+        other_session = self.session.copy({"state": "open"})
+        other_enrollment = self.enrollment.copy({"session_id": other_session.id})
+        receipt.response_json = json.dumps({"enrollmentId": str(other_enrollment.id)})
+        self.assertIsNone(self.act("context")["timeline"][0]["booking"])
+        receipt.response_json = json.dumps({"enrollmentId": str(self.enrollment.id), "private": "must-not-leak"})
+        data = self.act("context")
+        self.assertEqual(data["timeline"][0]["booking"]["enrollmentId"], str(self.enrollment.id))
+        self.assertNotIn("must-not-leak", json.dumps(data))
+        receipt.operation = "update_member"
+        self.assertIsNone(self.act("context")["timeline"][0]["booking"])
+
+    def test_class_change_receipt_contains_the_destination_registration(self):
+        target = self.session.copy({"state": "open", "start_datetime": self.session.start_datetime + timedelta(days=1),
+            "end_datetime": self.session.end_datetime + timedelta(days=1)})
+        result = self.act("change_class", {"memberId": str(self.member.id), "fromSessionId": str(self.session.id),
+            "sessionId": str(target.id), "expectedVersion": session_version(target)})
+        self.assertNotIn("error", result, result)
+        saved = self.act("context")["timeline"][0]
+        self.assertEqual(saved["sessionId"], str(target.id))
+        self.assertEqual(saved["booking"]["enrollmentId"], result["enrollmentId"])
+        self.assertEqual(saved["booking"]["state"], "registered")
 
     def test_class_change_failure_preserves_original_enrollment(self):
         target = self.session.copy({"state": "cancelled"})

@@ -138,12 +138,36 @@ class HubService(models.AbstractModel):
                 "memberId": str(m.member_id.id) if m.member_id else None, "sessionId": str(m.session_id.id) if m.session_id else None} for m in messages],
             "deliveries": [{"id": str(d.id), "messageId": str(d.message_id.id), "state": d.state, "providerRef": d.provider_ref or None,
                 "approvedBy": d.approved_by.name, "approvedAt": iso(d.approved_at)} for d in deliveries],
-            "timeline": [{"id": str(a.id), "memberId": str(a.member_id.id), "sessionId": str(a.session_id.id) if a.session_id else None,
-                "action": a.operation, "actor": a.user_id.name, "at": iso(a.create_date)} for a in audit],
+            "timeline": [self._audit_entry(a) for a in audit],
             "capabilities": {"identity": "odoo_user_session", "ai": "enabled_not_exercised" if site.ai_enabled and site.kiosk_config_id.integration_companion_ai_enabled else "disabled",
                 "outbound": "configured_not_exercised" if site.outbound_enabled and site.provider_origin and site._secret("provider_token_env") else "not_configured",
                 "inbound": "configured_not_exercised" if site._secret("webhook_secret_env") else "not_configured",
                 "ebGym": "bridge_installed_not_verified" if "dojo.gym.link" in self.env else "bridge_not_installed", "productionReady": False}}
+
+    def _audit_entry(self, receipt):
+        # The caller has already scoped audit rows to the current site/member/class.
+        # Never return response_json wholesale: other actions contain private data.
+        entry = {"id": str(receipt.id), "memberId": str(receipt.member_id.id),
+            "sessionId": str(receipt.session_id.id) if receipt.session_id else None,
+            "action": receipt.operation, "actor": receipt.user_id.name, "at": iso(receipt.create_date), "booking": None}
+        if receipt.operation not in ("book", "change_class"):
+            return entry
+        try:
+            result = json.loads(receipt.response_json)
+            enrollment_id = record_id(result.get("enrollmentId") if isinstance(result, dict) else None)
+        except (ValueError, TypeError, KioskProblem):
+            return entry
+        enrollment = self.env["dojo.class.enrollment"].sudo().search([
+            ("id", "=", enrollment_id), ("member_id", "=", receipt.member_id.id),
+            ("session_id", "=", receipt.session_id.id),
+            ("member_id.company_id", "=", receipt.site_id.company_id.id),
+            ("session_id.company_id", "=", receipt.site_id.company_id.id)], limit=1)
+        if enrollment:
+            entry["booking"] = {"enrollmentId": str(enrollment.id),
+                "classTitle": enrollment.session_id.template_id.name,
+                "startsAt": iso(enrollment.session_id.start_datetime),
+                "state": enrollment.status, "attendanceState": enrollment.attendance_state}
+        return entry
 
     def _resolve(self, site, grant, p):
         exact(p, "messageId memberId sessionId expectedRevision")

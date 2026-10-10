@@ -28,7 +28,17 @@ The booking feedback patch is frontend-only; it does not relax Odoo policy or en
 - If the write result itself is unknown, **Check booking result** reuses the original request key and payload. No automatic resend or new booking key is created. This pending retry is held in the current tab's memory, not persisted through a full reload; resolve it before reloading or signing out.
 - Messaging remains intentionally disabled until the provider is configured and tested. A saved draft is not a sent message.
 
-`npm run test:odoo-integration` includes the feedback-state unit tests. The connected rehearsal additionally runs `tests/rehearsal/hub-feedback.cjs`: seven synthetic browser fault-injection cases, clearly separate from the real Odoo browser/database checks.
+`npm run test:odoo-integration` includes the feedback-state unit tests. The connected rehearsal additionally runs `tests/rehearsal/hub-feedback.cjs`: ten synthetic browser checks, clearly separate from the real Odoo browser/database checks.
+
+### Durable receipts after a full reload
+
+The hosted rehearsal exposed a separate gap: the immediate success notice survived an in-page refresh but not a browser reload. The durable-receipt patch extends **Recent actions** with the saved Odoo registration receipt, class, date, current registration status and attendance state. It reads existing `dojo.hub.receipt` records; no booking replay or new registration is needed, including for bookings made before this patch. Only the most recent 50 scoped audit entries are shown; this is not a complete booking-history browser.
+
+Deploy both `addons/dojo_companion_hub/models/service.py` and the matching Hub page/CSS. Restart the Odoo workers and redeploy Companion. This patch adds no database fields. A new frontend with an older backend explicitly says receipt details are unavailable rather than inventing success. Justin's rebrand should preserve this server-backed receipt component.
+
+The backend projects only verified enrollment details, never the raw stored response or request key. Current site, member and instructor-session scope still governs reads. A cancelled registration is shown as cancelled, not as an active booking. Missing or malformed historical results do not break the Hub. The native tests cover those cases; the browser tests cover hard reload, returning to the page, mobile width and the older-backend warning. The real-Odoo rehearsal also verifies the receipt from a separately authenticated browser.
+
+For the shared site, after deploying the fix: sign in, confirm the existing Monday registration receipt appears in Recent actions, reload, and confirm the same receipt remains. Do not book again merely to recover the receipt. One read-only receipt check does not verify outbound messaging or AI.
 
 ## What has been added
 
@@ -134,6 +144,14 @@ The corresponding inbound message schema is:
 ```json
 {"type":"message.received","workspaceRef":"11","eventRef":"unique-message-id","channel":"sms","contactRef":"42","text":"My child cannot attend. Could we arrange a makeup?"}
 ```
+
+## Enable and prove AI drafting separately from WhatsMax
+
+WhatsMax configures communication channels, not the existing Odoo model provider. The hosted test currently says **Template draft - AI not enabled**. An administrator must configure an approved provider/account through the existing ElevenLabs Voice Connector AI settings (the implementation reads `elevenlabs_connector.ai_provider` and the OpenAI or Gemini key settings), then enable `integration_companion_ai_enabled` on the relevant kiosk configuration and `ai_enabled` on the matching Hub site. Do not put keys in browser code, a public repository or chat. This does not require enabling outbound messaging.
+
+The current drafting path is `dojo.kiosk.service._followup_draft` → `ai.processor` conversational provider methods in `ai_assistant`. Inspect those deployed methods before enabling the account: model availability, provider billing and secret handling must be approved for that environment. Use a synthetic parent report for the first real request. A valid bounded response produces **AI-assisted draft - human review required**; missing keys, unsupported providers or rejected output must remain honestly labeled as template fallback. Verify the draft persists after refresh. No generated prose itself sends a message or changes a class.
+
+For Monday, separately record evidence of (1) saved Odoo booking and durable receipt, (2) real AI-generated draft, and (3) approved outbound provider acceptance plus recipient-side delivery. The current WhatsMax template still has the documented automatic delivery-status relay gap. If any one is untested, label that portion of the demo accordingly; UI polish does not close an integration gap.
 
 ## EB Gym private validation
 
