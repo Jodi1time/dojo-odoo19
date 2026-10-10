@@ -140,7 +140,7 @@ class HubService(models.AbstractModel):
                 "approvedBy": d.approved_by.name, "approvedAt": iso(d.approved_at)} for d in deliveries],
             "timeline": [{"id": str(a.id), "memberId": str(a.member_id.id), "sessionId": str(a.session_id.id) if a.session_id else None,
                 "action": a.operation, "actor": a.user_id.name, "at": iso(a.create_date)} for a in audit],
-            "capabilities": {"identity": "odoo_user_session", "ai": "enabled_not_exercised" if site.ai_enabled else "disabled",
+            "capabilities": {"identity": "odoo_user_session", "ai": "enabled_not_exercised" if site.ai_enabled and site.kiosk_config_id.integration_companion_ai_enabled else "disabled",
                 "outbound": "configured_not_exercised" if site.outbound_enabled and site.provider_origin and site._secret("provider_token_env") else "not_configured",
                 "inbound": "configured_not_exercised" if site._secret("webhook_secret_env") else "not_configured",
                 "ebGym": "bridge_installed_not_verified" if "dojo.gym.link" in self.env else "bridge_not_installed", "productionReady": False}}

@@ -12,18 +12,21 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
  const browser=await chromium.launch({headless:true});
  try{
   const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage();
+  page.setDefaultTimeout(20000);
   const event={type:'message.received',workspaceRef:'11',eventRef:'browser-parent-message-100',channel:'sms',contactRef:'42',text:'My child cannot attend this class. Could you help with a makeup?'};
   const body=JSON.stringify(event),stamp=String(Math.floor(Date.now()/1000));
   const signature='sha256='+createHmac('sha256',process.env.DOJANG_HUB_DEMO_WEBHOOK_SECRET).update(stamp+'.'+body).digest('hex');
   const endpoint=process.env.DOJANG_ODOO_URL+'/companion/hub/inbound/'+fixture.hubSiteId;
   const unsigned=await context.request.post(endpoint,{headers:{'content-type':'application/json'},data:body});assert.equal(unsigned.status(),403);
+  const oversized=await context.request.post(endpoint,{headers:{'content-type':'application/json'},data:'x'.repeat(16385)});assert.equal(oversized.status(),413);
   for(let i=0;i<2;i++){const r=await context.request.post(endpoint,{headers:{'content-type':'application/json','X-Dojang-Timestamp':stamp,'X-Dojang-Signature':signature},data:body});assert.equal(r.status(),200);assert.equal((await r.json()).replayed,Boolean(i));}
   passed('signed parent event persists once; unsigned request is rejected');
   const anonymous=await context.request.post(origin+'/api/hub',{headers:{origin},data:{operation:'context',payload:{},requestKey:null}});assert.equal(anonymous.status(),401);
   await page.goto(origin+'/hub');
   await page.getByLabel('Login',{exact:true}).fill(fixture.hubLogin);
   await page.getByLabel('Password',{exact:true}).fill(fixture.hubPassword);
-  await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  const [loginResponse]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/hub'&&r.request().postDataJSON()?.operation==='login'),page.getByRole('button',{name:'Sign in',exact:true}).click()]);
+  assert.equal(loginResponse.status(),200);
   await page.getByText(event.text,{exact:true}).waitFor();
   passed('individual Odoo user signs into Companion and reads the persisted parent message');
   await page.getByLabel(/Student for message/).selectOption(fixture.followupMemberId);
@@ -63,4 +66,4 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   fs.writeFileSync(path.join(process.env.DOJANG_EVIDENCE_DIR,'hub-browser-results.json'),JSON.stringify({mode:'real Odoo synthetic database; signed synthetic source event; template drafting; no external provider',checks:evidence},null,2));
   await context.close();await second.close();
  }finally{await browser.close();}
-})().catch(error=>{console.error('Hub rehearsal failed at check '+(evidence.length+1)+'. '+(error.code||error.name||'Error')+'. Inspect sanitized browser evidence.');process.exitCode=1;});
+})().catch(error=>{const values=['number','boolean'].includes(typeof error.actual)&&['number','boolean'].includes(typeof error.expected)?` actual=${error.actual} expected=${error.expected}`:'';console.error('Hub rehearsal failed at check '+(evidence.length+1)+'. '+(error.code||error.name||'Error')+values+'. Inspect sanitized browser evidence.');process.exitCode=1;});
