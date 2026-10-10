@@ -106,6 +106,12 @@ class HubDeliveryWorker(models.Model):
             return "approved_context_changed"
         if grant.role == "instructor" and message.session_id not in grant.session_ids:
             return "approver_scope_revoked"
+        try:
+            service = self.env["dojo.hub.service"].with_user(self.approved_by)
+            service._member(site, grant, str(message.member_id.id))
+            service._session(site, grant, str(message.session_id.id))
+        except HubProblem:
+            return "approver_scope_revoked"
         return None
 
     def _send_once(self):

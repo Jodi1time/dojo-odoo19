@@ -233,15 +233,30 @@ class TestCompanionHub(TransactionCase):
         send.assert_not_called()
 
     def test_booking_checks_capacity_and_subscription_atomically(self):
-        target = self.session.copy({"start_datetime": self.session.start_datetime + timedelta(days=1), "end_datetime": self.session.end_datetime + timedelta(days=1)})
+        target = self.session.copy({"state": "open", "start_datetime": self.session.start_datetime + timedelta(days=1), "end_datetime": self.session.end_datetime + timedelta(days=1)})
+        self.assertEqual(target.state, "open")
+        self.assertGreater(target.start_datetime, fields.Datetime.now())
         self.subscription.paused = True
         result = self.act("book", {"memberId": str(self.member.id), "sessionId": str(target.id), "expectedVersion": session_version(target)})
-        self.assertIn("error", result)
+        self.assertEqual(result.get("error", {}).get("code"), "BUSINESS_RULE_REVIEW_REQUIRED", result)
         self.assertFalse(self.env["dojo.class.enrollment"].search_count([("session_id", "=", target.id)]))
         self.subscription.paused = False
         result = self.act("book", {"memberId": str(self.member.id), "sessionId": str(target.id), "expectedVersion": session_version(target)})
         self.assertNotIn("error", result, result)
         self.assertEqual(result["state"], "registered")
+
+    def test_revoked_instructor_member_scope_blocks_queued_send(self):
+        message = self.ready()
+        result = self.act("approve_reply", {"messageId": str(message.id), "expectedRevision": message.revision,
+            "reply": message.reply_draft}, role="instructor")
+        self.assertNotIn("error", result, result)
+        delivery = self.env["dojo.hub.delivery"].browse(int(result["deliveryId"]))
+        self.enrollment.status = "cancelled"
+        delivery.state = "dispatching"
+        with patch.object(requests, "post") as send:
+            delivery._send_once()
+        self.assertEqual(delivery.state, "cancelled")
+        send.assert_not_called()
 
     def test_class_change_failure_preserves_original_enrollment(self):
         target = self.session.copy({"state": "cancelled"})

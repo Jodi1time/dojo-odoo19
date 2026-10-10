@@ -34,6 +34,12 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   await page.getByLabel('Review reply',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Approve and queue reply'}).isDisabled(),true);
   passed('verified child/class resolution and a durable template draft; unconfigured sends stay disabled');
+  await page.getByText('Book or change a class',{exact:true}).click();
+  await page.getByLabel('Target class',{exact:true}).selectOption(fixture.makeupSessionId);
+  await page.getByRole('button',{name:'Review class change',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm booking in Odoo',exact:true}).click();
+  await page.getByText(/Registration saved in Odoo\. Receipt:/).waitFor();
+  passed('reviewed class booking creates a real Odoo registration with a receipt');
   const call=async(operation,payload,key=randomUUID())=>{const r=await context.request.post(origin+'/api/hub',{headers:{origin},data:{operation,payload,requestKey:key}});return {status:r.status(),value:await r.json()};};
   const data=(await call('context',{})).value;
   assert.equal(data.messages.length,1);assert.equal(data.messages[0].state,'resolved');assert.equal(data.messages[0].memberId,fixture.followupMemberId);
@@ -57,4 +63,4 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   fs.writeFileSync(path.join(process.env.DOJANG_EVIDENCE_DIR,'hub-browser-results.json'),JSON.stringify({mode:'real Odoo synthetic database; signed synthetic source event; template drafting; no external provider',checks:evidence},null,2));
   await context.close();await second.close();
  }finally{await browser.close();}
-})().catch(()=>{console.error('Hub rehearsal failed. Inspect native logs and sanitized browser evidence.');process.exitCode=1;});
+})().catch(error=>{console.error('Hub rehearsal failed at check '+(evidence.length+1)+'. '+(error.code||error.name||'Error')+'. Inspect sanitized browser evidence.');process.exitCode=1;});

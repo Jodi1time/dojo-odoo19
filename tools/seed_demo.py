@@ -37,6 +37,8 @@ kiosk = base["dojo.kiosk.config"].create({"name": "Demo kiosk", "pin_code": str(
 values = {"DOJANG_INTEGRATION_MODE": "odoo-test", "NEXT_PUBLIC_DEMO_MODE": "false", "DOJANG_PUBLIC_ORIGIN": "http://localhost:3000", "DOJANG_ODOO_URL": "http://127.0.0.1:8069", "DOJANG_KIOSK_TOKEN": kiosk.kiosk_token, **keys}
 hub_fixture = {}
 if "dojo.hub.site" in base:
+    makeup = base["dojo.class.session"].create({"template_id": template.id, "company_id": company.id,
+        "start_datetime": now + timedelta(days=2), "end_datetime": now + timedelta(days=2, hours=1), "state": "open", "capacity": 3})
     site = base["dojo.hub.site"].create({"name": "Demo companion hub", "company_id": company.id, "kiosk_config_id": kiosk.id,
         "workspace_ref": "11", "webhook_secret_env": "DOJANG_HUB_DEMO_WEBHOOK_SECRET"})
     password = secrets.token_urlsafe(48)
@@ -48,7 +50,7 @@ if "dojo.hub.site" in base:
         "channel": "sms", "contact_ref": "42", "verification_ref": "synthetic-fixture-only", "allow_reply": True})
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
-    hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password}
+    hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id)}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

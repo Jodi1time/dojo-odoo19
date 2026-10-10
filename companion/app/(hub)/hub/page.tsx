@@ -3,8 +3,8 @@ import {useEffect,useRef,useState,type FormEvent} from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
 
-type Message={id:string;text:string;state:string;summary:string;reply:string;mode:string;revision:number;channel:string;memberId:string|null;sessionId:string|null};
-type Context={principal:{name:string;role:string};members:{id:string;name:string}[];sessions:{id:string;title:string;startsAt:string}[];messages:Message[];
+type Message={id:string;text:string;state:string;summary:string;reply:string;mode:string;revision:number;channel:string;guardianName:string;contactRef:string;memberId:string|null;sessionId:string|null};
+type Context={principal:{name:string;role:string};members:{id:string;name:string}[];sessions:{id:string;title:string;startsAt:string;future:boolean;version:number}[];messages:Message[];
   deliveries:{id:string;messageId:string;state:string;providerRef:string|null;approvedBy:string}[];
   capabilities:{outbound:string;inbound:string;ai:string};timeline:{id:string;memberId:string;action:string;actor:string;at:string}[]};
 type Action=(operation:string,payload:Record<string,unknown>)=>Promise<void>;
@@ -15,12 +15,16 @@ async function call(body:Record<string,unknown>){
   if(!response.ok)throw Error(value.error?.code || 'CONNECTION_UNAVAILABLE');
   return value;
 }
-const explain=(code:string)=>({HUB_NOT_CONFIGURED:'The hub connection has not been configured on this deployment.',SIGN_IN_REQUIRED:'Sign in with your Odoo account.',SIGN_IN_FAILED_OR_MFA_REQUIRED:'Sign-in failed. Check your credentials; accounts requiring MFA must use the Odoo sign-in flow.',NO_SITE_ACCESS:'This account has not been granted access to this site.',PROVIDER_NOT_CONFIGURED:'Messaging is not configured. Your draft remains saved.',GUARDIAN_REVIEW_REQUIRED:'A manager must verify this sender’s guardian authority before continuing.',VERSION_CONFLICT:'This record changed. Refresh and review it again.',BACKEND_UNAVAILABLE_RETRY_SAME_ACTION:'The result could not be confirmed. Retry the same action before starting another.'}[code] || code.replaceAll('_',' ').toLowerCase());
+const explain=(code:string)=>({HUB_NOT_CONFIGURED:'The hub connection has not been configured on this deployment.',SIGN_IN_REQUIRED:'Sign in with your Odoo account.',SIGN_IN_FAILED_OR_MFA_REQUIRED:'Sign-in failed. Check your credentials. This hub login does not yet support accounts requiring MFA.',NO_SITE_ACCESS:'This account has not been granted access to this site.',PROVIDER_NOT_CONFIGURED:'Messaging is not configured. Your draft remains saved.',GUARDIAN_REVIEW_REQUIRED:'A manager must verify this sender’s guardian authority before continuing.',VERSION_CONFLICT:'This record changed. Refresh and review it again.',BUSINESS_RULE_REVIEW_REQUIRED:'Odoo could not approve this change. Review the subscription, credits, class roster and available places.',BACKEND_UNAVAILABLE_RETRY_SAME_ACTION:'The result could not be confirmed. Retry the same action before starting another.'}[code] || code.replaceAll('_',' ').toLowerCase());
 
 function MessageCard({message,data,act,busy}:{message:Message;data:Context;act:Action;busy:boolean}){
   const [memberId,setMember]=useState(message.memberId || '');
   const [sessionId,setSession]=useState(message.sessionId || '');
   const [reply,setReply]=useState(message.reply);
+  const [targetId,setTarget]=useState('');
+  const [bookingType,setBookingType]=useState('book');
+  const [reviewBooking,setReviewBooking]=useState(false);
+  const target=data.sessions.find(s=>s.id===targetId);
   const delivery=data.deliveries.find(d=>d.messageId===message.id);
   const canAct=['owner','manager','instructor'].includes(data.principal.role);
   return <article className={styles.card}>
@@ -37,11 +41,20 @@ function MessageCard({message,data,act,busy}:{message:Message;data:Context;act:A
       {!delivery && canAct && <>
         <button disabled={busy} onClick={()=>void act('draft',{messageId:message.id,expectedRevision:message.revision})}>{message.reply?'Regenerate draft':'Prepare follow-up'}</button>
         {message.reply && <div className={styles.fields}><label>Review reply<textarea maxLength={1500} value={reply} onChange={e=>setReply(e.target.value)}/></label>
-          <p>This reply goes to the verified guardian on the original {message.channel} conversation. No booking or attendance change is included.</p>
+          <p>Recipient: {message.guardianName || 'Verified guardian'} · {message.channel} contact {message.contactRef}. This sends a reply on the verified channel. No booking or attendance change is included.</p>
           <button disabled={busy||!reply.trim()||data.capabilities.outbound==='not_configured'} onClick={()=>void act('approve_reply',{messageId:message.id,expectedRevision:message.revision,reply})}>Approve and queue reply</button>
           {data.capabilities.outbound==='not_configured'&&<small>Messaging must be configured before a reply can be queued.</small>}
         </div>}
       </>}
+      {canAct&&<details className={styles.booking}><summary>Book or change a class</summary><div className={styles.fields}>
+        <p>Review a future class for this student. Odoo checks the subscription, credits, roster and capacity when you confirm. Existing charges and cancellation rules apply.</p>
+        <label>Booking action<select value={bookingType} disabled={busy} onChange={e=>{setBookingType(e.target.value);setReviewBooking(false);}}><option value="book">Add a class registration</option><option value="change_class">Replace the original registration</option></select></label>
+        <label>Target class<select value={targetId} disabled={busy} onChange={e=>{setTarget(e.target.value);setReviewBooking(false);}}><option value="">Select future class</option>{data.sessions.filter(s=>s.future&&s.id!==message.sessionId).map(s=><option key={s.id} value={s.id}>{s.title} · {new Date(s.startsAt).toLocaleString()}</option>)}</select></label>
+        {!reviewBooking?<button disabled={busy||!target} onClick={()=>setReviewBooking(true)}>Review class change</button>:<>
+          <p><strong>{data.members.find(m=>m.id===message.memberId)?.name}</strong>: {bookingType==='book'?'add a registration for':'replace the original class with'} <strong>{target?.title}</strong> on {target&&new Date(target.startsAt).toLocaleString()}. This records the booking in Odoo; it does not send a message.</p>
+          <button disabled={busy||!target} onClick={()=>{if(target)void act(bookingType,{memberId:message.memberId,sessionId:target.id,expectedVersion:target.version,...(bookingType==='change_class'?{fromSessionId:message.sessionId}:{})});}}>Confirm booking in Odoo</button>
+        </>}
+      </div></details>}
     </>}
     {delivery&&<p role="status"><strong>Reply {delivery.state}.</strong> Approved by {delivery.approvedBy}.{delivery.state==='accepted'?' Provider accepted it; delivery is not yet confirmed.':''}{delivery.providerRef?` Receipt: ${delivery.providerRef}`:''}</p>}
   </article>;
@@ -57,7 +70,7 @@ export default function Hub(){
   const act:Action=async(operation,payload)=>{
     if(pending.current && JSON.stringify([operation,payload])!==JSON.stringify([pending.current.operation,pending.current.payload])){setNotice('Retry the unconfirmed action before starting another.');return;}
     pending.current ||= {operation,payload,requestKey:crypto.randomUUID()};setHasPending(true);setBusy(true);setNotice('');
-    try{await call(pending.current);pending.current=null;setHasPending(false);await refresh();setNotice('Saved in Odoo.');}
+    try{const result=await call(pending.current);pending.current=null;setHasPending(false);await refresh();setNotice(result.enrollmentId?`Registration saved in Odoo. Receipt: ${result.enrollmentId}.`:'Saved in Odoo.');}
     catch(e){const code=(e as Error).message;if(code!=='BACKEND_UNAVAILABLE_RETRY_SAME_ACTION'){pending.current=null;setHasPending(false);}setNotice(explain(code));}
     finally{setBusy(false);}
   };

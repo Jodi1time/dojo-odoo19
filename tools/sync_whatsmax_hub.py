@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import stat
 import time
 from datetime import datetime
 from urllib.parse import urlsplit
@@ -120,7 +121,10 @@ class Sync:
         signature = "sha256=" + hmac.new(self.secret.encode(), stamp.encode() + b"." + body, hashlib.sha256).hexdigest()
         response = self.http.post(self.odoo + "/companion/hub/inbound/" + self.site, data=body,
             headers={"Content-Type": "application/json", "X-Dojang-Timestamp": stamp, "X-Dojang-Signature": signature}, timeout=(5, 20), allow_redirects=False)
-        if response.status_code != 200 or len(response.content) > 4096 or response.json().get("accepted") is not True:
+        if response.status_code != 200 or len(response.content) > 4096:
+            raise ValueError("Odoo did not acknowledge the event; retry the same sync")
+        acknowledgement = response.json()
+        if not isinstance(acknowledgement, dict) or acknowledgement.get("accepted") is not True:
             raise ValueError("Odoo did not acknowledge the event; retry the same sync")
         self.db.execute("INSERT INTO forwarded VALUES (?,?,?)", (self.scope, event["eventRef"], digest))
         self.db.commit()
@@ -167,7 +171,7 @@ def main():
     if not path.exists():
         descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         os.close(descriptor)
-    if path.is_symlink() or path.stat().st_mode & 0o077:
+    if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_mode & 0o077:
         raise ValueError("Checkpoint must be a private regular file")
     with sqlite3.connect(path) as database:
         task = Sync(os.environ["DOJANG_HUB_WHATSMAX_ORIGIN"], os.environ["DOJANG_HUB_ODOO_ORIGIN"], os.environ["DOJANG_HUB_SITE_ID"],

@@ -36,13 +36,25 @@ for attempt in $(seq 1 60); do if docker exec "$DB" pg_isready -U odoo >/dev/nul
 docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
-docker run --rm "${MOUNTS[@]}" dojang-rehearsal "${COMMON[@]}" -i dojo_companion_hub --without-demo=all --test-enable --test-tags=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub --stop-after-init > rehearsal-evidence/install.log 2>&1
+INSTALL=dojo_companion_hub
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub
+if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
+  test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
+  MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
+  COMMON+=(--addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons,/mnt/private-addons)
+  INSTALL=dojo_eb_gym_bridge
+  TAGS+=,/dojo_eb_gym_bridge:TestGymBridge
+fi
+docker run --rm "${MOUNTS[@]}" dojang-rehearsal "${COMMON[@]}" -i "$INSTALL" --without-demo=all --test-enable --test-tags="$TAGS" --stop-after-init > rehearsal-evidence/install.log 2>&1
 python - <<'PY'
-import ast,pathlib,re
+import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-for source,klass in [('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub')]:
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub')]
+if os.environ.get('DOJANG_EB_GYM_ADDONS'):
+    sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
+for source,klass in sources:
     expected += [klass+'.'+n.name for n in ast.walk(ast.parse(pathlib.Path(source).read_text())) if isinstance(n,ast.FunctionDef) and n.name.startswith('test_')]
 if not totals or any(int(f) or int(e) for f,e,n in totals) or any(name not in log for name in expected) or max(int(n) for f,e,n in totals)<len(expected):
     raise SystemExit('Native regression gate failed or tests did not run')
@@ -80,8 +92,10 @@ NEXT_PID=$!
 for attempt in $(seq 1 90); do if curl --silent --fail http://localhost:3000/integration/pair >/dev/null; then break; fi; sleep 1; done
 curl --silent --fail http://localhost:3000/integration/pair >/dev/null
 if [ "${DOJANG_INTERACTIVE_DEMO:-0}" = 1 ]; then
+  python tools/seed_demo_hub_event.py
   printf '\nDemo is running at http://localhost:3000/integration/pair\n'
   printf 'Operator-only pairing keys are in %s. Do not share this file or screen-share its contents.\n' "$PRIVATE/frontend.env"
+  printf 'The synthetic individual hub login/password are in %s. Sign in at http://localhost:3000/hub.\n' "$PRIVATE/fixture.json"
   printf 'Open the pairing screen in separate browser profiles for kiosk and staff. Press Ctrl-C here to remove only this disposable demo.\n'
   wait "$NEXT_PID"
   exit 0
@@ -91,9 +105,16 @@ fi
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_attendance_log;')
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
 followups=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_companion_followup WHERE state = 'approved';")
+hub_messages=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_message WHERE state = 'resolved' AND summary IS NOT NULL;")
+hub_bookings=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_class_enrollment e JOIN dojo_class_session s ON s.id = e.session_id WHERE s.start_datetime > now() AND e.status = 'registered';")
+checkouts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_attendance_log WHERE checkout_datetime IS NOT NULL;")
 test "$attendance" = 2
 test "$reviews" = 1
 test "$followups" = 1
+test "$hub_messages" = 1
+test "$hub_bookings" = 1
+test "$checkouts" = 1
 printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$attendance" "$reviews" "$followups" > rehearsal-evidence/database-verification.txt
+printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
 docker logs "$ODOO" > rehearsal-evidence/odoo-http.log 2>&1
 printf 'PASS: browser, server gateway and Odoo database agree. Synthetic data only.\n' > rehearsal-evidence/rehearsal-result.txt

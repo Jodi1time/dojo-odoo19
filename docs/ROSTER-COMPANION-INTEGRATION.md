@@ -1,5 +1,9 @@
 # Roster integration: meeting decisions, implementation and acceptance
 
+## Current hub implementation (PR #10)
+
+The new individual-user hub, WhatsMax adapter, booking actions, guardian onboarding and optional EB Gym bridge are documented in [ROSTER-HUB-SETUP.md](ROSTER-HUB-SETUP.md). Use that guide for the latest setup and remaining acceptance work. The sections below preserve earlier implementation history and test evidence; their older statements that no booking, individual identity or outbound queue exists no longer describe the PR #10 branch. Hosted/provider/private-addon verification is still required.
+
 This is the current implementation handoff for Justin and Jodi. It consolidates the meeting decisions instead of asking the team to choose between competing write-ups. The verified integration in [PR #7](https://github.com/Jodi1time/dojo-odoo19/pull/7) is merged into `integration/monday-release` at `6cb6826d8a537bdb337cd2fad427bb8380588ec0`. The follow-on branch `integration/justin-companion-handoff` reconciles Justin's newer frontend with that tested backend.
 
 ## What Paul is asking for
