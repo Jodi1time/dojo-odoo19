@@ -1,0 +1,33 @@
+name: Fresh WhatsMax setup checks
+on:
+  push:
+    branches: [integration/fresh-whatsmax-setup]
+  pull_request:
+    paths:
+      - tools/check_whatsmax_setup.py
+      - tools/private_env.py
+      - tools/sync_whatsmax_hub.py
+      - tools/tests/**
+      - delivery/whatsmax/**
+      - docs/WHATSMAX-FIRST-INSTALL.md
+      - .github/workflows/fresh-whatsmax-setup.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  operator-tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify setup, private configuration and signed sync behavior
+        run: python -m unittest discover -s tools/tests -v
+      - name: Check Python syntax and patch whitespace
+        run: |
+          python -m py_compile tools/check_whatsmax_setup.py tools/private_env.py tools/sync_whatsmax_hub.py
+          git diff --check

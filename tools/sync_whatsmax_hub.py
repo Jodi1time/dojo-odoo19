@@ -4,6 +4,7 @@
 Run once from a scheduler. Uses the supplied template's real v1 API shapes.
 Does not send messages to people. A private SQLite checkpoint stores hashes only.
 """
+import argparse
 import hashlib
 import hmac
 import json
@@ -162,26 +163,34 @@ class Sync:
         return counts
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--env-file", help="Private literal dotenv file; otherwise use process environment")
+    args = parser.parse_args(argv)
+    if args.env_file:
+        from private_env import load_private_env
+        settings = load_private_env(args.env_file)
+    else:
+        settings = os.environ
     # Provider signature enforcement must be configured in WhatsMax itself.
     # This explicit gate prevents treating an unverified provider intake as trusted.
-    if os.environ.get("DOJANG_HUB_PROVIDER_INGRESS_VERIFIED") != "true":
+    if settings.get("DOJANG_HUB_PROVIDER_INGRESS_VERIFIED") != "true":
         raise ValueError("Verify upstream provider webhook authentication before enabling sync")
-    path = Path(os.environ["DOJANG_HUB_SYNC_STATE"])
+    path = Path(settings["DOJANG_HUB_SYNC_STATE"])
     if not path.exists():
         descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         os.close(descriptor)
     if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_mode & 0o077:
         raise ValueError("Checkpoint must be a private regular file")
     with sqlite3.connect(path) as database:
-        task = Sync(os.environ["DOJANG_HUB_WHATSMAX_ORIGIN"], os.environ["DOJANG_HUB_ODOO_ORIGIN"], os.environ["DOJANG_HUB_SITE_ID"],
-            os.environ["DOJANG_HUB_WORKSPACE_ID"], os.environ["DOJANG_HUB_WHATSMAX_TOKEN"], os.environ["DOJANG_HUB_WEBHOOK_SECRET"],
-            os.environ["DOJANG_HUB_SYNC_SINCE"], database)
+        task = Sync(settings["DOJANG_HUB_WHATSMAX_ORIGIN"], settings["DOJANG_HUB_ODOO_ORIGIN"], settings["DOJANG_HUB_SITE_ID"],
+            settings["DOJANG_HUB_WORKSPACE_ID"], settings["DOJANG_HUB_WHATSMAX_TOKEN"], settings["DOJANG_HUB_WEBHOOK_SECRET"],
+            settings["DOJANG_HUB_SYNC_SINCE"], database)
         print(json.dumps({"status": "completed", **task.run()}))
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (KeyError, ValueError, OSError, sqlite3.Error):
+    except (KeyError, ValueError, UnicodeError, OSError, sqlite3.Error):
         raise SystemExit("Sync incomplete. Check private configuration and provider/Odoo availability; no secrets or message content were logged.")

@@ -1,6 +1,8 @@
 # Roster hub: implementation and operator handoff
 
-This is the current setup guide for PR #10 (`integration/roster-hub-actions`). It extends the merged `integration/monday-release` work. Justin owns hosting and UI rebranding; this change supplies the backend integration, functional review screen and repeatable checks. A merge is not a deployment.
+This guide covers the PR #10 hub integration and PR #11 booking-feedback follow-up on `integration/monday-release`. Justin owns hosting and UI rebranding; this repository supplies the backend integration, functional review screen and repeatable checks. A merge is not a deployment.
+
+Paul confirmed a fresh installation with no existing WhatsMax deployment. Start with [WHATSMAX-FIRST-INSTALL.md](WHATSMAX-FIRST-INSTALL.md) for its MySQL/Redis/web/worker/scheduler setup, private configuration examples and read-only connection checks, then return here for the Odoo site and user setup.
 
 ## What the meeting means in the implementation
 
@@ -104,6 +106,8 @@ DOJANG_HUB_SYNC_STATE=/private/roster-hub-sync.sqlite
 ```bash
 python tools/sync_whatsmax_hub.py
 ```
+
+Alternatively keep the settings in a private literal dotenv file (`chmod 600`) and run `python tools/sync_whatsmax_hub.py --env-file /private/roster-sync.env`. This does not evaluate shell commands or merge the file with process environment. Run `python tools/check_whatsmax_setup.py connection --env-file /private/roster-sync.env` first for a read-only provider check; its success is not evidence of a message send or an Odoo write.
 
 Run once, inspect count-only output, then schedule it with the host's scheduler. Keep `SYNC_SINCE` fixed and retain the private checkpoint. It stores identifiers/hashes, not message bodies. Failed forwarding does not advance the checkpoint. Repeated events are deduplicated by Odoo too. Limitations: scans conversation/message pages, supports short text SMS/WhatsApp only, reports unsupported messages, and needs scheduling/monitoring on the intended host. It is not a deployed real-time webhook service.
 
