@@ -258,6 +258,17 @@ class TestCompanionHub(TransactionCase):
         self.assertEqual(delivery.state, "cancelled")
         send.assert_not_called()
 
+    def test_instructor_audit_does_not_expose_another_class_for_same_child(self):
+        self.ready()
+        target = self.session.copy({"state": "open", "start_datetime": self.session.start_datetime + timedelta(days=1),
+            "end_datetime": self.session.end_datetime + timedelta(days=1)})
+        result = self.act("book", {"memberId": str(self.member.id), "sessionId": str(target.id), "expectedVersion": session_version(target)})
+        self.assertNotIn("error", result, result)
+        self.assertTrue(any(row["action"] == "book" for row in self.act("context")["timeline"]))
+        rows = self.act("context", role="instructor")["timeline"]
+        self.assertTrue(rows)
+        self.assertTrue(all(row["sessionId"] == str(self.session.id) for row in rows))
+
     def test_class_change_failure_preserves_original_enrollment(self):
         target = self.session.copy({"state": "cancelled"})
         result = self.act("change_class", {"memberId": str(self.member.id), "fromSessionId": str(self.session.id), "sessionId": str(target.id), "expectedVersion": session_version(target)})

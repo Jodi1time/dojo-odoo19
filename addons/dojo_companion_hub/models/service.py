@@ -122,7 +122,10 @@ class HubService(models.AbstractModel):
             domain.append(("id", "=", 0))
         messages = self.env["dojo.hub.message"].sudo().search(domain, limit=50)
         deliveries = self.env["dojo.hub.delivery"].sudo().search([("site_id", "=", site.id), ("message_id", "in", messages.ids)], limit=100)
-        audit = self.env["dojo.hub.receipt"].sudo().search([("site_id", "=", site.id), ("member_id", "in", members.ids)], limit=50)
+        audit_domain = [("site_id", "=", site.id), ("member_id", "in", members.ids)]
+        if grant.role == "instructor":
+            audit_domain.append(("session_id", "in", grant.session_ids.ids))
+        audit = self.env["dojo.hub.receipt"].sudo().search(audit_domain, limit=50)
         if grant.role in ("guardian", "member"):
             audit = audit.filtered(lambda a: a.operation in ("checkout", "book", "change_class", "rank"))
         return {"principal": {"userId": str(self.env.uid), "name": self.env.user.name, "role": grant.role, "siteId": str(site.id)},
@@ -135,7 +138,8 @@ class HubService(models.AbstractModel):
                 "memberId": str(m.member_id.id) if m.member_id else None, "sessionId": str(m.session_id.id) if m.session_id else None} for m in messages],
             "deliveries": [{"id": str(d.id), "messageId": str(d.message_id.id), "state": d.state, "providerRef": d.provider_ref or None,
                 "approvedBy": d.approved_by.name, "approvedAt": iso(d.approved_at)} for d in deliveries],
-            "timeline": [{"id": str(a.id), "memberId": str(a.member_id.id), "action": a.operation, "actor": a.user_id.name, "at": iso(a.create_date)} for a in audit],
+            "timeline": [{"id": str(a.id), "memberId": str(a.member_id.id), "sessionId": str(a.session_id.id) if a.session_id else None,
+                "action": a.operation, "actor": a.user_id.name, "at": iso(a.create_date)} for a in audit],
             "capabilities": {"identity": "odoo_user_session", "ai": "enabled_not_exercised" if site.ai_enabled else "disabled",
                 "outbound": "configured_not_exercised" if site.outbound_enabled and site.provider_origin and site._secret("provider_token_env") else "not_configured",
                 "inbound": "configured_not_exercised" if site._secret("webhook_secret_env") else "not_configured",
@@ -158,7 +162,7 @@ class HubService(models.AbstractModel):
             raise HubProblem("NOT_ON_ROSTER")
         message.write({"binding_id": binding.id, "member_id": member.id, "session_id": session.id, "state": "resolved",
             "revision": message.revision + 1, "summary": False, "reply_draft": False, "draft_mode": False})
-        return {"messageId": str(message.id), "memberId": str(member.id), "revision": message.revision}
+        return {"messageId": str(message.id), "memberId": str(member.id), "sessionId": str(session.id), "revision": message.revision}
 
     def _draft(self, site, grant, p):
         exact(p, "messageId expectedRevision")
@@ -175,7 +179,7 @@ class HubService(models.AbstractModel):
             summary, reply, mode = ("A verified guardian requested attendance follow-up. Review the original message and the student's class before deciding next steps.",
                 "Thank you for letting us know. We will review suitable makeup options and confirm availability and eligibility with you.", "Template draft - AI disabled")
         message.write({"summary": summary, "reply_draft": reply, "draft_mode": mode, "revision": message.revision + 1})
-        return {"messageId": str(message.id), "memberId": str(message.member_id.id), "revision": message.revision, "summary": summary, "reply": reply, "mode": mode}
+        return {"messageId": str(message.id), "memberId": str(message.member_id.id), "sessionId": str(message.session_id.id), "revision": message.revision, "summary": summary, "reply": reply, "mode": mode}
 
     def _approve_reply(self, site, grant, p):
         exact(p, "messageId expectedRevision reply")
@@ -191,12 +195,12 @@ class HubService(models.AbstractModel):
         if existing:
             if existing.body != body or existing.approved_revision != message.revision:
                 raise HubProblem("ALREADY_APPROVED")
-            return {"deliveryId": str(existing.id), "memberId": str(message.member_id.id), "state": existing.state}
+            return {"deliveryId": str(existing.id), "memberId": str(message.member_id.id), "sessionId": str(message.session_id.id), "state": existing.state}
         delivery = self.env["dojo.hub.delivery"].sudo().create({"site_id": site.id, "message_id": message.id, "binding_id": binding.id,
             "approved_by": self.env.uid, "approved_revision": message.revision, "binding_version": str(session_version(binding)),
             "workspace_ref": site.workspace_ref, "provider_origin": site.provider_origin,
             "channel": binding.channel, "contact_ref": binding.contact_ref, "body": body})
-        return {"deliveryId": str(delivery.id), "memberId": str(message.member_id.id), "state": "queued"}
+        return {"deliveryId": str(delivery.id), "memberId": str(message.member_id.id), "sessionId": str(message.session_id.id), "state": "queued"}
 
     def _checkout(self, site, grant, p):
         exact(p, "memberId sessionId")
@@ -209,7 +213,7 @@ class HubService(models.AbstractModel):
             if fields.Datetime.now() <= attendance.checkin_datetime:
                 raise HubProblem("RETRY_AFTER_CHECKIN")
             attendance.checkout_datetime = fields.Datetime.now()
-        return {"memberId": str(member.id), "attendanceId": str(attendance.id), "checkedOutAt": iso(attendance.checkout_datetime)}
+        return {"memberId": str(member.id), "sessionId": str(session.id), "attendanceId": str(attendance.id), "checkedOutAt": iso(attendance.checkout_datetime)}
 
     def _enroll(self, site, grant, member, session):
         self._lock(session)
@@ -277,6 +281,9 @@ class HubService(models.AbstractModel):
         if not rank or type(p["stripes"]) is not int or not 0 <= p["stripes"] <= rank.max_stripes:
             raise HubProblem("INVALID_RANK", 422)
         row = self.env["dojo.member.rank"].sudo().create({"member_id": member.id, "rank_id": rank.id, "stripe_count": p["stripes"], "notes": text(p["reason"], 500)})
+        # Advance the member's optimistic version as well as the rank history.
+        # A stored-field recompute alone does not guarantee write_date changes.
+        member.write({"active": member.active})
         member.invalidate_recordset()
         return {"memberId": str(member.id), "rankHistoryId": str(row.id), "state": "awarded"}
 
@@ -363,7 +370,8 @@ class HubService(models.AbstractModel):
                     return {**json.loads(receipt.response_json), "replayed": True}
                 result = handlers[operation](site, grant, payload)
                 self.env["dojo.hub.receipt"].sudo().create({"site_id": site.id, "user_id": self.env.uid, "request_key": request_key,
-                    "operation": operation, "fingerprint": digest, "member_id": int(result["memberId"]) if result.get("memberId") else False, "response_json": json.dumps(result)})
+                    "operation": operation, "fingerprint": digest, "member_id": int(result["memberId"]) if result.get("memberId") else False,
+                    "session_id": int(result["sessionId"]) if result.get("sessionId") else False, "response_json": json.dumps(result)})
                 return {**result, "replayed": False}
         except HubProblem as exc:
             return {"error": {"code": exc.code, "status": exc.status}}

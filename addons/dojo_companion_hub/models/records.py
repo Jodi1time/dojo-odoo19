@@ -121,6 +121,7 @@ class HubReceipt(models.Model):
     operation = fields.Char(required=True)
     fingerprint = fields.Char(required=True)
     member_id = fields.Many2one("dojo.member", ondelete="restrict")
+    session_id = fields.Many2one("dojo.class.session", ondelete="restrict")
     response_json = fields.Text(required=True)
     _unique_action = models.Constraint("unique(site_id, user_id, request_key)", "Action key already used.")
 
