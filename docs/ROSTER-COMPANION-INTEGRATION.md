@@ -134,3 +134,47 @@ The merged PR #6 backend and browser checks failed before browser execution beca
 Before presenting the larger hub as ready, complete migration of the supplied EB Gym source; collect: passing Odoo/addon install; tenant/principal mappings; approved staging provider account configuration; real inbound parent event; explicit approval; provider receipt and matching Odoo history; Firebase/GKE URL and deployed commit; a separate authorized staff login that sees the same result. Credentials stay in the deployment's secret mechanism, not this document or chat.
 
 A successful synthetic rehearsal proves the bounded attendance/internal follow-up slice. It does not prove production IAM, automated onboarding, WhatsMax embedding, a live model, external communication, makeup booking, all Odoo modules, or a public deployment. Keep that distinction explicit in Monday's demonstration.
+
+## October 9 evening: deployment readiness and remaining activation
+
+PR #8 merged into `integration/monday-release` at `fd163f02afd3a3f9b94e9383970a31fb2ed24926`. The next branch, `integration/monday-live-readiness`, adds the following:
+
+- `/api/health` reports the running release SHA and mode. HTTP 200 means the frontend is reachable; it never asserts the backend is ready.
+- `/api/integration/readiness` requires a paired staff session and verifies both kiosk and staff credentials against Odoo plus the companion context. It exposes counts and capability states, never member details or credentials. A configured AI key or installed gym addon is explicitly **not** an executed integration test. External messaging, makeup booking and production IAM remain unavailable.
+- The optional AI draft request now asks for a structured instructor summary and parent reply, validates both, and falls back to the labeled template when a provider fails or returns an invalid shape. It cannot supply action names, recipients or ORM calls. Staff still reviews and approves an **internal** follow-up.
+- `tools/prepare_eb_gym.py` prepares the license holder's original EB Gym source privately, changes its manifest to `20.0.1.3.0`, and converts seven unsupported `_sql_constraints` declarations to `models.Constraint`, preserving SQL constraint names. It leaves the original unchanged. This is source preparation, **not** an installation pass, database migration or EB Gym/dojo record bridge.
+
+### Check the actual deployment
+
+Deploy this repository's `companion` directory with Node 22 and the variables in `delivery/frontend/.env.integration.example`. Set `DOJANG_RELEASE_SHA` to the full deployed commit SHA (Vercel Git deployments can use the platform's `VERCEL_GIT_COMMIT_SHA`). Use HTTPS origins, disable demo mode, and upgrade `dojo_kiosk` on the designated staging Odoo database before testing the new readiness operation. Configure secrets directly in hosting settings.
+
+On an operator machine with `DOJANG_STAFF_PAIR_KEY` provided securely in its environment:
+
+```bash
+node companion/tools/check-deployment.mjs https://YOUR-STAGING-HOST FULL_DEPLOYED_COMMIT_SHA
+```
+
+This pairs an authorized test session, verifies the exact release and performs read-only backend checks. It does not create members or attendance, invoke a model, or send messages. A successful result means the **bounded synthetic test** is connected, not that the full production solution is ready. Justin can also open `/api/health`, then pair through `/integration/pair` and open `/api/integration/readiness` in that staff browser.
+
+The current connection can list `dojang-vnext-design` in `jodi-s-projects`, but reading that project's settings returns **403 Forbidden**. No Vercel CLI credentials, hosted Odoo URL, Google Cloud credentials or live model credentials are present in this environment. Justin's separate `dojang-companion.vercel.app` project was previously inaccessible through this connection. No deployment or provider activation has occurred.
+
+### Prepare the original EB Gym addon privately
+
+Use the original `eb_gym_management-19.0.1.3.0.zip` from the shared folder. Extract it outside this public repository. Example with operator-owned directories:
+
+```bash
+python tools/prepare_eb_gym.py \
+  --source /private/vendor-original/eb_gym_management \
+  --output /private/odoo20-addons/eb_gym_management
+```
+
+The output includes a conversion report and remains licensed vendor code. Do not commit it to this public repository. Add its parent directory to the **disposable test** Odoo addons path and install `eb_gym_management` on the same pinned runtime used by the rehearsal before considering any real database upgrade. Verify menus, portal permissions, membership lifecycle and attendance. The dojo-to-gym mapping and active membership rules still require implementation and a native round-trip test; matching numeric IDs is not a mapping.
+
+### Inputs that still unblock the full Monday demonstration
+
+1. **Hosting:** access to the intended frontend project and the reachable staging Odoo HTTPS origin; deploy the tested companion commit and upgrade its backend addon together.
+2. **AI:** configure the selected provider on staging Odoo, enable Companion AI for its test configuration, and verify a real provider response. Stored credentials alone do not prove this works.
+3. **Communications:** choose/configure the intended WhatsMax workspace and a test email/SMS account. Implement verified guardian/member mapping, inbound event persistence, an approved outbound delivery queue and provider receipts before enabling a real send. This is remaining implementation as well as account setup.
+4. **EB Gym and identity:** finish private addon installation verification and explicit record mapping; production individual login/tenant/record permissions and onboarding provisioning are separate unfinished work.
+
+Until these are closed, rehearse kiosk check-in, shared Odoo attendance, instructor roster, member history, and reviewed internal follow-up. Do not describe a saved draft as sent, an enabled model as tested, or a merged PR as a live deployment.
