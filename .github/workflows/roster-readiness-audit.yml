@@ -1,7 +1,7 @@
 name: Roster readiness audit
 on:
   push:
-    branches: [integration/roster-readiness-audit]
+    branches: [integration/roster-readiness-audit, integration/justin-companion-handoff]
   workflow_dispatch:
 permissions:
   contents: read
