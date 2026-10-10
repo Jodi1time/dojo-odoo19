@@ -1,0 +1,8 @@
+id,name,model_id,group_id/id,operation,domain
+hub_site_admin,Hub site admin,dojo.hub.site,base.group_system,crud,
+hub_grant_admin,Hub grant admin,dojo.hub.grant,base.group_system,crud,
+hub_guardian_admin,Hub guardian admin,dojo.hub.guardian,base.group_system,crud,
+hub_message_admin,Hub message admin,dojo.hub.message,base.group_system,r,
+hub_receipt_admin,Hub receipt admin,dojo.hub.receipt,base.group_system,r,
+hub_delivery_admin,Hub delivery admin,dojo.hub.delivery,base.group_system,r,
+hub_provider_event_admin,Hub event admin,dojo.hub.provider.event,base.group_system,r,
