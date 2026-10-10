@@ -5,6 +5,8 @@ Run once from a scheduler. Uses the supplied template's real v1 API shapes.
 Does not send messages to people. A private SQLite checkpoint stores hashes only.
 """
 import argparse
+from contextlib import closing, contextmanager
+import fcntl
 import hashlib
 import hmac
 import json
@@ -163,6 +165,26 @@ class Sync:
         return counts
 
 
+@contextmanager
+def locked_checkpoint(path):
+    """Serialize CLI jobs on the persistent checkpoint, including manual runs."""
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    with os.fdopen(descriptor, "r+b") as lock:
+        info = os.fstat(lock.fileno())
+        if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) & 0o077:
+            raise ValueError("Checkpoint must be a private regular file")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield None
+            return
+        try:
+            with closing(sqlite3.connect(path)) as database:
+                yield database
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env-file", help="Private literal dotenv file; otherwise use process environment")
@@ -177,12 +199,10 @@ def main(argv=None):
     if settings.get("DOJANG_HUB_PROVIDER_INGRESS_VERIFIED") != "true":
         raise ValueError("Verify upstream provider webhook authentication before enabling sync")
     path = Path(settings["DOJANG_HUB_SYNC_STATE"])
-    if not path.exists():
-        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        os.close(descriptor)
-    if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_mode & 0o077:
-        raise ValueError("Checkpoint must be a private regular file")
-    with sqlite3.connect(path) as database:
+    with locked_checkpoint(path) as database:
+        if database is None:
+            print(json.dumps({"status": "skipped", "reason": "sync_already_running"}))
+            return
         task = Sync(settings["DOJANG_HUB_WHATSMAX_ORIGIN"], settings["DOJANG_HUB_ODOO_ORIGIN"], settings["DOJANG_HUB_SITE_ID"],
             settings["DOJANG_HUB_WORKSPACE_ID"], settings["DOJANG_HUB_WHATSMAX_TOKEN"], settings["DOJANG_HUB_WEBHOOK_SECRET"],
             settings["DOJANG_HUB_SYNC_SINCE"], database)

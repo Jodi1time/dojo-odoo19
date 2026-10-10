@@ -8,6 +8,7 @@ on:
       - tools/private_env.py
       - tools/sync_whatsmax_hub.py
       - tools/tests/**
+      - addons/ai_assistant/models/openai_conversation.py
       - delivery/whatsmax/**
       - docs/WHATSMAX-FIRST-INSTALL.md
       - .github/workflows/fresh-whatsmax-setup.yml
@@ -31,3 +32,7 @@ jobs:
         run: |
           python -m py_compile tools/check_whatsmax_setup.py tools/private_env.py tools/sync_whatsmax_hub.py
           git diff --check
+      - name: Build the isolated sync image and verify its entrypoint
+        run: |
+          docker build -f delivery/whatsmax/sync.Dockerfile -t roster-sync-test .
+          docker run --rm --network none --read-only roster-sync-test --help

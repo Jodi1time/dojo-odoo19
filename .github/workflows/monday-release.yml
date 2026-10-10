@@ -1,7 +1,7 @@
 name: Monday integrated release checks
 on:
   push:
-    branches: [integration/monday-release, integration/roster-companion-followup, integration/provider-independent-readiness]
+    branches: [integration/monday-release, integration/roster-companion-followup, integration/provider-independent-readiness, integration/live-ai-sync]
   workflow_dispatch:
 permissions:
   contents: read

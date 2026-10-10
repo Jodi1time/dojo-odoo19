@@ -1,5 +1,10 @@
 # Monday rehearsal while provider accounts are pending
 
+Update: Justin's October 10 evening report covers real test-number inbound,
+hosted receipt persistence and private EB Gym native tests. Use
+[LIVE-AI-AND-SYNC.md](LIVE-AI-AND-SYNC.md) for current activation steps. This guide
+remains the isolated provider-free rehearsal; its earlier hosting snapshot is historical.
+
 The bounded demo can proceed without Meta/WhatsApp or a paid AI account. Demonstrate real Odoo attendance, persisted internal follow-up and a future registration with a durable receipt. Identify the parent message as synthetic and the draft as a template. Do not describe a queued or saved reply as delivered, or this bounded demo as the complete meeting architecture.
 
 Justin owns staging deployment and the UI rebrand. This guide requires no new cloud project, provider account or billing approval. Keep outbound delivery disabled and the dispatch scheduled action inactive until the approved sender and recipient have been verified. The existing rehearsal runs with AI and external sends disabled.
