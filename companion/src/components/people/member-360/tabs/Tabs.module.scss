@@ -1,0 +1,47 @@
+@use "../../../../../styles/breakpoints" as bp;
+
+.objectTabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 2rem;
+
+  @include bp.compact {
+    padding: 0 1rem;
+  }
+  border-bottom: 1px solid var(--dark-border);
+  overflow-x: auto; // 10 tabs: scroll sideways on small screens instead of wrapping
+  scrollbar-width: none;
+
+  button {
+    all: unset;
+    padding: 12px 10px;
+    border-bottom: 2px solid transparent; // same height as the active tab, so nothing shifts
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:disabled { opacity: .45; cursor: not-allowed; }
+
+    &:hover:not(:disabled) {
+      color: var(--text);
+    }
+  }
+
+  .isActive {
+    color: var(--text);
+    border-bottom-color: var(--brand);
+  }
+}
+
+// Placeholder for a tab with no content yet, so it doesn't look broken
+.notBuilt {
+  padding: 2rem;
+  font-size: 13px;
+  color: var(--muted);
+
+  @include bp.compact {
+    padding: 1.5rem 1rem;
+  }
+}

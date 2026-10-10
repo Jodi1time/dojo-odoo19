@@ -1,7 +1,7 @@
 {
     "name": "Dojang Kiosk",
     "summary": "Tablet check-in kiosk for Dojang members and instructors",
-    "version": "20.0.1.1.0",
+    "version": "20.0.1.2.0",
     "category": "Dojo",
     "license": "LGPL-3",
     "author": "Dojang",
@@ -12,7 +12,7 @@
         "dojo_crm",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "views/dojo_kiosk_views.xml",
         "views/dojo_kiosk_announcement_views.xml",
     ],

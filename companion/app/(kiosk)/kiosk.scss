@@ -1,0 +1,47 @@
+// Kiosk-only base styles. Shares the token variables with the Companion,
+// but not the Companion's globals (reset, body layout).
+@use "../../styles/variables";
+
+// Kiosk-only layout token. Every portrait screen sits in one centered column this wide.
+// Landscape (Check In left, Today right) will get its own layout later.
+:root {
+  --kiosk-column-width: 600px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--text);
+  font-family:
+    var(--font-inter),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+// Card -> header morph (share="morph" on SessionCard and SessionHeader).
+// Short and direct, as the motion rules ask.
+::view-transition-group(.morph) {
+  animation-duration: 350ms;
+}
+
+// No morphs, fades or slides for people who ask for less motion: content just swaps
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

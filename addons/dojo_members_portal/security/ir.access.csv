@@ -1,0 +1,3 @@
+id,name,model_id,group_id/id,operation,domain
+access_account_payment_portal,account.payment portal read,account.payment,base.group_portal,r,"[ ('partner_id', 'child_of', [user.commercial_partner_id.id]) ]"
+access_account_payment_dojo_parent,account.payment dojo parent read,account.payment,dojo_core.group_dojo_parent_student,r,"[ ('partner_id', 'child_of', [user.commercial_partner_id.id]) ]"

@@ -1,0 +1,85 @@
+name: Monday integrated release checks
+on:
+  push:
+    branches: [integration/monday-release, integration/roster-companion-followup, integration/provider-independent-readiness, integration/live-ai-sync]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: monday-checks-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native-odoo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch pinned runtime
+        run: |
+          set -euo pipefail
+          mkdir -p release-evidence
+          git init odoo
+          git -C odoo fetch --depth=1 https://github.com/odoo/odoo.git d40b7c8c5de81ce8d1528a6b31608468f5f30d4d
+          git -C odoo checkout --detach FETCH_HEAD
+          test "$(git -C odoo rev-parse HEAD)" = d40b7c8c5de81ce8d1528a6b31608468f5f30d4d
+          printf 'release_commit=%s\nodoo_commit=%s\n' "$GITHUB_SHA" "$(git -C odoo rev-parse HEAD)" > release-evidence/baseline.txt
+      - name: Build and test exact committed backend
+        run: |
+          set -euo pipefail
+          docker build -t dojang-release-test . > release-evidence/build.log 2>&1
+          docker pull postgres:16 > release-evidence/postgres.log 2>&1
+          NET="dojang-release-${GITHUB_RUN_ID}"
+          DB="$NET-db"
+          PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$PASSWORD"
+          cleanup() {
+            docker rm -f "$DB" >/dev/null 2>&1 || true
+            docker network rm "$NET" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker network create --internal "$NET" >/dev/null
+          docker run -d --name "$DB" --network "$NET" -e POSTGRES_USER=odoo -e POSTGRES_PASSWORD="$PASSWORD" -e POSTGRES_DB=postgres postgres:16 >/dev/null
+          for attempt in $(seq 1 60); do
+            if docker exec "$DB" pg_isready -U odoo >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec "$DB" pg_isready -U odoo
+          set +e
+          docker run --rm --network "$NET" -v "$PWD/addons:/mnt/extra-addons:ro" dojang-release-test \
+            --db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_ci_release \
+            --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons \
+            -i dojo_companion_hub --without-demo=all --stop-after-init --max-cron-threads=0 \
+            --test-enable --test-tags=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub > release-evidence/native.log 2>&1
+          status=$?
+          set -e
+          echo "$status" > release-evidence/native-exit-code.txt
+          test "$status" -eq 0
+          python - <<'PY'
+          import ast, pathlib, re
+          sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),
+                   ('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub')]
+          names=[]
+          for source,klass in sources:
+              tree=ast.parse(pathlib.Path(source).read_text())
+              for node in tree.body:
+                  if isinstance(node,ast.ClassDef) and node.name==klass:
+                      names.extend(klass+'.'+n.name for n in node.body if isinstance(n,ast.FunctionDef) and n.name.startswith('test_'))
+          if not all(any(name.startswith(klass+'.') for name in names) for _,klass in sources):
+              raise SystemExit('Native gate failed: expected kiosk and Hub test classes')
+          log=pathlib.Path('release-evidence/native.log').read_text(errors='replace')
+          missing=[n for n in names if not re.search(r'Starting .*'+re.escape(n)+r'\b',log)]
+          totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
+          if missing or not totals or any(int(f) or int(e) for f,e,n in totals) or max(int(n) for f,e,n in totals)<len(names):
+              raise SystemExit('Native gate failed: '+str(missing))
+          pathlib.Path('release-evidence/native-result.txt').write_text(f'PASS: {len(names)} native tests. No public deployment or full demo sign-off implied.\n')
+          print(f'PASS: {len(names)} native Odoo tests')
+          PY
+      - name: Preserve results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dojang-release-native-${{ github.sha }}
+          path: release-evidence/
+          retention-days: 7

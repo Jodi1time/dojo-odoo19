@@ -1,0 +1,185 @@
+@use "../../../../styles/breakpoints" as bp;
+
+.modal {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  color: var(--text);
+  width: min(560px, 92vw);
+  margin: auto; // the global `* { margin: 0 }` reset removes the dialog's built-in centering
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(6px);
+  }
+
+  // Phones: bottom sheet. Pinned to the bottom edge, full width, slides up when it opens.
+  @include bp.compact {
+    width: calc(100% - 2rem); // 1rem gap on each side
+    max-width: none; // the browser caps dialogs a bit narrower than the screen by default
+    max-height: 90dvh;
+    // auto top margin pushes it to the bottom; floats 1rem above it (plus the iPhone home bar)
+    margin: auto 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-radius: var(--radius-tray); // all four corners, since the bottom is visible now
+    overflow-y: auto;
+
+    // grab handle, like iOS sheets
+    &::before {
+      content: "";
+      display: block;
+      width: 36px;
+      height: 4px;
+      margin: 8px auto 0;
+      border-radius: 2px;
+      background: var(--line);
+    }
+
+    &[open] {
+      animation: sheet-up 280ms cubic-bezier(0.32, 0.72, 0, 1); // iOS-like ease
+    }
+
+    &[open]::backdrop {
+      animation: backdrop-in 280ms ease;
+    }
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(calc(100% + 1rem)); // start fully below the screen, past the 1rem gap
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.inner {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start; // close button lines up with the title, not the description
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 0;
+  .label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-bottom: 5px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 26px;
+  }
+
+  p {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 22px;
+  }
+
+  button {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    background-color: var(--raised);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+}
+
+// Styles for whatever body is passed in
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 10px;
+  }
+
+  input,
+  select,
+  textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--raised);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    width: 50%;
+
+    @include bp.compact {
+      width: 100%; // phones: every field spans the sheet
+    }
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 117px;
+
+  }
+
+}
+
+// Cancel + action row (ModalActions)
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+
+  button {
+    min-height: var(--control-height);
+    padding: 0 18px;
+    border-radius: var(--radius-control);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .confirm {
+    border: none;
+    background: var(--brand); // red = action
+  }
+
+  .cancel {
+    border: 1px solid var(--line);
+    background: transparent;
+
+    &:hover {
+      background: var(--raised);
+    }
+  }
+}

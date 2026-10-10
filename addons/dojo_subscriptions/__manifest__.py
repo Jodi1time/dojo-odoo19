@@ -7,7 +7,7 @@
     "author": "Dojang",
     "depends": ["dojo_core", "account", "subscription_oca"],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "security/dojo_subscriptions_security.xml",
         "data/membership_product.xml",
         "data/close_reasons.xml",

@@ -20,7 +20,7 @@
         'mail',
     ],
     'data': [
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'views/dojo_onboarding_wizard_views.xml',
         'views/dojo_onboarding_views.xml',
     ],

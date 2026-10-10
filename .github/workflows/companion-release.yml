@@ -1,0 +1,99 @@
+name: Publish and validate Companion integration
+on:
+  push:
+    branches: [integration/monday-release]
+    paths: ['companion/**', 'delivery/**', 'tools/**', 'addons/**', '.github/workflows/companion-release.yml', '.github/workflows/browser-rehearsal.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: companion-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  assemble:
+    if: github.repository == 'Jodi1time/dojo-odoo19' && github.ref == 'refs/heads/integration/monday-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      source: ${{ steps.publish.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Finalize existing candidate source
+        run: |
+          test -f companion/package.json
+          test -f companion/package-lock.json
+          python tools/finalize_companion.py
+      - name: Publish only generated hooks on the review branch
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- companion
+          if ! git diff --cached --quiet; then
+            git -c user.name='Jodi Ojeikhoa' -c user.email='162644954+Jodi1time@users.noreply.github.com' commit -m 'Connect encrypted attendance recovery to the existing kiosk flow'
+            git push origin HEAD:refs/heads/integration/monday-release
+          fi
+          echo "source=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  frontend:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.assemble.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact locked dependencies
+        working-directory: companion
+        run: npm ci
+      - name: Gateway, Companion and encrypted outbox tests
+        working-directory: companion
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../frontend-evidence
+          npm run test:odoo-integration 2>&1 | tee ../frontend-evidence/gateway-tests.log
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        working-directory: companion
+        run: npm run lint > ../frontend-evidence/lint.log 2>&1
+      - name: Production build
+        id: build
+        working-directory: companion
+        env:
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee ../frontend-evidence/build.log
+      - name: Verify entire application types
+        working-directory: companion
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsc --noEmit 2>&1 | tee ../frontend-evidence/typecheck.log
+      - name: Record exact source and enforce lint gate
+        if: always()
+        run: |
+          mkdir -p frontend-evidence
+          printf 'source=%s\nlint=%s\nbuild=%s\n' '${{ needs.assemble.outputs.source }}' '${{ steps.lint.outcome }}' '${{ steps.build.outcome }}' > frontend-evidence/result.txt
+          test '${{ steps.lint.outcome }}' = success
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dojang-frontend-evidence-${{ needs.assemble.outputs.source }}
+          path: frontend-evidence/
+          retention-days: 7
+  rehearsal:
+    needs: [assemble, frontend]
+    uses: ./.github/workflows/browser-rehearsal.yml
+    with:
+      source: ${{ needs.assemble.outputs.source }}
