@@ -102,6 +102,7 @@ if [ "${DOJANG_INTERACTIVE_DEMO:-0}" = 1 ]; then
 fi
 (cd companion && node tests/rehearsal/browser.cjs) 2>&1 | tee rehearsal-evidence/browser.log
 (cd companion && node tests/rehearsal/hub.cjs) 2>&1 | tee rehearsal-evidence/hub-browser.log
+(cd companion && node tests/rehearsal/hub-feedback.cjs) 2>&1 | tee rehearsal-evidence/hub-feedback-browser.log
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_attendance_log;')
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
 followups=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_companion_followup WHERE state = 'approved';")
