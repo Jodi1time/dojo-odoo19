@@ -13,7 +13,7 @@ npm run lint
 npm run build
 ```
 
-For the complete disposable Odoo/Postgres/browser rehearsal, run `tools/run_rehearsal.sh` from the repository root after following the runtime setup in the handoff. For an interactive local demo use `tools/run_demo.sh`.
+For the complete disposable Odoo/Postgres/browser rehearsal, run `tools/run_rehearsal.sh` from the repository root after following the runtime setup in the handoff. For an interactive local demo use `tools/start_demo.sh`.
 
 ## Connected test setup
 
