@@ -40,7 +40,7 @@ function MessageCard({message,data,act,busy}:{message:Message;data:Context;act:A
       {message.summary && <><h3>Instructor summary</h3><p>{message.summary}</p><small>{message.mode}</small></>}
       {!delivery && canAct && <>
         <button disabled={busy} onClick={()=>void act('draft',{messageId:message.id,expectedRevision:message.revision})}>{message.reply?'Regenerate draft':'Prepare follow-up'}</button>
-        {message.reply && <div className={styles.fields}><label>Review reply<textarea maxLength={1500} value={reply} onChange={e=>setReply(e.target.value)}/></label>
+        {message.reply && <div className={styles.fields}><label>Review reply<textarea aria-label="Review reply" maxLength={1500} value={reply} onChange={e=>setReply(e.target.value)}/></label>
           <p>Recipient: {message.guardianName || 'Verified guardian'} · {message.channel} contact {message.contactRef}. This sends a reply on the verified channel. No booking or attendance change is included.</p>
           <button disabled={busy||!reply.trim()||data.capabilities.outbound==='not_configured'} onClick={()=>void act('approve_reply',{messageId:message.id,expectedRevision:message.revision,reply})}>Approve and queue reply</button>
           {data.capabilities.outbound==='not_configured'&&<small>Messaging must be configured before a reply can be queued.</small>}
@@ -49,7 +49,7 @@ function MessageCard({message,data,act,busy}:{message:Message;data:Context;act:A
       {canAct&&<details className={styles.booking}><summary>Book or change a class</summary><div className={styles.fields}>
         <p>Review a future class for this student. Odoo checks the subscription, credits, roster and capacity when you confirm. Existing charges and cancellation rules apply.</p>
         <label>Booking action<select value={bookingType} disabled={busy} onChange={e=>{setBookingType(e.target.value);setReviewBooking(false);}}><option value="book">Add a class registration</option><option value="change_class">Replace the original registration</option></select></label>
-        <label>Target class<select value={targetId} disabled={busy} onChange={e=>{setTarget(e.target.value);setReviewBooking(false);}}><option value="">Select future class</option>{data.sessions.filter(s=>s.future&&s.id!==message.sessionId).map(s=><option key={s.id} value={s.id}>{s.title} · {new Date(s.startsAt).toLocaleString()}</option>)}</select></label>
+        <label>Target class<select aria-label="Target class" value={targetId} disabled={busy} onChange={e=>{setTarget(e.target.value);setReviewBooking(false);}}><option value="">Select future class</option>{data.sessions.filter(s=>s.future&&s.id!==message.sessionId).map(s=><option key={s.id} value={s.id}>{s.title} · {new Date(s.startsAt).toLocaleString()}</option>)}</select></label>
         {!reviewBooking?<button disabled={busy||!target} onClick={()=>setReviewBooking(true)}>Review class change</button>:<>
           <p><strong>{data.members.find(m=>m.id===message.memberId)?.name}</strong>: {bookingType==='book'?'add a registration for':'replace the original class with'} <strong>{target?.title}</strong> on {target&&new Date(target.startsAt).toLocaleString()}. This records the booking in Odoo; it does not send a message.</p>
           <button disabled={busy||!target} onClick={()=>{if(target)void act(bookingType,{memberId:message.memberId,sessionId:target.id,expectedVersion:target.version,...(bookingType==='change_class'?{fromSessionId:message.sessionId}:{})});}}>Confirm booking in Odoo</button>

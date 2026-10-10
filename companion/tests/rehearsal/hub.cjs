@@ -7,6 +7,7 @@ const path=require('node:path');
 const fixture=JSON.parse(fs.readFileSync(process.env.DOJANG_FIXTURE_OUTPUT,'utf8'));
 const origin='http://localhost:3000';
 const evidence=[];
+let stage='signed ingress';
 const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+name);};
 (async()=>{
  const browser=await chromium.launch({headless:true});
@@ -21,6 +22,7 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   const oversized=await context.request.post(endpoint,{headers:{'content-type':'application/json'},data:'x'.repeat(16385)});assert.equal(oversized.status(),413);
   for(let i=0;i<2;i++){const r=await context.request.post(endpoint,{headers:{'content-type':'application/json','X-Dojang-Timestamp':stamp,'X-Dojang-Signature':signature},data:body});assert.equal(r.status(),200);assert.equal((await r.json()).replayed,Boolean(i));}
   passed('signed parent event persists once; unsigned request is rejected');
+  stage='individual login';
   const anonymous=await context.request.post(origin+'/api/hub',{headers:{origin},data:{operation:'context',payload:{},requestKey:null}});assert.equal(anonymous.status(),401);
   await page.goto(origin+'/hub');
   await page.getByLabel('Login',{exact:true}).fill(fixture.hubLogin);
@@ -29,20 +31,26 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   assert.equal(loginResponse.status(),200);
   await page.getByText(event.text,{exact:true}).waitFor();
   passed('individual Odoo user signs into Companion and reads the persisted parent message');
+  stage='student and class selection';
   await page.getByLabel(/Student for message/).selectOption(fixture.followupMemberId);
   await page.getByLabel(/Class for message/).selectOption(fixture.sessionId);
   await page.getByRole('button',{name:'Confirm student and class',exact:true}).click();
+  stage='prepare follow-up';
   await page.getByRole('button',{name:'Prepare follow-up',exact:true}).click();
+  stage='instructor summary';
   await page.getByRole('heading',{name:'Instructor summary'}).waitFor();
+  stage='reply review field';
   await page.getByLabel('Review reply',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Approve and queue reply'}).isDisabled(),true);
   passed('verified child/class resolution and a durable template draft; unconfigured sends stay disabled');
+  stage='class booking';
   await page.getByText('Book or change a class',{exact:true}).click();
   await page.getByLabel('Target class',{exact:true}).selectOption(fixture.makeupSessionId);
   await page.getByRole('button',{name:'Review class change',exact:true}).click();
   await page.getByRole('button',{name:'Confirm booking in Odoo',exact:true}).click();
   await page.getByText(/Registration saved in Odoo\. Receipt:/).waitFor();
   passed('reviewed class booking creates a real Odoo registration with a receipt');
+  stage='independent browser persistence';
   const call=async(operation,payload,key=randomUUID())=>{const r=await context.request.post(origin+'/api/hub',{headers:{origin},data:{operation,payload,requestKey:key}});return {status:r.status(),value:await r.json()};};
   const data=(await call('context',{})).value;
   assert.equal(data.messages.length,1);assert.equal(data.messages[0].state,'resolved');assert.equal(data.messages[0].memberId,fixture.followupMemberId);
@@ -51,14 +59,17 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   const signin=await second.request.post(origin+'/api/hub',{headers:{origin},data:{operation:'login',login:fixture.hubLogin,password:fixture.hubPassword}});assert.equal(signin.status(),200);
   assert.equal((await signin.json()).messages[0].summary,data.messages[0].summary);
   passed('a separate browser reads the same instructor summary from Odoo');
+  stage='checkout';
   const checkout=await call('checkout',{memberId:fixture.memberId,sessionId:fixture.sessionId});assert.equal(checkout.status,200);assert.ok(checkout.value.checkedOutAt);
   const again=await call('checkout',{memberId:fixture.memberId,sessionId:fixture.sessionId});assert.equal(again.value.checkedOutAt,checkout.value.checkedOutAt);
   passed('staff checkout saves one timestamp and repeated requests return it');
+  stage='desktop and mobile review';
   await page.screenshot({path:path.join(process.env.DOJANG_EVIDENCE_DIR,'hub-instructor-review.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
   await page.screenshot({path:path.join(process.env.DOJANG_EVIDENCE_DIR,'hub-mobile-review.png'),fullPage:true});
   passed('follow-up review fits mobile width');
+  stage='sign-out';
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
   await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
   assert.equal((await call('context',{})).status,401);
@@ -66,4 +77,4 @@ const passed=name=>{evidence.push({name,result:'passed'});console.log('PASS '+na
   fs.writeFileSync(path.join(process.env.DOJANG_EVIDENCE_DIR,'hub-browser-results.json'),JSON.stringify({mode:'real Odoo synthetic database; signed synthetic source event; template drafting; no external provider',checks:evidence},null,2));
   await context.close();await second.close();
  }finally{await browser.close();}
-})().catch(error=>{const values=['number','boolean'].includes(typeof error.actual)&&['number','boolean'].includes(typeof error.expected)?` actual=${error.actual} expected=${error.expected}`:'';console.error('Hub rehearsal failed at check '+(evidence.length+1)+'. '+(error.code||error.name||'Error')+values+'. Inspect sanitized browser evidence.');process.exitCode=1;});
+})().catch(error=>{const values=['number','boolean'].includes(typeof error.actual)&&['number','boolean'].includes(typeof error.expected)?` actual=${error.actual} expected=${error.expected}`:'';console.error('Hub rehearsal failed at check '+(evidence.length+1)+' ('+stage+'). '+(error.code||error.name||'Error')+values+'. Inspect sanitized browser evidence.');process.exitCode=1;});
