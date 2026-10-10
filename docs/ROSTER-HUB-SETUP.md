@@ -2,6 +2,8 @@
 
 This guide covers the PR #10 hub integration and PR #11 booking-feedback follow-up on `integration/monday-release`. Justin owns hosting and UI rebranding; this repository supplies the backend integration, functional review screen and repeatable checks. A merge is not a deployment.
 
+For the work that can proceed while provider accounts are pending, use [MONDAY-WITHOUT-PROVIDERS.md](MONDAY-WITHOUT-PROVIDERS.md). It includes the current staging evidence, the remaining hosted receipt check, and the separate private EB Gym rehearsal.
+
 Paul confirmed a fresh installation with no existing WhatsMax deployment. Start with [WHATSMAX-FIRST-INSTALL.md](WHATSMAX-FIRST-INSTALL.md) for its MySQL/Redis/web/worker/scheduler setup, private configuration examples and read-only connection checks, then return here for the Odoo site and user setup.
 
 ## What the meeting means in the implementation

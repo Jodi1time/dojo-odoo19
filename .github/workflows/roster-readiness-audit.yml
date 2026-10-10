@@ -1,7 +1,7 @@
 name: Roster readiness audit
 on:
   push:
-    branches: [integration/roster-readiness-audit, integration/justin-companion-handoff, integration/monday-live-readiness, integration/roster-hub-actions, integration/hub-booking-feedback, integration/durable-booking-receipts]
+    branches: [integration/provider-independent-readiness, integration/roster-readiness-audit, integration/justin-companion-handoff, integration/monday-live-readiness, integration/roster-hub-actions, integration/hub-booking-feedback, integration/durable-booking-receipts]
   workflow_dispatch:
 permissions:
   contents: read
