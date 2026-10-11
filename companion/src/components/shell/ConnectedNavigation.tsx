@@ -45,6 +45,7 @@ export default function ConnectedNavigation({
   const pathname = usePathname();
   return (
     <nav
+      id={mobile ? "mobile-staff-navigation" : undefined}
       className={mobile ? styles.connectedBottomNav : styles.connectedNav}
       aria-label={mobile ? "Mobile staff navigation" : "Staff navigation"}
     >

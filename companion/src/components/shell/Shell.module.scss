@@ -1,6 +1,7 @@
 @use "../../../styles/glass";
 
 .adaptiveShell {
+  position: relative;
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   height: 100vh;
@@ -270,7 +271,7 @@
 @media (max-width: 767px) {
   .adaptiveShell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
     padding-top: env(safe-area-inset-top);
   }
   .railSlot {
@@ -280,7 +281,8 @@
     grid-row: 1;
   }
   .workspaceBody {
-    padding-bottom: 24px;
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(120px + env(safe-area-inset-bottom));
   }
   .connectedHeader {
     min-height: 64px;
@@ -309,27 +311,87 @@
     padding: 7px 12px;
     font-size: 10px;
   }
-  // A dedicated grid row, outside the scroll container. No viewport-fixed pill,
-  // no transform-based positioning, and no content underneath the dock.
+  // Float outside the scroller; reserve end-of-content space above the pill.
   .bottomNavSlot {
-    @include glass.card;
     display: block;
-    grid-row: 2;
+    position: absolute;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    max-width: 520px;
+    margin-inline: auto;
+    height: 82px;
     min-width: 0;
     z-index: 20;
-    border: 0;
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.08);
+    pointer-events: none;
+  }
+  .dockExpanded {
+    @include glass.card;
+    border-radius: var(--radius-pill);
+    pointer-events: auto;
+    transform-origin: 30px 50%;
+    transition:
+      opacity 220ms ease,
+      transform 260ms var(--ease-out),
+      visibility 260ms;
+  }
+  .dockCompact {
+    @include glass.card;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--text);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.8);
+    transition:
+      opacity 180ms ease,
+      transform 260ms var(--ease-out),
+      visibility 260ms;
+    svg {
+      width: 25px;
+      height: 25px;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--brand-bright);
+      outline-offset: 4px;
+    }
+  }
+  .dockIndicator {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    top: 13px;
+    right: 12px;
+    border-radius: 50%;
+    background: var(--brand-bright);
+  }
+  .bottomNavSlot[data-collapsed="true"] {
+    .dockExpanded {
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.92);
+      pointer-events: none;
+    }
+    .dockCompact {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      pointer-events: auto;
+    }
   }
   .connectedBottomNav {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;
-    max-width: 560px;
     margin: 0 auto;
-    padding: 6px max(6px, env(safe-area-inset-right))
-      calc(6px + env(safe-area-inset-bottom))
-      max(6px, env(safe-area-inset-left));
+    padding: 6px;
     a,
     button {
       flex-direction: column;

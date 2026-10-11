@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import styles from "./Shell.module.scss";
 import CompanionRail from "./rail/companion-rail/CompanionRail";
 import ConnectedNavigation from "./ConnectedNavigation";
+import FloatingNavigation from "./FloatingNavigation";
 
 type Props = {
   children: ReactNode;
@@ -124,13 +125,13 @@ export default function AdaptiveShell({
           {children}
         </main>
       </div>
-      <div className={styles.bottomNavSlot} inert={panelOpen}>
-        <ConnectedNavigation
-          mobile
-          onCompanion={openCompanion}
-          companionOpen={companionOpen}
-        />
-      </div>
+      <FloatingNavigation
+        workspace={workspace}
+        pathname={pathname}
+        panelOpen={panelOpen}
+        onCompanion={openCompanion}
+        companionOpen={companionOpen}
+      />
       {panelOpen && (
         <button
           className={styles.backdrop}
