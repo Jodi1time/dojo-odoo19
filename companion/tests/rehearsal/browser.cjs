@@ -126,7 +126,7 @@ const choose=async(page,name)=>{
   record('Companion executes one audited Odoo attendance review and rejects unsupported actions');
   await staffPage.goto(BASE+'/');
   await staffPage.waitForURL('**/ops');
-  await staffPage.getByRole('link',{name:'Demo session',exact:true}).waitFor();
+  await staffPage.locator(`a[href="/ops/sessions/${fixture.sessionId}"]`).getByText('Demo session',{exact:true}).waitFor();
   await staffPage.getByRole('navigation',{name:'Staff navigation',exact:true}).getByRole('link',{name:'Members',exact:true}).click();
   await staffPage.getByRole('link',{name:'Followup Student',exact:true}).click();
   await staffPage.getByText('Prepare parent follow-up',{exact:true}).click();
@@ -165,7 +165,7 @@ const choose=async(page,name)=>{
   await staffPage.getByText('Saved internally; not sent',{exact:false}).first().waitFor();
   record('parent report is reviewed, saved once in Odoo and survives navigation and reload');
   await staffPage.getByRole('link',{name:'Open class roster',exact:true}).click();
-  await staffPage.getByRole('link',{name:'Followup S.',exact:true}).waitFor();
+  await staffPage.locator(`a[href="/people/${fixture.followupMemberId}"]`).getByText('Followup S.',{exact:true}).waitFor();
   await staffPage.getByRole('textbox',{name:'Ask the agent'}).fill('Who has not checked in?');
   await staffPage.getByRole('button',{name:'Send',exact:true}).click();
   await staffPage.getByText(/Followup S\.: Not yet checked in/).waitFor();
