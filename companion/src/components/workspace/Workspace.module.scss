@@ -1,5 +1,6 @@
 @use "../../../styles/glass";
 @use "../../../styles/motion";
+@use "../../../styles/separators";
 
 .page {
   max-width: 1120px;
@@ -183,8 +184,7 @@
 
 .scheduleSection {
   @include motion.reveal(140ms);
-  border-top: 1px solid var(--line);
-  padding-top: 32px;
+  padding-top: 18px;
 }
 
 .sectionHeading {
@@ -214,7 +214,10 @@
   list-style: none;
   padding: 0;
   li {
-    border-bottom: 1px solid var(--line);
+    @include separators.short-rule;
+    &:last-child::after {
+      display: none;
+    }
   }
   a {
     display: grid;
@@ -391,15 +394,76 @@
   }
 }
 .loading {
-  @include glass.card;
   min-height: 200px;
-  border-radius: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
   color: var(--text-secondary);
   font-size: 14px;
+}
+
+.heading.todayHeading {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+  h1 {
+    font-size: clamp(40px, 5vw, 56px);
+  }
+}
+.hero.nextClass {
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 24px;
+  padding: 28px;
+  margin-bottom: 24px;
+  h2 {
+    font-size: clamp(27px, 3.6vw, 36px);
+    margin: 12px 0 8px;
+  }
+  p {
+    font-size: 13px;
+  }
+}
+.roundAction {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--canvas);
+  font-size: 22px;
+  text-decoration: none;
+  transition:
+    transform 180ms var(--ease-out),
+    background 180ms ease;
+  &:active {
+    transform: scale(0.94);
+  }
+  &:hover {
+    background: var(--brand-bright);
+    color: white;
+  }
+}
+.summaryLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 24px 0 28px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  strong {
+    font-weight: 500;
+    color: var(--text);
+    margin-right: 3px;
+  }
+}
+.dayComplete {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 18px;
 }
 .loadingSymbol {
   width: 44px;

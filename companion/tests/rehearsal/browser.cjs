@@ -80,6 +80,7 @@ const choose=async(page,name)=>{
   assert.match(await page.locator('body').innerText(),/Demo session/);
   await page.setViewportSize({width:820,height:1180});
   const pending=page.waitForResponse(r=>r.url().endsWith('/api/v2/attendance/check-ins')&&r.request().method()==='POST');
+  assert.equal(await page.locator('[data-check-in-mark]').count(),0,'no success animation before confirmation');
   await page.getByRole('button',{name:/Confirm check-in/}).click();
   const response=await pending;
   assert.equal(response.status(),201);
@@ -88,6 +89,12 @@ const choose=async(page,name)=>{
   const command=response.request().postDataJSON();
   assert.equal(receipt.receipt.memberId,fixture.memberId);
   assert.equal(receipt.receipt.sessionId,fixture.sessionId);
+  await page.getByRole('heading',{name:"You're checked in",exact:true}).waitFor();
+  const successMark=page.locator('[data-check-in-mark="success"]');
+  await successMark.waitFor({state:'visible'});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  assert.equal(await successMark.locator('svg *').evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).animationName==='none')),true,'reduced motion renders a still confirmation');
+  await page.emulateMedia({reducedMotion:'no-preference'});
   await page.screenshot({path:path.join(output,'01-kiosk-confirmed.png'),fullPage:true});
   record('portrait and landscape check-in preserves session and returns Odoo receipt');
   const replay=await kiosk.request.post(BASE+'/api/v2/attendance/check-ins',{headers:{origin:BASE},data:command});
@@ -125,7 +132,7 @@ const choose=async(page,name)=>{
   assert.equal(unsupported.outcome,'notUnderstood');
   record('Companion executes one audited Odoo attendance review and rejects unsupported actions');
   await staffPage.goto(BASE+'/');
-  await staffPage.getByRole('heading',{name:'A strong day starts here.',exact:true}).waitFor();
+  await staffPage.getByRole('heading',{name:'Today',exact:true}).waitFor();
   await staffPage.locator(`a[href="/ops/sessions/${fixture.sessionId}"]`).getByText('Demo session',{exact:true}).waitFor();
   await staffPage.getByRole('navigation',{name:'Staff navigation',exact:true}).getByRole('link',{name:'Members',exact:true}).click();
   await staffPage.getByRole('link',{name:'Followup Student',exact:true}).click();
@@ -210,7 +217,7 @@ const choose=async(page,name)=>{
   assert.equal(await staffPage.getByRole('main').getByRole('button',{name:'Send',exact:true}).count(),0,'follow-ups is a review list, not chat');
   await mobileNav.getByRole('link',{name:'Today',exact:true}).click();
   await staffPage.waitForURL(BASE+'/');
-  await staffPage.setViewportSize({width:390,height:700});
+  await staffPage.setViewportSize({width:390,height:500});
   const main=staffPage.getByRole('main');
   await poll(async()=>main.evaluate(el=>el.scrollHeight-el.clientHeight>160));
   await main.evaluate(el=>{document.activeElement?.blur();el.scrollTop=el.scrollHeight});
@@ -234,6 +241,7 @@ const choose=async(page,name)=>{
   await kiosk.setOffline(true);
   await page.getByRole('button',{name:/Confirm check-in/}).click();
   await poll(async()=> (await page.locator('body').innerText()).includes('saved on this device'));
+  assert.equal(await page.locator('[data-check-in-mark]').count(),0,'offline unconfirmed attendance does not celebrate');
   const stored=await page.evaluate(()=>localStorage.getItem('dojang:attendance-outbox:v1'));
   assert.equal(stored.includes('memberId'),false);assert.equal(stored.includes('Recovery'),false);
   await page.screenshot({path:path.join(output,'03-offline-unconfirmed.png'),fullPage:true});

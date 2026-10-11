@@ -93,22 +93,10 @@ export default function TodayView({
   );
   return (
     <section className={styles.page}>
-      <header className={styles.heading}>
-        <div>
-          <div className={styles.eyebrow}>
-            {classesOnly ? "On the mat" : "Your day at Dojang"}
-          </div>
-          <h1>
-            {classesOnly ? "Today’s classes." : "A strong day starts here."}
-          </h1>
-          <p>
-            {classesOnly
-              ? "Choose a class to open its roster."
-              : "Classes, people, and what’s next."}
-          </p>
-        </div>
+      <header className={`${styles.heading} ${styles.todayHeading}`}>
+        <h1>{classesOnly ? "Classes" : "Today"}</h1>
         <Link className={styles.quietButton} href="/kiosk">
-          Open check-in <span aria-hidden="true">↗</span>
+          Check in <span aria-hidden="true">↗</span>
         </Link>
       </header>
       {error ? (
@@ -136,74 +124,50 @@ export default function TodayView({
         </div>
       ) : (
         <>
-          {!classesOnly && (
-            <>
-              <div className={styles.hero}>
-                <div>
-                  <div className={styles.pill}>
-                    {next
-                      ? started
-                        ? "On the mat now"
-                        : "Up next"
-                      : "Your workspace"}
-                  </div>
-                  <h2>{next?.title ?? "Ready for what comes next."}</h2>
-                  <p>
-                    {next
-                      ? `${next.seatsTaken} students booked · ${next.capacity} class capacity`
-                      : "Today’s schedule is complete. Your class rosters and member records are still here."}
-                  </p>
-                  <Link
-                    className={styles.button}
-                    href={next ? `/ops/sessions/${next.sessionId}` : "/people"}
-                  >
-                    {next ? "View class roster" : "Explore members"}{" "}
-                    <span aria-hidden="true">→</span>
-                  </Link>
+          {!classesOnly && next && (
+            <div className={`${styles.hero} ${styles.nextClass}`}>
+              <div>
+                <div className={styles.pill}>
+                  {started ? "On the mat now" : "Up next"}
                 </div>
-                {next && (
-                  <div className={styles.heroTime}>
-                    {time(next.startsAt)}
-                    <span>Until {time(next.endsAt)}</span>
-                  </div>
-                )}
+                <h2>{next.title}</h2>
+                <p>
+                  {time(next.startsAt)} · {next.seatsTaken}/{next.capacity}{" "}
+                  booked
+                </p>
               </div>
-              <div className={styles.stats}>
-                <article>
-                  <p>
-                    <NavIcon name="classes" />
-                    Classes today
-                  </p>
-                  <strong>{sessions.length}</strong>
-                </article>
-                <article>
-                  <p>
-                    <NavIcon name="members" />
-                    Class bookings
-                  </p>
-                  <strong>
-                    {sessions.reduce((n, s) => n + s.seatsTaken, 0)}
-                  </strong>
-                </article>
-                <article>
-                  <p>
-                    <NavIcon name="today" />
-                    Places available
-                  </p>
-                  <strong>
-                    {sessions.reduce(
-                      (n, s) => n + Math.max(0, s.capacity - s.seatsTaken),
-                      0,
-                    )}
-                  </strong>
-                </article>
-              </div>
-            </>
+              <Link
+                className={styles.roundAction}
+                href={`/ops/sessions/${next.sessionId}`}
+                aria-label={`Open ${next.title} roster`}
+              >
+                ↗
+              </Link>
+            </div>
+          )}
+          {!classesOnly && !next && sessions.length > 0 && (
+            <p className={styles.dayComplete}>
+              All classes finished for today.
+            </p>
+          )}
+          {!classesOnly && sessions.length > 0 && (
+            <p className={styles.summaryLine}>
+              <span>
+                <strong>{sessions.length}</strong>{" "}
+                {sessions.length === 1 ? "class" : "classes"}
+              </span>
+              <span>
+                <strong>
+                  {sessions.reduce((n, s) => n + s.seatsTaken, 0)}
+                </strong>{" "}
+                bookings
+              </span>
+            </p>
           )}
           <div className={styles.scheduleSection}>
             <section>
               <div className={styles.sectionHeading}>
-                <h2>{classesOnly ? "Class schedule" : "Today’s schedule"}</h2>
+                <h2>{classesOnly ? "Schedule" : "Today’s schedule"}</h2>
                 {!classesOnly && <Link href="/ops">All classes →</Link>}
               </div>
               {sessions.length ? (

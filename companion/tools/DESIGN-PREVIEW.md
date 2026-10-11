@@ -39,6 +39,15 @@ surfaces retain ordinary soft corners. Favor open lists and spacing over nested
 cards, decorative gradients, repeated helper text, or heavy outlines. Keep one
 clear primary action. The mobile dock is a glass oval with circular symbols.
 
+The home heading is simply Today. Show an upcoming/current class only when one
+exists; use one quiet line when classes have ended. Avoid welcome slogans and
+repeated explanatory copy. Keep the demo notice short and put detail in the guide.
+
+Use open rows and short fading rules for schedules, name matches, questions,
+follow-ups, and receipt details. Keep glass for a primary surface or overlay.
+Class names may wrap; class choices are chronological. Use circular directional
+accents and a single oval composer with a circular submit action.
+
 Follow-ups is a dedicated review list; Companion is the question and action panel.
 The demo list records sample approvals only. Connected mode shows its authorized
 reviewed follow-up history and does not invent a pending-work feed.
@@ -54,3 +63,9 @@ short press feedback. Never transform the shell or dock ancestor. Respect
 reduced motion and transparency; the glass mixin provides a solid fallback.
 Keep existing live-data labels accurate rather than copying invented reference
 metrics or attendance claims.
+
+The dock uses one glass surface that changes width/height over 460ms; controls
+crossfade in sequence without scaling text. Check-in success draws a ring and
+checkmark once only after a matching confirmed receipt. Already-recorded receipts
+use a still checkmark, and unconfirmed/offline outcomes never show it. Reduced
+motion shows the final still state. Preserve Done and the existing privacy reset.

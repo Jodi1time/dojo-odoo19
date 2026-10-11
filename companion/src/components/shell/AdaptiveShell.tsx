@@ -113,9 +113,7 @@ export default function AdaptiveShell({
           </button>
         </header>
         {demoMode && (
-          <div className={styles.demoBanner}>
-            Interactive preview · Sample data · Actions do not change staging
-          </div>
+          <div className={styles.demoBanner}>Preview · Sample data</div>
         )}
         <main
           ref={workspace}

@@ -13,10 +13,20 @@ type Props = {
   onStaffHelp: () => void; // always there (Miro 09.13), AI or not
 };
 
-const WelcomeScreen = ({ schoolName, actions, onCheckIn, onAsk, onStaffHelp }: Props) => {
+const WelcomeScreen = ({
+  schoolName,
+  actions,
+  onCheckIn,
+  onAsk,
+  onStaffHelp,
+}: Props) => {
   const shownActions = actions.filter((action) => action.shown);
-  const cardActions = shownActions.filter((action) => action.prominence === "card");
-  const textActions = shownActions.filter((action) => action.prominence === "text");
+  const cardActions = shownActions.filter(
+    (action) => action.prominence === "card",
+  );
+  const textActions = shownActions.filter(
+    (action) => action.prominence === "text",
+  );
 
   return (
     <div className={styles.screen}>
@@ -40,6 +50,7 @@ const WelcomeScreen = ({ schoolName, actions, onCheckIn, onAsk, onStaffHelp }: P
       {onAsk && (
         <ActionCard
           label="Ask a question"
+          appearance="row"
           description="Classes, trying a class, directions, or getting help"
           onClick={onAsk}
           className={styles.ask}
@@ -56,6 +67,7 @@ const WelcomeScreen = ({ schoolName, actions, onCheckIn, onAsk, onStaffHelp }: P
             <ActionCard
               key={action.id}
               label={action.label}
+              appearance="row"
               description="Coming soon"
               disabled={!action.available}
               className={styles.secondaryCard}

@@ -66,6 +66,7 @@ export default function FloatingNavigation({
       data-collapsed={compact}
       inert={panelOpen}
     >
+      <div className={styles.dockSurface} aria-hidden="true" />
       <div
         ref={expanded}
         className={styles.dockExpanded}
