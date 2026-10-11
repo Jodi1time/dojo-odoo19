@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
 import AdaptiveShell from "@/components/shell/AdaptiveShell";
@@ -43,10 +43,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AdaptiveShell connectedTest={connected} context={context}>
+        <AdaptiveShell connectedTest={connected} demoMode={process.env.NEXT_PUBLIC_DEMO_MODE === "true"} context={context}>
           {children}
         </AdaptiveShell>
       </body>
     </html>
   );
 }
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b0b0c" };

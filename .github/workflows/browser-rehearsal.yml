@@ -1,7 +1,7 @@
 name: Connected browser rehearsal
 on:
   pull_request:
-    branches: [integration/monday-release]
+    branches: [integration/monday-release, sync/justin-ui]
     paths: ['companion/**', '.github/workflows/browser-rehearsal.yml']
   workflow_call:
     inputs:

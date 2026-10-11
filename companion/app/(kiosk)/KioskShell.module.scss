@@ -33,3 +33,5 @@
     --kiosk-title: 1.75rem;
   }
 }
+
+.previewNotice { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 20px; font-size:11px; color:var(--text-secondary); border-bottom:1px solid var(--line); a{color:var(--text);text-decoration:none;} }

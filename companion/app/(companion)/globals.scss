@@ -45,3 +45,10 @@ ul {
   padding: 10px;
   border-radius: var(--radius-control);
 }
+
+html, body { height: 100%; background: var(--canvas); color: var(--text); color-scheme: dark; }
+body { overflow: hidden; }
+button, input, textarea, select { font: inherit; }
+button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--brand-bright); outline-offset: 3px; }
+::selection { background: var(--brand); color: white; }

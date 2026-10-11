@@ -18,7 +18,10 @@
   // Card styles live in primitives/action-card. This file only handles layout.
   .checkIn {
     margin-top: 3rem;
-    // background-color: var(--brand);
+    background: var(--brand);
+    border-color: var(--brand);
+    box-shadow: 0 14px 50px #d7192d20;
+    p { color: #fff; }
   }
 
   .ask {
@@ -58,3 +61,6 @@
     }
   }
 }
+
+.screen { padding-block: 3rem; }
+.heading h1 { letter-spacing: -.04em; line-height: 1.1; max-width: 15ch; }
