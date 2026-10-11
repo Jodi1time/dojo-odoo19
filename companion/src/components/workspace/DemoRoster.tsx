@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import { getRoster, getSessions } from "@/integrations/kiosk";
 import type { RosterMember, SessionOption } from "@/contracts/kiosk-attendance";
 import styles from "./Workspace.module.scss";

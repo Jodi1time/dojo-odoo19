@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import { odooTestMode } from "@/server/odoo-runtime";
 import ConnectedWorkflowView from "@/components/ai/follow-up/ConnectedWorkflowView";
 import CompanionRail from "@/components/shell/rail/companion-rail/CompanionRail";

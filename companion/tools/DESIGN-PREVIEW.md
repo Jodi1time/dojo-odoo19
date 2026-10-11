@@ -18,6 +18,13 @@ To update: commit the app changes, run `node companion/tools/sync-design-preview
 workflow. The host pins demo mode at build time and preserves the `sites()` plugin.
 Run the normal Next build as well to verify the GitHub app independently of the host.
 
+The preview also pins `NEXT_PUBLIC_DOCUMENT_NAVIGATION=true` at build time.
+All page links use the shared `AppLink`, which becomes a native anchor in that
+mode: browser navigation, reload, back, and opening a new tab do not depend on
+the alternate runtime's client route transitions. In the Next deployment the
+flag is unset and `AppLink` retains normal Next navigation. Keep in-page buttons
+and form actions as React interactions.
+
 Mobile navigation occupies its own grid row below the scrolling workspace within
 `100dvh`. Safe-area padding is on the dock; Companion is a dock action. Avoid fixed,
 translated navigation inside an animated or scrolling content container.

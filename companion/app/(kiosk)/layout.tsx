@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { SCHOOL_NAME } from "@/domain/kiosk/kioskConfig";

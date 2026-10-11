@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import { useEffect, useState } from "react";
 import { getStaffSessions } from "@/integrations/staff-sessions";
 import { getSessions } from "@/integrations/kiosk";

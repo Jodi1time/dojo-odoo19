@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import { getCompanionContext } from "@/integrations/companion";
 import type { CompanionContext } from "@/domain/companion";
 import styles from "./FollowUp.module.scss";

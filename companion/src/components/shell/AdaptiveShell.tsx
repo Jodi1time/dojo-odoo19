@@ -1,6 +1,6 @@
 "use client";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import { usePathname } from "next/navigation";
 import styles from "./Shell.module.scss";
 import CompanionRail from "./rail/companion-rail/CompanionRail";

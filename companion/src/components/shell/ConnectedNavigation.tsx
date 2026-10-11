@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import { usePathname } from "next/navigation";
 import type { Ref } from "react";
 import NavIcon, { type NavIconName } from "./NavIcon";

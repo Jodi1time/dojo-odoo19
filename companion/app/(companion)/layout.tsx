@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import Link from "next/link";
+import Link from "@/components/primitives/AppLink";
 import AdaptiveShell from "@/components/shell/AdaptiveShell";
 import { odooTestMode } from "@/server/odoo-runtime";
 import "./globals.scss";
