@@ -1,3 +1,6 @@
+@use "../../../../styles/glass";
+@use "../../../../styles/motion";
+
 // Staff workspace: the Ops page and the history under a member.
 // Layout of the design mock: title + Refresh, intro, labelled sections of cards.
 .workspace {
@@ -10,6 +13,7 @@
 }
 
 .pageHeader {
+  @include motion.reveal;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -23,8 +27,9 @@
 }
 
 .pageTitle {
-  font-size: clamp(1.75rem, 3vw, 2.4rem);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 4vw, 3.25rem);
+  font-weight: 400;
   letter-spacing: -0.04em;
 }
 
@@ -113,7 +118,6 @@
   }
 }
 
-
 // "Connect staff device" inside the not-connected message
 .connectButton {
   display: inline-flex;
@@ -190,13 +194,13 @@
 }
 
 .followUpItem {
+  @include glass.card;
+  @include motion.reveal(60ms);
   display: flex;
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem 1.5rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-leaf);
+  border-radius: 24px;
 }
 
 .itemTitle {
@@ -274,6 +278,9 @@ a.itemTitle:hover {
   }
 
   // Opened: a thin divider between the toggle and the draft
+  &[open] {
+    border-radius: var(--radius-card);
+  }
   &[open] summary {
     border-bottom: 1px solid var(--line);
   }
@@ -444,7 +451,9 @@ a.itemTitle:hover {
     line-height: 1.5;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: border-color 150ms ease, color 150ms ease;
+    transition:
+      border-color 150ms ease,
+      color 150ms ease;
 
     &:hover {
       border-color: var(--text-secondary);
@@ -468,7 +477,9 @@ a.itemTitle:hover {
       cursor: pointer;
       display: grid;
       place-content: center;
-      transition: background 150ms ease, border-color 150ms ease;
+      transition:
+        background 150ms ease,
+        border-color 150ms ease;
 
       // The check mark, hidden until ticked
       &::after {
@@ -533,4 +544,6 @@ a.itemTitle:hover {
   border-left: 2px solid #ba9fff;
 }
 
-.connectButton { border-radius: var(--radius-pill); }
+.connectButton {
+  border-radius: var(--radius-pill);
+}

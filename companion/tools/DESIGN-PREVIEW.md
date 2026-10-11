@@ -36,3 +36,15 @@ icons/avatars and oval buttons, fields, filters, and status chips. Large reading
 surfaces retain ordinary soft corners. Favor open lists and spacing over nested
 cards, decorative gradients, repeated helper text, or heavy outlines. Keep one
 clear primary action. The mobile dock keeps its own bottom layout row.
+
+## Glass and motion
+
+Use the supplied reference's open schedule rows, generous spacing, warm type,
+and editorial serif headings. Glass belongs on the main class card, member
+detail cards, review surfaces, and sheets; keep lists and ordinary text open.
+The background uses stationary, faint red light on near-black. Never animate
+blur or add continuous decoration. Content may arrive over 420ms; controls get
+short press feedback. Never transform the shell or dock ancestor. Respect
+reduced motion and transparency; the glass mixin provides a solid fallback.
+Keep existing live-data labels accurate rather than copying invented reference
+metrics or attendance claims.

@@ -44,7 +44,9 @@
         flex-direction: column;
         gap: 8px;
         h2 {
-          font-size: clamp(24px, 3vw, 32px);
+          font-family: var(--font-display);
+          font-weight: 400;
+          font-size: clamp(30px, 3.4vw, 42px);
           letter-spacing: -0.04em;
         }
         p {
@@ -110,13 +112,21 @@
         color: var(--text);
         background-color: var(--panel);
         cursor: pointer;
-        &:disabled { opacity: .45; cursor: not-allowed; }
+        transition:
+          transform 160ms var(--ease-out),
+          background-color 160ms ease;
+        &:active:not(:disabled) {
+          transform: scale(0.97);
+        }
+        &:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
       }
 
-       .checkInBtn {
-          background-color: var(--brand);
-
-        }
+      .checkInBtn {
+        background-color: var(--brand);
+      }
     }
   }
 }

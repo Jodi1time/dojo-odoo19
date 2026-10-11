@@ -2,8 +2,8 @@
 
 .companionRail {
   width: 325px;
-  background: var(--panel);
-  border-left: 1px solid var(--dark-border);
+  background: transparent;
+  border-left: 0;
   height: 100%;
   padding: 0 1.25rem;
   display: flex;

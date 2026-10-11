@@ -13,7 +13,14 @@
   border-radius: var(--radius-leaf);
   color: var(--text);
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    transform 160ms var(--ease-out);
+
+  &:active:not(:disabled) {
+    transform: scale(0.985);
+  }
 
   &:hover,
   &:active {

@@ -4,9 +4,30 @@ import { useEffect, useState } from "react";
 import { getStaffSessions } from "@/integrations/staff-sessions";
 import { getSessions } from "@/integrations/kiosk";
 import type { SessionOption } from "@/contracts/kiosk-attendance";
+import NavIcon from "@/components/shell/NavIcon";
 import styles from "./Workspace.module.scss";
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function Clock({ iso }: { iso: string }) {
+  const parts = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).formatToParts(new Date(iso));
+  return (
+    <time dateTime={iso} aria-label={time(iso)}>
+      <span>
+        {parts
+          .filter((p) => p.type !== "dayPeriod")
+          .map((p) => p.value)
+          .join("")
+          .trim()}
+      </span>
+      {parts.some((p) => p.type === "dayPeriod") && (
+        <small>{parts.find((p) => p.type === "dayPeriod")?.value}</small>
+      )}
+    </time>
+  );
+}
 export default function TodayView({
   classesOnly = false,
   connected = false,
@@ -54,15 +75,16 @@ export default function TodayView({
       {sessions?.map((s) => (
         <li key={s.sessionId}>
           <Link href={`/ops/sessions/${s.sessionId}`}>
-            <time dateTime={s.startsAt}>{time(s.startsAt)}</time>
-            <div>
+            <Clock iso={s.startsAt} />
+            <div className={styles.classDetails}>
               <h3>{s.title}</h3>
-              <p>
-                {s.seatsTaken} / {s.capacity} booked · Until {time(s.endsAt)}
-              </p>
+              <p>Until {time(s.endsAt)}</p>
             </div>
+            <span className={styles.bookingCount}>
+              {s.seatsTaken} / {s.capacity} booked
+            </span>
             <span className={styles.arrow} aria-hidden="true">
-              ↗
+              →
             </span>
           </Link>
         </li>
@@ -106,7 +128,12 @@ export default function TodayView({
           </div>
         </div>
       ) : sessions === null ? (
-        <p role="status">Loading your day…</p>
+        <div className={styles.loading} role="status">
+          <span className={styles.loadingSymbol} aria-hidden="true">
+            <NavIcon name="classes" />
+          </span>
+          <p>Loading your day…</p>
+        </div>
       ) : (
         <>
           {!classesOnly && (
@@ -143,17 +170,26 @@ export default function TodayView({
               </div>
               <div className={styles.stats}>
                 <article>
-                  <p>Classes today</p>
+                  <p>
+                    <NavIcon name="classes" />
+                    Classes today
+                  </p>
                   <strong>{sessions.length}</strong>
                 </article>
                 <article>
-                  <p>Class bookings</p>
+                  <p>
+                    <NavIcon name="members" />
+                    Class bookings
+                  </p>
                   <strong>
                     {sessions.reduce((n, s) => n + s.seatsTaken, 0)}
                   </strong>
                 </article>
                 <article>
-                  <p>Places available</p>
+                  <p>
+                    <NavIcon name="today" />
+                    Places available
+                  </p>
                   <strong>
                     {sessions.reduce(
                       (n, s) => n + Math.max(0, s.capacity - s.seatsTaken),
@@ -164,7 +200,7 @@ export default function TodayView({
               </div>
             </>
           )}
-          <div>
+          <div className={styles.scheduleSection}>
             <section>
               <div className={styles.sectionHeading}>
                 <h2>{classesOnly ? "Class schedule" : "Today’s schedule"}</h2>

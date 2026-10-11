@@ -1,13 +1,18 @@
+@use "../../../../../styles/motion";
+
 .screen {
   flex: 1; // fills the shell's column; width comes from the shell
   display: flex;
   flex-direction: column;
   justify-content: center;
   .heading {
+    @include motion.reveal;
     display: flex;
     flex-direction: column;
     gap: 1rem;
     h1 {
+      font-family: var(--font-display);
+      font-weight: 400;
       font-size: var(--kiosk-title-welcome);
     }
     p {
@@ -17,11 +22,9 @@
 
   // Card styles live in primitives/action-card. This file only handles layout.
   .checkIn {
+    @include motion.reveal(60ms);
     margin-top: 3rem;
-    background: var(--brand);
-    border-color: var(--brand);
-    box-shadow: 0 14px 50px #d7192d20;
-    p { color: #fff; }
+    border-color: rgba(239, 82, 98, 0.32);
   }
 
   .ask {
@@ -36,6 +39,7 @@
   }
 
   .secondaryActions {
+    @include motion.reveal(100ms);
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -62,5 +66,11 @@
   }
 }
 
-.screen { padding-block: 3rem; }
-.heading h1 { letter-spacing: -.04em; line-height: 1.1; max-width: 15ch; }
+.screen {
+  padding-block: 3rem;
+}
+.heading h1 {
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  max-width: 15ch;
+}

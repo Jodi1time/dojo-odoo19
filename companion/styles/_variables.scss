@@ -1,18 +1,21 @@
 :root {
   // Surfaces
-  --canvas: #0b0b0c;
-  --panel: #131314;
-  --raised: #1b1b1d;
-  --interactive: #242426;
-  --line: #303033;
+  --canvas: #100e10;
+  --panel: #1a171a;
+  --raised: #252024;
+  --interactive: #30292e;
+  --line: rgba(229, 218, 223, 0.13);
 
   // Border
   --dark-border: #2c2c2f;
 
   // Text
-  --text: #f5f5f5;
-  --text-secondary: #ababaf;
-  --muted: #929296;
+  --text: #f4f0e9;
+  --text-secondary: #b8afb5;
+  --muted: #a59ba2;
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   // Meaning (red = brand/action, gold = rank, semantic status colors)
   --brand: #d7192d;
@@ -45,17 +48,18 @@
   --button-inset: 1.25rem; // side padding inside text buttons (PlainButton)
 
   // Frosted glass surfaces (cards over the soft background glow)
-  --glass-fill: rgba(255, 255, 255, 0.045);
-  --glass-fill-hover: rgba(255, 255, 255, 0.08);
-  --glass-edge: rgba(255, 255, 255, 0.06);
+  --glass-fill: rgba(41, 34, 39, 0.62);
+  --glass-fill-hover: rgba(64, 48, 57, 0.72);
+  --glass-edge: rgba(255, 240, 247, 0.12);
   --glass-edge-strong: rgba(255, 255, 255, 0.2);
   --glass-blur: 18px;
-  --glass-shadow: none;
+  --glass-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   // Soft colored light behind the glass, so the frosting has something to blur.
   // Brand red, kept faint so they read as atmosphere, not actions.
-  --glow-brand: rgba(232, 25, 44, 0.07);
-  --glow-agent: rgba(232, 25, 44, 0.035);
+  --glow-brand: rgba(189, 31, 55, 0.16);
+  --glow-agent: rgba(154, 46, 65, 0.09);
 
   // Layout (not from the doc)
   --companion-width: 325px;
