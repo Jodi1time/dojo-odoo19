@@ -1,3 +1,5 @@
+@use "../../../../styles/glass" as glass;
+
 .result {
   all: unset;
   box-sizing: border-box; // all: unset resets this to content-box
@@ -7,14 +9,15 @@
   width: 100%;
   min-height: var(--touch-height);
   padding: 1rem 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  @include glass.card;
+  border-radius: var(--radius-pill);
   color: var(--text);
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
 
   &:hover,
   &:active {
-    background: var(--raised);
+    @include glass.card-active;
   }
 
   &:focus-visible {
@@ -34,11 +37,11 @@
   border-radius: 50%;
   background: var(--interactive);
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .name {
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   font-weight: 600;
 }

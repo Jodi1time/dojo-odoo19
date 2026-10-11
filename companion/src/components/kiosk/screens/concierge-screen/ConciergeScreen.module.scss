@@ -1,4 +1,8 @@
-// Width comes from the shell, like every kiosk screen
+@use "../../../../../styles/glass" as glass;
+
+// Width comes from the shell, like every kiosk screen.
+// Glass here is the no-blur kind (glass.flat): many glass pieces sit side by
+// side with hover, which is where Chrome smears blurred repaints into neighbours.
 .screen {
   display: flex;
   flex-direction: column;
@@ -15,11 +19,12 @@
 
 // AI context only (Build §18): marks the assistant, never decorates anything else
 .aiTag {
-  padding: 0.3rem 0.75rem;
+  padding: 0.3rem 0.85rem;
   border: 1px solid var(--agent);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--agent) 12%, transparent);
   color: var(--agent);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
@@ -32,7 +37,7 @@
 }
 
 .eyebrow {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -40,7 +45,7 @@
 }
 
 .headline {
-  font-size: 2.25rem;
+  font-size: var(--kiosk-title);
 }
 
 // One-tap questions, two per row
@@ -56,16 +61,17 @@
   display: flex;
   align-items: center;
   min-height: calc(var(--touch-height) * 1.5);
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  font-size: 1.05rem;
+  padding: 0.75rem 1.25rem;
+  @include glass.flat;
+  border-radius: var(--radius-leaf);
+  font-size: var(--text-base);
   color: var(--text);
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
 
   &:hover,
   &:active {
-    background: var(--raised);
+    @include glass.card-active;
   }
 
   &:focus-visible {
@@ -76,7 +82,8 @@
   &:disabled {
     color: var(--muted);
     cursor: default;
-    background: none;
+    background: var(--glass-fill);
+    border-color: var(--glass-edge);
   }
 }
 
@@ -92,19 +99,18 @@
   flex: 1;
   width: 100%;
   min-height: calc(var(--touch-height) * 1.25);
-  padding: 0 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--panel);
+  padding: 0 1.75rem;
+  @include glass.flat;
+  border-radius: var(--radius-pill);
   color: var(--text);
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
 
   &::placeholder {
     color: var(--muted);
   }
 
   &:focus-visible {
-    border-color: var(--text-secondary);
+    border-color: var(--glass-edge-strong);
   }
 
   &:disabled {
@@ -118,12 +124,18 @@
   display: flex;
   align-items: center;
   min-height: calc(var(--touch-height) * 1.25);
-  padding: 0 1.5rem;
-  border-radius: var(--radius-card);
-  background: var(--interactive);
+  padding: 0 1.75rem;
+  @include glass.flat;
+  border-radius: var(--radius-pill);
   color: var(--text);
   font-weight: 600;
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
+    @include glass.card-active;
+  }
 
   &:focus-visible {
     outline: 2px solid var(--text-secondary);
@@ -143,7 +155,7 @@
 
 .muted {
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
@@ -151,11 +163,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--agent);
-  border-radius: var(--radius-card);
-  font-size: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  @include glass.flat;
+  border-radius: var(--radius-leaf);
+  // AI marker (--agent is AI context only): a clean inside edge, not a thick border
+  box-shadow: inset 3px 0 0 var(--agent);
+  font-size: var(--text-lg);
   line-height: 1.4;
 }
 
@@ -164,8 +177,8 @@
 .details {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  @include glass.flat;
+  border-radius: var(--radius-leaf);
 }
 
 .scheduleRow,
@@ -177,11 +190,11 @@
   padding: 1.25rem;
 
   & + & {
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--glass-edge);
   }
 
   dt {
-    font-size: 0.95rem;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
   }
@@ -191,7 +204,7 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 0.25rem;
-    font-size: 1.25rem;
+    font-size: var(--text-lg);
     font-weight: 600;
     text-align: right;
   }
@@ -201,7 +214,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  font-size: 0.95rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -219,15 +232,16 @@
   gap: 1.5rem;
   min-height: var(--touch-height);
   padding: 1rem 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  @include glass.flat;
+  border-radius: var(--radius-leaf);
   color: var(--text);
-  font-size: 1.15rem;
+  font-size: var(--text-md);
   font-weight: 600;
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
 
   &:hover {
-    background: var(--raised);
+    @include glass.card-active;
   }
 
   &:focus-visible {
@@ -241,8 +255,8 @@
 }
 
 .picked {
-  border-color: var(--text);
-  background: var(--raised);
+  background: var(--glass-fill-hover);
+  border-color: var(--text-secondary);
 }
 
 .pickTime {
@@ -262,12 +276,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  padding: 1.25rem 1.5rem;
+  @include glass.flat;
+  border-radius: var(--radius-leaf);
 
   h2 {
-    font-size: 0.8rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -279,7 +293,7 @@
     flex-direction: column;
     gap: 0.5rem;
     padding-left: 1.1rem;
-    font-size: 1rem;
+    font-size: var(--text-base);
     line-height: 1.35;
   }
 }
