@@ -21,3 +21,11 @@ Run the normal Next build as well to verify the GitHub app independently of the 
 Mobile navigation occupies its own grid row below the scrolling workspace within
 `100dvh`. Safe-area padding is on the dock; Companion is a dock action. Avoid fixed,
 translated navigation inside an animated or scrolling content container.
+
+## Shape and visual direction
+
+Use Dojang black and red. Follow the Porchlight control shapes: circular compact
+icons/avatars and oval buttons, fields, filters, and status chips. Large reading
+surfaces retain ordinary soft corners. Favor open lists and spacing over nested
+cards, decorative gradients, repeated helper text, or heavy outlines. Keep one
+clear primary action. The mobile dock keeps its own bottom layout row.

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getStaffSessions } from "@/integrations/staff-sessions";
 import { getSessions } from "@/integrations/kiosk";
 import type { SessionOption } from "@/contracts/kiosk-attendance";
 import styles from "./Workspace.module.scss";
@@ -8,10 +9,10 @@ const time = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 export default function TodayView({
   classesOnly = false,
-  demo = false,
+  connected = false,
 }: {
   classesOnly?: boolean;
-  demo?: boolean;
+  connected?: boolean;
 }) {
   const [sessions, setSessions] = useState<SessionOption[] | null>(null);
   const [error, setError] = useState(false);
@@ -19,7 +20,8 @@ export default function TodayView({
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    getSessions(controller.signal)
+    const loadSessions = connected ? getStaffSessions : getSessions;
+    loadSessions(controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) {
           setSessions(
@@ -35,7 +37,7 @@ export default function TodayView({
         if (!controller.signal.aborted) setError(true);
       });
     return () => controller.abort();
-  }, [revision]);
+  }, [revision, connected]);
   useEffect(() => {
     const refresh = () => setRevision((n) => n + 1);
     window.addEventListener("focus", refresh);
@@ -79,8 +81,8 @@ export default function TodayView({
           </h1>
           <p>
             {classesOnly
-              ? "Every class. Every student. One place to get ready."
-              : "A clear view of what’s next, with your people at the center."}
+              ? "Choose a class to open its roster."
+              : "Classes, people, and what’s next."}
           </p>
         </div>
         <Link className={styles.quietButton} href="/kiosk">
@@ -143,14 +145,12 @@ export default function TodayView({
                 <article>
                   <p>Classes today</p>
                   <strong>{sessions.length}</strong>
-                  <small>On today’s schedule</small>
                 </article>
                 <article>
                   <p>Class bookings</p>
                   <strong>
                     {sessions.reduce((n, s) => n + s.seatsTaken, 0)}
                   </strong>
-                  <small>Bookings across classes</small>
                 </article>
                 <article>
                   <p>Places available</p>
@@ -160,17 +160,14 @@ export default function TodayView({
                       0,
                     )}
                   </strong>
-                  <small>Across today’s classes</small>
                 </article>
               </div>
             </>
           )}
-          <div className={classesOnly ? undefined : styles.columns}>
+          <div>
             <section>
               <div className={styles.sectionHeading}>
-                <h2>
-                  {classesOnly ? "Class schedule" : "The rest of your day"}
-                </h2>
+                <h2>{classesOnly ? "Class schedule" : "Today’s schedule"}</h2>
                 {!classesOnly && <Link href="/ops">All classes →</Link>}
               </div>
               {sessions.length ? (
@@ -181,24 +178,6 @@ export default function TodayView({
                 </div>
               )}
             </section>
-            {!classesOnly && (
-              <aside className={styles.card}>
-                <div className={styles.eyebrow}>People before paperwork</div>
-                <h2>Make the next conversation count.</h2>
-                <p>
-                  Open a member to see their attendance, review their progress,
-                  and prepare a thoughtful follow-up.
-                </p>
-                <Link className={styles.quietButton} href="/people">
-                  Find a member →
-                </Link>
-                <p className={styles.note}>
-                  {demo
-                    ? "Sample records are shared with the app’s demo check-in flow. No real messages are sent."
-                    : "Your device permissions determine which records are available."}
-                </p>
-              </aside>
-            )}
           </div>
         </>
       )}

@@ -134,7 +134,7 @@
   textarea {
     padding: 10px 12px;
     border: 1px solid var(--line);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-pill);
     background: var(--raised);
     color: var(--text);
     font: inherit;
@@ -149,6 +149,10 @@
   textarea {
     width: 100%;
     min-height: 117px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
 
   }
 
@@ -161,9 +165,9 @@
   margin-top: 10px;
 
   button {
-    min-height: var(--control-height);
+    min-height: var(--touch-height);
     padding: 0 18px;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-pill);
     color: var(--text);
     font-weight: 600;
     cursor: pointer;

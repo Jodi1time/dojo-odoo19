@@ -1,3 +1,5 @@
+import type { SessionOption } from "../contracts/kiosk-attendance";
+
 export type Risk = "low" | "medium" | "high";
 
 export type Suggestion = {
@@ -25,7 +27,7 @@ export type CompanionContext = {
   heading?: string;
   suggestions: Suggestion[];
   records?: {id: string; label: string; detail: string; href: string}[];
-  sessions?: {sessionId: string; title: string; startsAt: string}[];
+  sessions?: SessionOption[];
   followUps?: {id: string; memberId: string; sessionId: string; memberName: string; summary: string; replyDraft: string; at: string; status: string; mode: string}[];
   followUpEnabled?: boolean;
   intel?: { label: string; value: string }[];

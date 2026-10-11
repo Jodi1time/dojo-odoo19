@@ -104,8 +104,9 @@
         border: 1px solid var(--dark-border);
         font-size: 12px;
         font-weight: 600;
-        padding: 10px 12px;
-        border-radius: 8px;
+        padding: 10px 16px;
+        min-height: 44px;
+        border-radius: var(--radius-pill);
         color: var(--text);
         background-color: var(--panel);
         cursor: pointer;

@@ -64,7 +64,9 @@ export default function ConnectedNavigation({
           href={item.href}
           aria-current={item.matches(pathname) ? "page" : undefined}
         >
-          <NavIcon name={item.icon} />
+          <span className={styles.navSymbol}>
+            <NavIcon name={item.icon} />
+          </span>
           <span>{item.label}</span>
         </Link>
       ))}
@@ -76,7 +78,9 @@ export default function ConnectedNavigation({
           aria-controls="roster-companion"
           aria-expanded={companionOpen}
         >
-          <NavIcon name="companion" />
+          <span className={styles.navSymbol}>
+            <NavIcon name="companion" />
+          </span>
           <span>Companion</span>
         </button>
       )}
