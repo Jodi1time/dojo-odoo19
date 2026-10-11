@@ -220,7 +220,9 @@ const choose=async(page,name)=>{
   await staffPage.setViewportSize({width:390,height:500});
   const main=staffPage.getByRole('main');
   await poll(async()=>main.evaluate(el=>el.scrollHeight-el.clientHeight>160));
-  await main.evaluate(el=>{document.activeElement?.blur();el.scrollTop=el.scrollHeight});
+  await main.evaluate(el=>{document.activeElement?.blur();el.scrollTop=0});
+  await poll(async()=>main.evaluate(el=>el.scrollTop===0));
+  await main.evaluate(el=>{el.scrollTop=1});
   const expand=staffPage.getByRole('button',{name:'Expand navigation',exact:true});
   await expand.waitFor({state:'visible'});
   await mobileNav.waitFor({state:'hidden'});
@@ -233,7 +235,7 @@ const choose=async(page,name)=>{
   await expand.waitFor({state:'visible'});
   await main.evaluate(el=>{el.scrollTop-=40});
   await mobileNav.waitFor({state:'visible'});
-  record('home dock collapses on downward scroll and expands on tap or upward scroll; follow-ups has its own page');
+  record('home dock collapses at the first downward pixel and expands on tap or upward scroll; follow-ups has its own page');
   await staffPage.setViewportSize({width:1440,height:1000});
   record('mobile staff navigation, workspace guide and companion remain operable');
   await choose(page,'Recovery');

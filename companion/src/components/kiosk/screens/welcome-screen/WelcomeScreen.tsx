@@ -38,13 +38,31 @@ const WelcomeScreen = ({
 
       {/* check in call to action */}
 
-      <ActionCard
-        label="Check In"
-        description="Pick your class, then find your name"
-        size="large"
-        onClick={onCheckIn}
-        className={styles.checkIn}
-      />
+      <div className={styles.checkIn}>
+        <button
+          type="button"
+          onClick={onCheckIn}
+          className={styles.checkInButton}
+        >
+          Check in
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M5 12h14m-6-6 6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        <p className={styles.checkInHint}>Choose your class, then your name.</p>
+      </div>
 
       {/* Optional AI Concierge: questions, trial requests, calling staff */}
       {onAsk && (

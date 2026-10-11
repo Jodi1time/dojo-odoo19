@@ -27,9 +27,10 @@ and form actions as React interactions.
 
 Mobile navigation floats outside the scrolling workspace within `100dvh`, with
 safe-area insets and constant bottom scroll padding so the last row is reachable.
-Only on Today, deliberate downward scrolling collapses it to a Home circle;
-scrolling up, reaching the top, or tapping the circle reveals it. Keep keyboard
-focus reachable and prevent small scroll changes from flickering the menu.
+Only on Today, the first downward scroll movement starts collapsing it to a Home
+circle, with no distance threshold. Upward travel of 20px, reaching the top, or
+tapping the circle reveals it. Keep keyboard focus reachable and ignore minor
+upward jitter while collapsed. Preserve the smooth surface transition.
 
 ## Shape and visual direction
 
@@ -38,6 +39,8 @@ icons/avatars and oval buttons, fields, filters, and status chips. Large reading
 surfaces retain ordinary soft corners. Favor open lists and spacing over nested
 cards, decorative gradients, repeated helper text, or heavy outlines. Keep one
 clear primary action. The mobile dock is a glass oval with circular symbols.
+The kiosk welcome uses a compact cream Check in pill with a small red arrow and
+one quiet helper line underneath, never a full-width action card.
 
 The home heading is simply Today. Show an upcoming/current class only when one
 exists; use one quiet line when classes have ended. Avoid welcome slogans and

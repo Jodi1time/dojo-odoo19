@@ -20,15 +20,60 @@
     }
   }
 
-  // Card styles live in primitives/action-card. This file only handles layout.
   .checkIn {
     @include motion.reveal(60ms);
-    margin-top: 3rem;
-    border-color: rgba(239, 82, 98, 0.32);
+    margin-top: 2rem;
+  }
+
+  .checkInButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    min-height: 52px;
+    padding: 0.75rem 1.5rem;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--text);
+    color: var(--canvas);
+    font: inherit;
+    font-size: var(--text-base);
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color 180ms ease-out,
+      transform 180ms ease-out;
+
+    svg {
+      flex: none;
+      color: var(--brand);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--brand-bright);
+      outline-offset: 5px;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background: #fff;
+      }
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
+  .checkInHint {
+    margin: 0.75rem 0 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-secondary);
   }
 
   .ask {
-    margin-top: 0.75rem;
+    margin-top: 1.5rem;
   }
 
   // Quiet, but always there
