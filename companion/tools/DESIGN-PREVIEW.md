@@ -39,8 +39,8 @@ icons/avatars and oval buttons, fields, filters, and status chips. Large reading
 surfaces retain ordinary soft corners. Favor open lists and spacing over nested
 cards, decorative gradients, repeated helper text, or heavy outlines. Keep one
 clear primary action. The mobile dock is a glass oval with circular symbols.
-The kiosk welcome uses a compact cream Check in pill with a small red arrow and
-one quiet helper line underneath, never a full-width action card.
+The kiosk welcome uses a compact frosted-glass Check in pill with a small red
+arrow, without helper text underneath or a full-width action card.
 
 The home heading is simply Today. Show an upcoming/current class only when one
 exists; use one quiet line when classes have ended. Avoid welcome slogans and

@@ -61,7 +61,6 @@ const WelcomeScreen = ({
             />
           </svg>
         </button>
-        <p className={styles.checkInHint}>Choose your class, then your name.</p>
       </div>
 
       {/* Optional AI Concierge: questions, trial requests, calling staff */}

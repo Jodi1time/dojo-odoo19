@@ -1,4 +1,5 @@
 @use "../../../../../styles/motion";
+@use "../../../../../styles/glass";
 
 .screen {
   flex: 1; // fills the shell's column; width comes from the shell
@@ -26,27 +27,27 @@
   }
 
   .checkInButton {
+    @include glass.card;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 1rem;
     min-height: 52px;
     padding: 0.75rem 1.5rem;
-    border: 0;
     border-radius: var(--radius-pill);
-    background: var(--text);
-    color: var(--canvas);
+    color: var(--text);
     font: inherit;
     font-size: var(--text-base);
     font-weight: 600;
     cursor: pointer;
     transition:
       background-color 180ms ease-out,
+      border-color 180ms ease-out,
       transform 180ms ease-out;
 
     svg {
       flex: none;
-      color: var(--brand);
+      color: var(--brand-bright);
     }
 
     &:focus-visible {
@@ -56,20 +57,13 @@
 
     @media (hover: hover) {
       &:hover {
-        background: #fff;
+        @include glass.card-active;
       }
     }
 
     &:active {
       transform: scale(0.98);
     }
-  }
-
-  .checkInHint {
-    margin: 0.75rem 0 0;
-    font-size: var(--text-sm);
-    line-height: 1.5;
-    color: var(--text-secondary);
   }
 
   .ask {
