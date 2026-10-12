@@ -101,7 +101,8 @@
     li {
       display: flex;
 
-      button {
+      button,
+      a {
         white-space: nowrap; // keeps "Do For Me" on one line
         border: 1px solid var(--dark-border);
         font-size: 12px;

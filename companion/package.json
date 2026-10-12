@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:odoo-integration": "bash tools/test-odoo-gateway.sh",
-    "test:ui": "bash tools/test-ui-behavior.sh"
+    "test:ui": "bash tools/test-ui-behavior.sh",
+    "test:members": "bash tools/test-member-context.sh"
   },
   "dependencies": {
     "next": "16.3.8",

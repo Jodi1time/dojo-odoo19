@@ -72,3 +72,19 @@ crossfade in sequence without scaling text. Check-in success draws a ring and
 checkmark once only after a matching confirmed receipt. Already-recorded receipts
 use a still checkmark, and unconfirmed/offline outcomes never show it. Reduced
 motion shows the final still state. Preserve Done and the existing privacy reset.
+
+## Member context and loading
+
+Member dialogs require the selected member record. Names, initials, rank, status,
+household, and registered classes must agree across the profile and its dialogs.
+Bookings come from the same member IDs and rosters as kiosk check-in. An absent
+source is unavailable, not a sample payment method, balance, plan, or instructor.
+Profile writes and booking/billing changes are not connected in this preview;
+show that boundary honestly. Check-in actions open the real kiosk flow and never
+set a local success flag. Companion suggestions, drafts, approvals, replays, and
+receipts are scoped by member ID.
+
+Normal demo reads have no artificial waits. Keep the explicit slow scenarios for
+rehearsal. Load the Companion panel on its first open and retain it after closing.
+Demo kiosk screens do not poll the paired-device recovery endpoint. Keep native
+preview navigation until soft routing is proven reliable in the hosted runtime.

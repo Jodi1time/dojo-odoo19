@@ -3,9 +3,16 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import Link from "@/components/primitives/AppLink";
 import { usePathname } from "next/navigation";
 import styles from "./Shell.module.scss";
-import CompanionRail from "./rail/companion-rail/CompanionRail";
+import dynamic from "next/dynamic";
 import ConnectedNavigation from "./ConnectedNavigation";
 import FloatingNavigation from "./FloatingNavigation";
+
+const CompanionRail = dynamic(
+  () => import("./rail/companion-rail/CompanionRail"),
+  {
+    loading: () => <p role="status">Opening Companion…</p>,
+  },
+);
 
 type Props = {
   children: ReactNode;
@@ -23,6 +30,7 @@ export default function AdaptiveShell({
 }: Props) {
   const [contextOpen, setContextOpen] = useState(false);
   const [companionOpen, setCompanionOpen] = useState(false);
+  const [companionVisited, setCompanionVisited] = useState(false);
   const pathname = usePathname();
   const contextTrigger = useRef<HTMLButtonElement>(null);
   const companionClose = useRef<HTMLButtonElement>(null);
@@ -35,6 +43,7 @@ export default function AdaptiveShell({
     requestAnimationFrame(() => lastTrigger.current?.focus());
   };
   const openCompanion = () => {
+    setCompanionVisited(true);
     lastTrigger.current = document.activeElement as HTMLElement;
     setContextOpen(false);
     setCompanionOpen(true);
@@ -186,7 +195,7 @@ export default function AdaptiveShell({
         >
           ✕
         </button>
-        {companion ?? <CompanionRail />}
+        {companionVisited && (companion ?? <CompanionRail />)}
       </aside>
     </div>
   );
