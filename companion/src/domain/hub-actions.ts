@@ -67,7 +67,7 @@ export async function runHubAction(
     const code = error instanceof Error ? error.message : '';
     const uncertain = error instanceof TypeError || error instanceof SyntaxError ||
       ['AbortError', 'TimeoutError'].includes(error instanceof Error ? error.name : '') ||
-      ['BACKEND_UNAVAILABLE_RETRY_SAME_ACTION', 'BACKEND_UNAVAILABLE', 'CONNECTION_UNAVAILABLE'].includes(code) || !code;
+      ['BACKEND_UNAVAILABLE_RETRY_SAME_ACTION', 'BACKEND_UNAVAILABLE', 'CONNECTION_UNAVAILABLE', 'CONCURRENT_RETRY'].includes(code) || !code;
     return {kind: uncertain ? 'uncertain' : 'error', text: explainHubError(uncertain ? 'BACKEND_UNAVAILABLE_RETRY_SAME_ACTION' : code)};
   }
   const feedback: ActionFeedback = {

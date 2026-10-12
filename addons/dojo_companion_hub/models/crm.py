@@ -3,6 +3,8 @@ import re
 from datetime import date
 
 from odoo import fields, models
+from markupsafe import escape as html_escape
+from odoo.tools import html2plaintext
 from odoo.addons.dojo_kiosk.models.dojo_kiosk_v2 import iso, record_id, session_version
 from .service import HubProblem, exact, text
 
@@ -38,13 +40,78 @@ class HubCrm(models.AbstractModel):
             raise HubProblem("LEAD_UNAVAILABLE", 404)
         return lead
 
-    def _lead_row(self, lead):
+    def _lead_evidence(self, lead, tasks=None):
+        """Explainable record completeness/engagement evidence, never propensity.
+
+        Fixed v1 weights are exposed with each reason. Missing facts add nothing;
+        notes, stage labels and probabilities are not proof of a trial attendance.
+        """
+        tasks = tasks if tasks is not None else self.env["mail.activity"].sudo().with_context(active_test=False).search([
+            ("res_model", "=", "crm.lead"), ("res_id", "=", lead.id)], limit=200)
+        today = fields.Date.context_today(self)
+        active = tasks.filtered("active")
+        completed = tasks.filtered(lambda t: not t.active and bool(t.feedback))
+        trial = lead.trial_session_id if "trial_session_id" in lead._fields else self.env["dojo.class.session"]
+        if trial and (trial.company_id != lead.company_id or trial.template_id.company_id != lead.company_id):
+            trial = self.env["dojo.class.session"]
+        member = lead.dojo_member_id if "dojo_member_id" in lead._fields else self.env["dojo.member"]
+        if member and member.company_id != lead.company_id:
+            member = self.env["dojo.member"]
+        facts = [
+            ("Contact name recorded", 10, bool(lead.contact_name)),
+            ("Email or phone recorded (verification not implied)", 10, bool(lead.email_from or lead.phone)),
+            ("Staff owner assigned", 10, bool(lead.user_id)),
+            ("Acquisition source recorded", 10, bool(lead.source_id)),
+            ("Interest tag recorded", 10, bool(lead.tag_ids)),
+            ("Open next-action task recorded", 15, bool(active)),
+            ("Completed task outcome recorded", 15, bool(completed)),
+            ("Trial session linked (attendance not implied)", 10, bool(trial)),
+            ("Member explicitly linked", 10, bool(member)),
+        ]
+        reasons = [{"label": label, "points": weight if present else 0, "available": weight, "recorded": present}
+                   for label, weight, present in facts]
+        stage = (lead.stage_id.name or "").strip().lower()
+        # Only configured stage names establish these labels. No probability or
+        # sentiment is used to turn a lead into a won/lost/customer record.
+        stages = {"new": "New", "contacted": "Contacted", "qualified": "Contacted", "trial": "Trial",
+            "trial booked": "Trial", "trial-in-progress": "Trial", "evaluation": "Evaluation",
+            "offer": "Offer", "nurture": "Nurture", "lost": "Lost"}
+        journey = "Won" if lead.stage_id.is_won else stages.get(stage, "Stage review")
+        overdue = active.filtered(lambda t: t.date_deadline and t.date_deadline < today)
+        due = active.filtered(lambda t: t.date_deadline == today)
+        if journey in ("Won", "Lost"):
+            priority, why = "Low", "The configured pipeline stage is terminal; review any outstanding work separately."
+        elif overdue:
+            priority, why = "Now", "%s open task(s) are overdue." % len(overdue)
+        elif due:
+            priority, why = "High", "%s open task(s) are due today." % len(due)
+        elif not lead.user_id:
+            priority, why = "High", "No staff owner is assigned."
+        elif not active and journey != "Nurture":
+            priority, why = "High", "No open next action is recorded."
+        elif journey == "Nurture":
+            priority, why = "Low", "The configured stage is Nurture and no task is due today."
+        else:
+            priority, why = "Normal", "Assigned work has no overdue or today-due task."
+        action = "conversion" if journey in ("Offer", "Won") and not member else "reactivation" if journey in ("Nurture", "Lost") else "trial" if not trial and journey in ("New", "Contacted") else "follow_up"
+        return {"score": sum(r["points"] for r in reasons), "scoreKind": "Recorded evidence, not conversion probability",
+            "method": "v1-fixed-evidence", "reasons": reasons, "journey": journey, "priority": priority,
+            "priorityReason": why, "nextAction": action, "risk": "Internal review only",
+            "openTasks": len(active), "overdueTasks": len(overdue), "dueToday": len(due),
+            "trialLinked": bool(trial), "memberLinked": bool(member)}
+
+    def _crm_assignees(self, site):
+        grants = self.env["dojo.hub.grant"].sudo().search([("site_id", "=", site.id), ("active", "=", True),
+            ("role", "in", ["owner", "manager"]), ("user_id.active", "=", True)])
+        return grants.user_id.filtered(lambda u: site.company_id in u.company_ids)
+
+    def _lead_row(self, lead, tasks=None):
         return {"id": str(lead.id), "name": lead.name, "contact": lead.contact_name or "",
             "email": lead.email_from or "", "phone": lead.phone or "", "version": session_version(lead),
             "stageId": str(lead.stage_id.id) if lead.stage_id else None, "stage": lead.stage_id.name or "Unassigned",
             "ownerId": str(lead.user_id.id) if lead.user_id else None, "owner": lead.user_id.name or "Unassigned",
             "source": lead.source_id.name or "Not recorded", "tags": [{"id": str(t.id), "name": t.name} for t in lead.tag_ids],
-            "canEditContact": not bool(lead.partner_id)}
+            "canEditContact": not bool(lead.partner_id), "evidence": self._lead_evidence(lead, tasks)}
 
     def _task_record(self, site, grant, kind, value):
         self._role(grant, "owner manager")
@@ -91,11 +158,19 @@ class HubCrm(models.AbstractModel):
         tasks = self.env["mail.activity"].sudo().search(["|",
             "&", ("res_model", "=", "crm.lead"), ("res_id", "in", all_leads.ids),
             "&", ("res_model", "=", "dojo.member"), ("res_id", "in", members.ids)], limit=101)
-        return {"leads": [self._lead_row(l) for l in leads[:100]], "tasks": [self._task_row(t) for t in tasks[:100]],
+        evidence_tasks = self.env["mail.activity"].sudo().with_context(active_test=False).search([
+            ("res_model", "=", "crm.lead"), ("res_id", "in", leads[:100].ids)])
+        empty_tasks = self.env["mail.activity"].sudo().with_context(active_test=False)
+        by_lead = {}
+        for task in evidence_tasks:
+            by_lead.setdefault(task.res_id, empty_tasks)
+            by_lead[task.res_id] |= task
+        return {"leads": [self._lead_row(l, by_lead.get(l.id, empty_tasks)) for l in leads[:100]], "tasks": [self._task_row(t) for t in tasks[:100]],
             "moreLeads": len(leads) > 100, "moreTasks": len(tasks) > 100,
             "limit": 100, "stages": [{"id": str(s.id), "name": s.name} for s in self.env["crm.stage"].sudo().search([
                 "|", ("team_ids", "=", False), ("team_ids.company_id", "=", site.company_id.id)], order="sequence, id")],
-            "members": [{"id": str(m.id), "name": m.name} for m in members]}
+            "members": [{"id": str(m.id), "name": m.name} for m in members],
+            "assignees": [{"id": str(u.id), "name": u.name} for u in self._crm_assignees(site)]}
 
     def _lead_details(self, site, grant, p):
         exact(p, "leadId")
@@ -109,13 +184,56 @@ class HubCrm(models.AbstractModel):
         trial = lead.trial_session_id if "trial_session_id" in lead._fields else self.env["dojo.class.session"]
         if trial and (trial.company_id != site.company_id or trial.template_id.company_id != site.company_id):
             trial = self.env["dojo.class.session"]
+        notes = self.env["mail.message"].sudo().search([("model", "=", "crm.lead"), ("res_id", "=", lead.id),
+            ("message_type", "=", "comment"), ("subtype_id", "=", self.env.ref("mail.mt_note").id)], order="id desc", limit=20)
         return {"lead": self._lead_row(lead), "tasks": [self._task_row(t, lead.name) for t in tasks],
             "stages": [{"id": str(s.id), "name": s.name} for s in self.env["crm.stage"].sudo().search([
                 "|", ("team_ids", "=", False), ("team_ids", "in", lead.team_id.ids)], order="sequence, id")],
             "memberId": str(member.id) if member else None,
             "trial": {"title": trial.template_id.name, "startsAt": iso(trial.start_datetime)} if trial else None,
             # Never present a CRM stage/flag as factual attendance.
+            "notes": [{"id": str(n.id), "text": html2plaintext(n.body or ""), "author": n.author_id.name or "Staff", "at": iso(n.date)} for n in notes],
             "timeline": [{"id": str(a.id), "action": a.operation, "actor": a.user_id.name, "at": iso(a.create_date)} for a in audit]}
+
+    def _add_lead_note(self, site, grant, p):
+        exact(p, "leadId expectedVersion note")
+        lead = self._lead(site, grant, p["leadId"])
+        self._lock(lead)
+        if type(p["expectedVersion"]) is not int or p["expectedVersion"] != session_version(lead):
+            raise HubProblem("VERSION_CONFLICT")
+        note = text(p["note"], 2000)
+        message = lead.with_context(companion_internal_task=True, mail_post_autofollow=False).message_post(
+            body=html_escape(note), message_type="comment", subtype_xmlid="mail.mt_note", author_id=self.env.user.partner_id.id)
+        return {"leadId": str(lead.id), "noteId": str(message.id), "state": "saved", "messageSent": False}
+
+    def _assign_lead(self, site, grant, p):
+        exact(p, "leadId expectedVersion ownerId")
+        lead = self._lead(site, grant, p["leadId"])
+        self._lock(lead)
+        if type(p["expectedVersion"]) is not int or p["expectedVersion"] != session_version(lead):
+            raise HubProblem("VERSION_CONFLICT")
+        owner = self._crm_assignees(site).filtered(lambda u: u.id == record_id(p["ownerId"]))
+        if not owner:
+            raise HubProblem("FORBIDDEN", 403)
+        lead.with_context(tracking_disable=True, mail_create_nosubscribe=True).write({"user_id": owner.id, "company_id": site.company_id.id})
+        return {"leadId": str(lead.id), "ownerId": str(owner.id), "state": "assigned"}
+
+    def _prepare_lead_action(self, site, grant, p):
+        exact(p, "leadId expectedVersion kind reason due")
+        lead = self._lead(site, grant, p["leadId"])
+        self._lock(lead)
+        if type(p["expectedVersion"]) is not int or p["expectedVersion"] != session_version(lead):
+            raise HubProblem("VERSION_CONFLICT")
+        titles = {"follow_up": "Prepare follow-up", "trial": "Review trial options", "reactivation": "Review reactivation", "conversion": "Review member conversion"}
+        if not isinstance(p["kind"], str) or p["kind"] not in titles:
+            raise HubProblem("INVALID_COMMAND", 400)
+        reason = text(p["reason"], 800)
+        task = self._task_create_for(lead, titles[p["kind"]] + ": " + lead.name[:150], p["due"])
+        # Notes belong to the real activity. They never activate campaigns,
+        # book a trial, create a membership or change billing eligibility.
+        task.write({"note": html_escape(reason)})
+        return {"leadId": str(lead.id), "taskId": str(task.id), "kind": p["kind"], "state": "prepared",
+            "messageSent": False, "bookingCreated": False, "membershipCreated": False}
 
     def _lead_values(self, changes):
         if not isinstance(changes, dict) or not changes or set(changes) - {"name", "contact", "email", "phone"}:
