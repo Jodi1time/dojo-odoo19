@@ -2,7 +2,7 @@ name: Connected browser rehearsal
 on:
   pull_request:
     branches: [integration/monday-release, sync/justin-ui]
-    paths: ['companion/**', '.github/workflows/browser-rehearsal.yml']
+    paths: ['companion/**', 'addons/dojo_companion_hub/**', 'addons/dojo_kiosk/**', 'tools/**', 'Dockerfile', '.github/workflows/browser-rehearsal.yml']
   workflow_call:
     inputs:
       source:

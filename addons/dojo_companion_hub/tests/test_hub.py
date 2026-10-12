@@ -67,6 +67,56 @@ class TestCompanionHub(TransactionCase):
         return self.env["dojo.instructor.profile"].create({"name": "Synthetic Instructor", "user_id": user.id,
             "partner_id": user.partner_id.id, "company_id": self.company.id})
 
+    def report_range(self):
+        day = str(self.session.start_datetime.date())
+        return {"fromDate": day, "toDate": day}
+
+    def test_operations_report_is_native_read_only_and_company_scoped(self):
+        profile = self.instructor_profile()
+        self.session.instructor_profile_id = profile
+        self.env["dojo.attendance.log"].create({"session_id": self.session.id, "member_id": self.member.id, "status": "late"})
+        before = self.env["dojo.hub.receipt"].search_count([])
+        foreign = self.env["res.company"].create({"name": "Other reporting school"})
+        template = self.env["dojo.class.template"].create({"name": "Private foreign class", "company_id": foreign.id})
+        self.env["dojo.class.session"].create({"template_id": template.id,"company_id": foreign.id,"state": "open",
+            "start_datetime": self.session.start_datetime,"end_datetime": self.session.end_datetime})
+        result = self.act("operations_report", self.report_range())
+        self.assertNotIn("error", result)
+        self.assertEqual(result["sessions"], 1)
+        self.assertEqual(result["attendance"]["attended"], 1)
+        self.assertEqual(result["attendance"]["daily"][0]["counts"], {"late": 1})
+        self.assertEqual(result["workload"][0]["sessions"], 1)
+        self.assertNotIn("Private foreign", json.dumps(result))
+        self.assertEqual(self.env["dojo.hub.receipt"].search_count([]), before)
+
+    def test_operations_report_rejects_unprivileged_or_unbounded_requests(self):
+        for role in ("instructor", "guardian"):
+            self.assertEqual(self.act("operations_report", self.report_range(), role=role)["error"]["status"], 403)
+        for payload in ({"fromDate": "2026-01-01", "toDate": "2026-03-01"}, {"fromDate": "bad", "toDate": None}):
+            self.assertEqual(self.act("operations_report", payload)["error"]["code"], "INVALID_REPORT_RANGE")
+        self.assertEqual(self.act("operations_report", {**self.report_range(), "companyId": "9"})["error"]["code"], "INVALID_COMMAND")
+        with self.assertRaises(HubProblem):
+            self.env["dojo.hub.service"]._report_rows("dojo.member", [("id", "=", self.member.id)], limit=0)
+
+    def test_roster_is_registered_scoped_and_never_infers_absence(self):
+        result = self.act("session_roster", {"sessionId": str(self.session.id)}, role="instructor")
+        self.assertEqual(result["members"][0]["attendance"], "pending")
+        self.assertEqual(set(result["members"][0]), {"id", "name", "rank", "attendance"})
+        self.env["dojo.attendance.log"].create({"session_id": self.session.id, "member_id": self.member.id, "status": "late"})
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)}, role="instructor")["members"][0]["attendance"], "late")
+        self.grants["instructor"].session_ids = [(5, 0, 0)]
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)}, role="instructor")["error"]["code"], "SESSION_UNAVAILABLE")
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)}, role="guardian")["error"]["status"], 403)
+        self.enrollment.status = "cancelled"
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)})["members"], [])
+
+    def test_report_uses_school_day_instead_of_utc_day(self):
+        self.company.partner_id.tz = "America/Chicago"
+        self.session.write({"start_datetime": "2026-10-13 00:30:00", "end_datetime": "2026-10-13 01:30:00"})
+        result = self.act("operations_report", {"fromDate": "2026-10-12", "toDate": "2026-10-12"})
+        self.assertEqual(result["sessions"], 1)
+        self.assertEqual(self.act("operations_report", {"fromDate": "2026-10-13", "toDate": "2026-10-13"})["sessions"], 0)
+
     def test_instructor_clock_is_native_scoped_and_idempotent(self):
         self.company.attendance_validation = "no_validation"
         profile = self.instructor_profile()

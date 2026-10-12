@@ -452,6 +452,10 @@ class HubService(models.AbstractModel):
                     return self._ai_settings(site, grant, payload)
                 if operation == "instructor_context":
                     return self._instructor_context(site, grant, payload)
+                if operation == "operations_report":
+                    return self._operations_report(site, grant, payload)
+                if operation == "session_roster":
+                    return self._session_roster(site, grant, payload)
                 self._role(grant)
                 handlers = {"resolve": self._resolve, "draft": self._draft, "approve_reply": self._approve_reply,
                     "checkout": self._checkout, "book": self._book, "change_class": self._change_class,

@@ -87,6 +87,66 @@ const pass=name=>{checks.push({name,result:'passed'});console.log('PASS '+name);
   }
   if(out)await page.screenshot({path:path.join(out,'instructor-connected-wide.png'),fullPage:true});
   pass('connected instructor workspace fits phone, tablet, desktop and wide layouts');
+  stage='operations reports and printable roster';
+  await page.setViewportSize({width:1280,height:900});
+  await page.goto(origin+'/hub?view=operations');
+  const operations=page.getByRole('region',{name:'Operations reports and rosters',exact:true});
+  const from=new Date(Date.now()-86400000).toISOString().slice(0,10),to=new Date(Date.now()+3*86400000).toISOString().slice(0,10);
+  await operations.getByLabel('From date',{exact:true}).fill(from);
+  await operations.getByLabel('Through date',{exact:true}).fill(to);
+  await operations.getByRole('button',{name:'Load operations report',exact:true}).click();
+  await operations.getByText('2 attended records',{exact:true}).waitFor();
+  const nativeReport=await call('operations_report',{fromDate:from,toDate:to});
+  assert.equal(nativeReport.status,200);assert.equal(nativeReport.value.attendance.attended,2);
+  await operations.getByLabel('Roster class',{exact:true}).click();
+  await operations.locator(`[role=option][data-value="${fixture.sessionId}"]`).click();
+  const printed=operations.getByRole('article',{name:'Printable class roster',exact:true});
+  await printed.waitFor();
+  const nativeRoster=(await call('session_roster',{sessionId:fixture.sessionId})).value;
+  assert.ok(nativeRoster.members.some(m=>m.id===fixture.memberId&&['present','late'].includes(m.attendance)));
+  assert.equal(await printed.locator('tbody tr').count(),nativeRoster.members.length);
+  if(out){
+   await page.screenshot({path:path.join(out,'operations-connected-desktop.png'),fullPage:true});
+   await page.pdf({path:path.join(out,'native-class-roster.pdf'),format:'A4',printBackground:true});
+  }
+  await page.emulateMedia({media:'print'});
+  assert.equal(await page.getByRole('navigation',{name:'Staff navigation',exact:true}).isVisible(),false);
+  assert.equal(await printed.isVisible(),true);
+  await page.emulateMedia({media:'screen'});
+  for(const width of [390,768,1920]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
+  await page.route('**/api/hub',route=>route.request().postDataJSON().operation==='operations_report'?route.abort('connectionfailed'):route.continue());
+  await operations.getByRole('button',{name:'Load operations report',exact:true}).click();
+  await operations.getByRole('alert').waitFor();
+  assert.equal(await operations.locator('[aria-label="Verified operations report"]').count(),0);
+  await page.unroute('**/api/hub');
+  await operations.getByRole('button',{name:'Load operations report',exact:true}).click();
+  await operations.getByText('2 attended records',{exact:true}).waitFor();
+  pass('native attendance/workload/belt/family reports and printable roster load scoped Odoo data, fit all viewport sizes and show no stale report on network failure');
+  stage='public-mode privacy transition';
+  // Pairing grants are test credentials only and never appear in the recording.
+  for(const role of ['staff','kiosk']){
+   const paired=await context.request.post(origin+'/api/integration/pair',{headers:{origin},form:{role,pairKey:process.env[role==='staff'?'DOJANG_STAFF_PAIR_KEY':'DOJANG_KIOSK_PAIR_KEY']},maxRedirects:0});
+   assert.equal(paired.status(),303);
+  }
+  const otherTab=await context.newPage();
+  await otherTab.goto(origin+'/hub?view=instructor');
+  await otherTab.getByRole('region',{name:'Instructor workspace',exact:true}).waitFor();
+  await page.route('**/api/integration/public-mode',route=>route.abort('connectionfailed'));
+  await page.goto(origin+'/kiosk');
+  await page.getByRole('heading',{name:'Kiosk privacy reset not confirmed',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:/^Check In/i}).count(),0);
+  await page.unroute('**/api/integration/public-mode');
+  await page.getByRole('button',{name:'Retry privacy reset',exact:true}).click();
+  await page.getByRole('button',{name:/^Check In/i}).waitFor();
+  await otherTab.waitForURL('**/kiosk');
+  assert.equal((await context.request.get(origin+'/api/v2/members')).status(),403);
+  assert.equal((await call('instructor_context',{})).status,401);
+  assert.equal((await context.request.get(origin+'/api/v2/sessions')).status(),200);
+  await page.goBack();
+  await page.getByLabel('Login',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('region',{name:'Instructor workspace',exact:true}).count(),0);
+  await otherTab.close();
+  pass('failed privacy reset blocks public use; retry removes both staff credentials, clears other tabs and prevents Back restoring staff context');
   await context.close();
   if(out)await page.video().saveAs(path.join(out,'walkthrough-instructor.webm'));
   if(out)fs.writeFileSync(path.join(out,'instructor-browser-results.json'),JSON.stringify({mode:'real Odoo native HR attendance with one lost response',checks},null,2));

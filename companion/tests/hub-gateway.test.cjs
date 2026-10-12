@@ -1,12 +1,32 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {hubRoute,hubConfig}=require(process.env.DOJANG_HUB_MODULE);
+const {hubRoute,hubConfig,enterPublicMode}=require(process.env.DOJANG_HUB_MODULE);
 const env={DOJANG_HUB_ENABLED:'true',NEXT_PUBLIC_DEMO_MODE:'false',DOJANG_PUBLIC_ORIGIN:'https://companion.example.test',DOJANG_ODOO_URL:'https://odoo.example.test',DOJANG_ODOO_DATABASE:'dojang_test',DOJANG_HUB_SITE_ID:'5',DOJANG_COOKIE_SECRET:'s'.repeat(48)};
 const req=(body,cookie='',origin=env.DOJANG_PUBLIC_ORIGIN)=>new Request(env.DOJANG_PUBLIC_ORIGIN+'/api/hub',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify(body)});
 const sid='a'.repeat(64);
 const context={principal:{userId:'15',name:'Synthetic Staff',role:'manager',siteId:'5'},members:[]};
 const fixture=async(url)=>url.endsWith('/authenticate')?Response.json({result:{uid:15}},{headers:{'set-cookie':`session_id=${sid}; Path=/; HttpOnly; Secure`}}):Response.json({result:context});
 const login=async()=>{const response=await hubRoute(req({operation:'login',login:'synthetic@example.invalid',password:'synthetic-password'}),env,fixture);assert.equal(response.status,200);return response.headers.get('set-cookie').split(';')[0];};
+test('public mode removes both staff cookies, preserves kiosk pairing and revokes the native session',async()=>{
+ const cookie=await login();let calls=0;
+ const r=await enterPublicMode(req({},cookie+'; dojang_staff_test=paired; dojang_kiosk_test=public'),env,async(url)=>{calls++;assert.ok(url.endsWith('/web/session/destroy'));return Response.json({result:null});});
+ assert.equal(r.status,200);assert.deepEqual(await r.json(),{staffContextCleared:true,backendRevoked:true});assert.equal(calls,1);
+ assert.equal(r.headers.getSetCookie().length,2);
+ assert.match(r.headers.get('set-cookie'),/dojang_hub_session=;.*Max-Age=0/);
+ assert.match(r.headers.get('set-cookie'),/dojang_staff_test=;.*Max-Age=0/);
+ assert.doesNotMatch(r.headers.get('set-cookie'),/dojang_kiosk_test/);
+});
+test('public privacy reset stays honest and locally clears expired or unreachable sessions',async()=>{
+ const cookie=await login();
+ for(const [value,settings,revoked] of [[cookie,env,false],['dojang_hub_session=expired',env,null],[cookie,{...env,DOJANG_HUB_ENABLED:'false'},null]]){
+  const r=await enterPublicMode(req({},value),settings,async()=>{throw Error('secret');});
+  assert.equal(r.status,200);assert.equal((await r.json()).backendRevoked,revoked);assert.equal(r.headers.getSetCookie().length,2);
+ }
+});
+test('cross-origin public reset cannot sign staff out or reach Odoo',async()=>{
+ let calls=0;const r=await enterPublicMode(req({},await login(),'https://attacker.test'),env,async()=>{calls++;});
+ assert.equal(r.status,403);assert.equal(calls,0);assert.equal(r.headers.get('set-cookie'),null);
+});
 test('instructor clock requires an individual staff session, never device pairing',async()=>{
  const body={operation:'instructor_clock',payload:{direction:'in',currentShiftId:null,pin:'123456'},requestKey:'instructor-clock-0001'};
  let calls=0;
@@ -47,7 +67,7 @@ test('member details are an authenticated fixed read, never a paired-device upgr
 test('provider/backend errors are sanitized and preserve retry uncertainty',async()=>{const cookie=await login();const r=await hubRoute(req({operation:'checkout',payload:{},requestKey:'request-test-00001'},cookie),env,async()=>{throw Error('secret-token')});assert.equal(r.status,503);assert.doesNotMatch(await r.text(),/secret-token/)});
 test('CRM reads require a real user session and mutations require a stable receipt key',async()=>{
  const cookie=await login();
- for(const operation of ['crm_context','lead_details','member_workspace']){
+ for(const operation of ['crm_context','lead_details','member_workspace','operations_report','session_roster']){
   const body={operation,payload:operation==='crm_context'?{query:''}:operation==='member_workspace'?{memberId:'25'}:{leadId:'21'},requestKey:null};
   assert.equal((await hubRoute(req(body),env,fixture)).status,401);
   assert.equal((await hubRoute(req(body,cookie),env,fixture)).status,200);

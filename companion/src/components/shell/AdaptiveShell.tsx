@@ -42,6 +42,16 @@ export default function AdaptiveShell({
   const contextClose = useRef<HTMLButtonElement>(null);
   const lastTrigger = useRef<HTMLElement | null>(null);
   const workspace = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (demoMode) return;
+    const hide = () => { document.documentElement.style.visibility = 'hidden'; };
+    const restored = (event:PageTransitionEvent) => { if(event.persisted){hide();window.location.reload();} };
+    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('dojang-privacy');
+    if(channel)channel.onmessage = event => { if(event.data==='public-mode'){hide();window.location.replace('/kiosk');} };
+    window.addEventListener('pagehide',hide);
+    window.addEventListener('pageshow',restored);
+    return()=>{window.removeEventListener('pagehide',hide);window.removeEventListener('pageshow',restored);channel?.close();};
+  },[demoMode]);
   const closePanel = () => {
     setContextOpen(false);
     setCompanionOpen(false);
@@ -107,7 +117,7 @@ export default function AdaptiveShell({
           </Link>
           <div className={styles.headerLocation}>
             <span className={styles.locationDot} />
-            <strong>Dojang Downtown</strong>
+            <strong>{demoMode ? 'Dojang Downtown' : 'Dojang'}</strong>
             <span className={styles.headerDate}>
               {connectedTest ? "Test workspace" : "Staff workspace"}
             </span>
