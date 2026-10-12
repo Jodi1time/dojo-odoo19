@@ -22,7 +22,7 @@
         <div class="dojo-va-header">
             <div class="dojo-va-header-left">
                 <div class="dojo-va-avatar">
-                    <img src="/ai_assistant/static/src/img/uft-logo.png" alt="AI"/>
+                    <span role="img" aria-label="Dojang AI">D</span>
                 </div>
                 <div>
                     <div class="dojo-va-title">Dojang AI Assistant</div>
@@ -49,7 +49,7 @@
                 <div t-attf-class="dojo-va-msg {{ msg.role === 'user' ? 'dojo-va-msg--user' : 'dojo-va-msg--assistant' }}">
                     <t t-if="msg.role === 'assistant'">
                         <div class="dojo-va-msg-avatar">
-                            <img src="/ai_assistant/static/src/img/uft-logo.png" alt="AI"/>
+                            <span role="img" aria-label="Dojang AI">D</span>
                         </div>
                     </t>
                     <div class="dojo-va-msg-bubble">
@@ -80,7 +80,7 @@
             <t t-if="state.processing">
                 <div class="dojo-va-msg dojo-va-msg--assistant">
                     <div class="dojo-va-msg-avatar">
-                        <img src="/ai_assistant/static/src/img/uft-logo.png" alt="AI"/>
+                        <span role="img" aria-label="Dojang AI">D</span>
                     </div>
                     <div class="dojo-va-msg-bubble dojo-va-typing">
                         <span/><span/><span/>
