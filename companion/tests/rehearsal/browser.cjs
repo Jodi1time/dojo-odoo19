@@ -67,7 +67,7 @@ const choose=async(page,name)=>{
   record('Ask shows the real Odoo class schedule; unsupported trial requests make no simulated promise');
   assert.equal((await kiosk.request.get(BASE+'/api/v2/members')).status(),403);
   record('paired kiosk cannot read staff member details');
-  const staff=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(staff);
+  const staff=await browser.newContext({viewport:{width:1440,height:1000},recordVideo:{dir:path.join(output,'video-staff'),size:{width:1440,height:1000}}});contexts.push(staff);
   const staffPage=await staff.newPage();await pair(staffPage,'staff');
   walkthroughPages.push({page:staffPage,name:'walkthrough-staff.webm'});
   const browserErrors=[];
