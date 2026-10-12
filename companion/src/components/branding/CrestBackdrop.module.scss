@@ -22,8 +22,8 @@
   overflow: hidden;
   opacity: 0.085;
   // Preserve the original crest colors; soften only its opacity and edges.
-  -webkit-mask-image: radial-gradient(circle closest-side, #000 38%, rgba(0, 0, 0, 0.75) 66%, transparent 100%);
-  mask-image: radial-gradient(circle closest-side, #000 38%, rgba(0, 0, 0, 0.75) 66%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 84%, rgba(0, 0, 0, 0.8) 94%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, #000 84%, rgba(0, 0, 0, 0.8) 94%, transparent 100%);
   isolation: isolate;
 
   &::before {
