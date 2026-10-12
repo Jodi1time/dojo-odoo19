@@ -110,6 +110,7 @@ const pass=name=>{checks.push({name,result:'passed'});console.log('PASS '+name);
    await page.pdf({path:path.join(out,'native-class-roster.pdf'),format:'A4',printBackground:true});
   }
   await page.emulateMedia({media:'print'});
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(255, 255, 255)');
   assert.equal(await page.getByRole('navigation',{name:'Staff navigation',exact:true}).isVisible(),false);
   assert.equal(await printed.isVisible(),true);
   await page.emulateMedia({media:'screen'});
