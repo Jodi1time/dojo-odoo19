@@ -7,6 +7,7 @@ import styles from './page.module.css';
 import Select from '@/components/primitives/select/Select';
 import MemberBooking from './MemberBooking';
 import MemberManagement from './MemberManagement';
+import CrmWorkspace from './CrmWorkspace';
 
 type Message={id:string;text:string;state:string;summary:string;reply:string;mode:string;revision:number;channel:string;guardianName:string;contactRef:string;memberId:string|null;sessionId:string|null};
 type Context={principal:{name:string;role:string};members:{id:string;name:string}[];sessions:{id:string;title:string;startsAt:string;future:boolean;version:number}[];messages:Message[];
@@ -79,6 +80,7 @@ function HubContent(){
   const searchParams=useSearchParams();
   const selectedMemberId=searchParams.get('memberId');
   const managing=searchParams.get('view')==='manage';
+  const crm=searchParams.get('view')==='crm';
   const [memberChoice,setMemberChoice]=useState('');
   const [loading,setLoading]=useState(true);
   const [data,setData]=useState<Context|null>(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[hasPending,setHasPending]=useState(false);
@@ -119,7 +121,10 @@ function HubContent(){
     {loading?<p role="status">Loading your authorized workspace…</p>:!data?<section className={styles.card}><h2>Sign in to your school</h2><p>Use your individual Odoo account with Companion site access. Device pairing does not grant booking access.</p>{selectedMemberId&&<p>Your member selection will be checked after sign-in.</p>}<form onSubmit={login} className={styles.fields}><label>Login<input name="login" autoComplete="username" required/></label><label>Password<input name="password" type="password" autoComplete="current-password" required/></label><button disabled={busy}>{busy?'Signing in…':'Sign in'}</button></form></section>:<>
       <div className={styles.row}><p>{data.principal.name} · {data.principal.role}</p><div className={styles.row}><button disabled={busy} onClick={()=>void refresh().catch(e=>setNotice(explain(e.message)))}>Refresh</button><button disabled={busy} onClick={()=>void call({operation:'logout'}).then(()=>{setData(null);pending.current=null;setHasPending(false);setPendingMessageId(undefined);setBookingFeedback({});}).catch(e=>setNotice(explain(e.message)))}>Sign out</button></div></div>
       <p className={styles.muted}>{data.capabilities.outbound==='not_configured'?'Outbound messaging is not configured. Drafts can still be reviewed.':'Replies require your review and approval before entering the delivery queue.'}</p>
-      {hasPending&&!(managing&&pendingMessageId===`manage:${selectedMemberId}`)&&<button disabled={busy} onClick={retryPending}>Retry unconfirmed action</button>}
+      {!busy&&!hasPending&&<nav className={styles.row} aria-label="Hub sections"><Link href="/hub">Messages & members</Link>{['owner','manager'].includes(data.principal.role)&&<Link href="/hub?view=crm">Sales & tasks →</Link>}</nav>}
+      {hasPending&&!(managing&&pendingMessageId===`manage:${selectedMemberId}`)&&!(crm&&pendingMessageId==='crm')&&<button disabled={busy} onClick={retryPending}>Retry unconfirmed action</button>}
+      {crm&&(['owner','manager'].includes(data.principal.role)?<CrmWorkspace busy={busy} locked={hasPending} feedback={bookingFeedback.crm} clearFeedback={()=>clearBookingFeedback('crm')} retry={hasPending&&pendingMessageId==='crm'?retryPending:undefined} act={(operation,payload)=>act(operation,payload,'crm')}/>:<p role="alert">Sales and tasks require manager or owner access.</p>)}
+      {!crm&&<>
       {canBook&&<section className={styles.card} aria-label="Find a member"><label className={styles.fields}>Member<Select ariaLabel="Manage member" value={memberChoice} disabled={busy||hasPending} onChange={setMemberChoice} placeholder="Choose a member" options={data.members.map(m=>({value:m.id,label:m.name}))}/></label>
         {memberChoice&&!busy&&!hasPending&&<Link href={`/hub?memberId=${encodeURIComponent(memberChoice)}&view=manage`}>Open member management →</Link>}</section>}
       {selectedMember&&canBook&&!busy&&!hasPending&&<nav className={styles.row} aria-label="Member workspace"><Link href={`/hub?memberId=${encodeURIComponent(selectedMember.id)}`}>Book a class</Link><Link href={`/hub?memberId=${encodeURIComponent(selectedMember.id)}&view=manage`}>Profile, billing and attendance</Link></nav>}
@@ -142,6 +147,7 @@ function HubContent(){
           <small>Loaded from Odoo. This booking record does not confirm that a message was sent.</small>
         </div>:['book','change_class'].includes(t.action)&&<small>Receipt details unavailable. Check the registration in Odoo before booking again.</small>}
       </div>):<p>No recorded actions yet.</p>}</section>
+      </>}
     </>}
   </main>;
 }
