@@ -83,6 +83,6 @@ export async function runHubAction(
     await refresh();
     return feedback;
   } catch {
-    return {...feedback, refreshWarning: 'Saved successfully, but the latest screen data could not be loaded. Refresh to update the view; do not submit this booking again.'};
+    return {...feedback, refreshWarning: 'Saved successfully, but the latest screen data could not be loaded. Refresh to update the view; do not repeat this action.'};
   }
 }

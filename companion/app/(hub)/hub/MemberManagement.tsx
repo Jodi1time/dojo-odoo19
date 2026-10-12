@@ -110,6 +110,8 @@ export default function MemberManagement({ memberId, sessions, now, busy, locked
     } finally { submitRef.current = false; }
   }
   const target = sessions.find(s => s.id === replacement && s.future && Date.parse(s.startsAt) > now);
+  const currentCheckout = feedback?.checkout && !loading && data?.billing?.invoices.some(invoice =>
+    invoice.id === feedback.checkout?.invoiceId && invoice.remaining === feedback.checkout.amount && invoice.paymentUnavailable === null);
   return <section className={styles.card} aria-label="Member management">
     <div className={styles.row}><h2>{data ? `Manage ${data.member.name}` : "Member management"}</h2>
       <button disabled={disabled} onClick={refresh}>Refresh member details</button></div>
@@ -117,16 +119,17 @@ export default function MemberManagement({ memberId, sessions, now, busy, locked
     {error && <p role="alert">{error} No other member’s details have been substituted.</p>}
     {feedback && <div className={styles.bookingResult} role={feedback.kind === "error" ? "alert" : "status"} aria-label="Member action result">
       <p>{feedback.text}</p>{feedback.refreshWarning && <p>{feedback.refreshWarning}</p>}
-      {feedback.checkout && <><p>{feedback.checkout.invoiceNumber} · {money(feedback.checkout.amount, feedback.checkout.currency)}</p>
+      {feedback.checkout && currentCheckout && <><p>{feedback.checkout.invoiceNumber} · {money(feedback.checkout.amount, feedback.checkout.currency)}</p>
         <a href={feedback.checkout.url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Continue to secure invoice checkout →</a>
         <p>Complete payment on the secure checkout page, then refresh member details to see the confirmed Odoo balance.</p></>}
+      {feedback.checkout && !loading && !currentCheckout && <p>Refresh and review the current invoice before continuing to checkout.</p>}
       {feedback.kind === "uncertain" && retry && <button disabled={busy} onClick={() => void retry().then(result => { if (result?.kind === "success") refresh(); })}>Check original member action</button>}
     </div>}
     {data && !loading && <>
       <p>{data.member.state} · {data.member.rank} · {data.member.stripes} stripes</p>
       {review && <div ref={reviewRef} tabIndex={-1} className={styles.savedReceipt} role="group" aria-label="Review member action">
         <h3>Review before saving</h3><p>{review.description}</p><p>No message will be sent and no payment will be collected.</p>
-        <div className={styles.row}><button disabled={disabled} onClick={() => void confirm()}>Confirm member action in Odoo</button>
+        <div className={styles.row}><button disabled={disabled} onClick={() => void confirm()}>{review.operation === "payment_link" ? "Prepare secure checkout" : "Confirm member action in Odoo"}</button>
           <button disabled={disabled} onClick={() => setReview(null)}>Cancel review</button></div>
       </div>}
       <details className={styles.booking} open><summary>Contact details</summary>

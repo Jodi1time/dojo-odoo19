@@ -26,7 +26,7 @@ test('failed context refresh never turns a saved booking into a failed write',as
   let accepted=0,sends=0;
   const result=await runHubAction(async()=>{sends++;return {enrollmentId:'72'};},async()=>{throw Error('offline');},()=>accepted++);
   assert.equal(result.kind,'success');assert.match(result.text,/Receipt: 72/);
-  assert.match(result.refreshWarning,/do not submit this booking again/);assert.equal(accepted,1);assert.equal(sends,1);
+  assert.match(result.refreshWarning,/do not repeat this action/);assert.equal(accepted,1);assert.equal(sends,1);
 });
 test('definite eligibility rejection is shown without refreshing or acknowledging',async()=>{
   const result=await runHubAction(async()=>{throw Error('BUSINESS_RULE_REVIEW_REQUIRED');},async()=>assert.fail('not committed'),()=>assert.fail('not acknowledged'));

@@ -643,6 +643,14 @@ class TestCompanionHub(TransactionCase):
             invoice.subscription_id = False
             self.assertEqual(self.act('payment_link', payload, key='checkout-scope-request-001')['error']['code'], 'INVOICE_UNAVAILABLE')
 
+    def test_checkout_checks_odoo20_published_provider_and_active_methods(self):
+        invoice, payload = self._checkout_invoice()
+        self.env['payment.provider'].sudo().search([]).write({'is_published': False})
+        self.assertEqual(self.act('payment_link', payload)['error']['code'], 'PAYMENT_PROVIDER_UNAVAILABLE')
+        # A placeholder provider must never be presented as working payments.
+        self.env['payment.provider'].sudo().create({'name': 'Placeholder only', 'code': 'none', 'company_id': self.company.id, 'is_published': True})
+        self.assertEqual(self.act('payment_link', payload)['error']['code'], 'PAYMENT_PROVIDER_UNAVAILABLE')
+
     def test_ai_activation_requires_owner_and_a_real_successful_draft(self):
         self.grants['manager'].role = 'owner'
         self.env['ir.config_parameter'].sudo().set_param('elevenlabs_connector.ai_provider', 'openai')
