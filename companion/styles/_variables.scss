@@ -23,6 +23,14 @@
   --danger: #ef4053;
   --info: #4c8dff;
 
+  // Type scale: every kiosk text uses one of these (headings use the kiosk title tokens)
+  --text-xs: 0.75rem; // 12px uppercase labels, eyebrows, tags
+  --text-sm: 0.875rem; // 14px muted info: durations, field labels, descriptions
+  --text-base: 1rem; // 16px body, buttons, details
+  --text-md: 1.125rem; // 18px subtitles, choices
+  --text-lg: 1.25rem; // 20px names, values, inputs, card titles, messages
+  --text-xl: 1.5rem; // 24px big card labels, class times
+
   // Sizing
   --control-height: 40px;
   --touch-height: 48px;
@@ -30,6 +38,21 @@
   --radius-card: 16px;
   --radius-leaf: 18px;
   --radius-tray: 22px;
+  --radius-pill: 999px; // oval buttons and fields
+  --button-inset: 1.25rem; // side padding inside text buttons (PlainButton)
+
+  // Frosted glass surfaces (cards over the soft background glow)
+  --glass-fill: rgba(255, 255, 255, 0.045);
+  --glass-fill-hover: rgba(255, 255, 255, 0.08);
+  --glass-edge: rgba(255, 255, 255, 0.09);
+  --glass-edge-strong: rgba(255, 255, 255, 0.2);
+  --glass-blur: 18px;
+  --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+
+  // Soft colored light behind the glass, so the frosting has something to blur.
+  // Brand red and AI violet, kept faint so they read as atmosphere, not actions.
+  --glow-brand: rgba(232, 25, 44, 0.14);
+  --glow-agent: rgba(138, 124, 246, 0.12);
 
   // Layout (not from the doc)
   --companion-width: 325px;

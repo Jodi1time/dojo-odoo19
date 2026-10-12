@@ -4,6 +4,11 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
+// The app's dropdowns are the shared Select component (a listbox), not a native
+// <select>, so selectOption doesn't apply: open it and click the option by value.
+const selectLocator=(scope,label)=>scope.getByLabel(label,typeof label==='string'?{exact:true}:undefined);
+const pickOption=async(scope,label,value)=>{await selectLocator(scope,label).click();await scope.locator(`[role=option][data-value="${value}"]`).click();};
+const optionDisabled=async(scope,label,value)=>{const box=selectLocator(scope,label);await box.click();const disabled=await scope.locator(`[role=option][data-value="${value}"]`).getAttribute('aria-disabled');await box.press('Escape');return disabled==='true';};
 const BASE='http://localhost:3000';
 const fixture=JSON.parse(fs.readFileSync(process.env.DOJANG_FIXTURE_OUTPUT,'utf8'));
 const output=process.env.DOJANG_EVIDENCE_DIR;
@@ -13,7 +18,7 @@ const record=(name)=>{evidence.push({name,result:'passed'});console.log('PASS '+
 const poll=async(fn,timeout=25000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await fn())return;await new Promise(r=>setTimeout(r,300))}throw new Error('Timed out waiting for verified state')};
 const pair=async(page,role)=>{
   await page.goto(BASE+'/integration/pair');
-  await page.locator('select[name=role]').selectOption(role);
+  await pickOption(page,'Access',role);
   await page.locator('input[name=pairKey]').fill(process.env[role==='staff'?'DOJANG_STAFF_PAIR_KEY':'DOJANG_KIOSK_PAIR_KEY']);
   await page.getByRole('button',{name:'Connect test device'}).click();
   await page.waitForURL('**/'+(role==='staff'?'integration/members':'kiosk'));
@@ -121,11 +126,11 @@ const choose=async(page,name)=>{
   record('Companion executes one audited Odoo attendance review and rejects unsupported actions');
   await staffPage.goto(BASE+'/');
   await staffPage.waitForURL('**/ops');
-  await staffPage.getByRole('link',{name:'Demo session',exact:true}).waitFor();
+  await staffPage.locator(`a[href="/ops/sessions/${fixture.sessionId}"]`).getByText('Demo session',{exact:true}).waitFor();
   await staffPage.getByRole('navigation',{name:'Staff navigation',exact:true}).getByRole('link',{name:'Members',exact:true}).click();
   await staffPage.getByRole('link',{name:'Followup Student',exact:true}).click();
   await staffPage.getByText('Prepare parent follow-up',{exact:true}).click();
-  await staffPage.getByLabel('Reported class').selectOption(fixture.sessionId);
+  await pickOption(staffPage,'Reported class',fixture.sessionId);
   await staffPage.getByLabel('Parent report',{exact:true}).fill('My child cannot attend this class. Could we arrange a makeup?');
   await staffPage.getByRole('checkbox').check();
   await staffPage.getByRole('button',{name:'Prepare for review',exact:true}).click();
@@ -160,7 +165,7 @@ const choose=async(page,name)=>{
   await staffPage.getByText('Saved internally; not sent',{exact:false}).first().waitFor();
   record('parent report is reviewed, saved once in Odoo and survives navigation and reload');
   await staffPage.getByRole('link',{name:'Open class roster',exact:true}).click();
-  await staffPage.getByRole('link',{name:'Followup S.',exact:true}).waitFor();
+  await staffPage.locator(`a[href="/people/${fixture.followupMemberId}"]`).getByText('Followup S.',{exact:true}).waitFor();
   await staffPage.getByRole('textbox',{name:'Ask the agent'}).fill('Who has not checked in?');
   await staffPage.getByRole('button',{name:'Send',exact:true}).click();
   await staffPage.getByText(/Followup S\.: Not yet checked in/).waitFor();
