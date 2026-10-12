@@ -63,9 +63,9 @@ detail cards, review surfaces, and sheets; keep lists and ordinary text open.
 The background uses stationary, faint red light on near-black. The original UFT
 kiosk crest sits centered behind workspace and kiosk content, with a circular
 feathered edge and low opacity. Keep it at 70% width (capped at 30rem/62svh),
-with grayscale/inversion and screen blending in CSS: the white paper disappears
-and the artwork reads as an etched tonal mark, never a full-color disk behind
-schedule text. Use one restrained central red glow, not a burgundy wash.
+with its original colors intact. Do not make the crest monochrome, invert it,
+or recolor it. Blend using low opacity and feathered edges only, keeping the
+schedule legible. Use one restrained central red glow, not a burgundy wash.
 Reuse `addons/dojo_kiosk/static/src/img/uft-logo.png`
 unchanged (it contains JPEG bytes, served as `public/brand/uft-crest.jpg`). Its
 Afterhours-style metallic shine glides briefly every nine seconds, pausing in
