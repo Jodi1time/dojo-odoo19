@@ -16,7 +16,7 @@ type Details = {
   attendance: { id: string; sessionId: string; title: string; checkedInAt: string; checkedOutAt: string | null }[];
   billing: null | {
     subscriptions: { id: string; plan: string; state: string; nextInvoiceDate: string | null }[];
-    invoices: { id: string; number: string; kind: string; date: string | null; paymentState: string; total: number; remaining: number; currency: string; scope: string }[];
+    invoices: { id: string; number: string; kind: string; date: string | null; paymentState: string; total: number; remaining: number; currency: string; scope: string; version: number; paymentUnavailable: string | null }[];
   };
 };
 type Review = { operation: string; payload: Record<string, unknown>; description: string };
@@ -117,6 +117,9 @@ export default function MemberManagement({ memberId, sessions, now, busy, locked
     {error && <p role="alert">{error} No other member’s details have been substituted.</p>}
     {feedback && <div className={styles.bookingResult} role={feedback.kind === "error" ? "alert" : "status"} aria-label="Member action result">
       <p>{feedback.text}</p>{feedback.refreshWarning && <p>{feedback.refreshWarning}</p>}
+      {feedback.checkout && <><p>{feedback.checkout.invoiceNumber} · {money(feedback.checkout.amount, feedback.checkout.currency)}</p>
+        <a href={feedback.checkout.url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Continue to secure invoice checkout →</a>
+        <p>Complete payment on the secure checkout page, then refresh member details to see the confirmed Odoo balance.</p></>}
       {feedback.kind === "uncertain" && retry && <button disabled={busy} onClick={() => void retry().then(result => { if (result?.kind === "success") refresh(); })}>Check original member action</button>}
     </div>}
     {data && !loading && <>
@@ -132,7 +135,7 @@ export default function MemberManagement({ memberId, sessions, now, busy, locked
       </details>
       <details className={styles.booking}><summary>Membership and billing</summary>
         {data.billing ? <>
-          <p>Read-only records linked to this member’s subscriptions. Payments and refunds are not processed here.</p>
+          <p>Invoices linked to this member’s subscriptions. Review an unpaid invoice to continue to secure checkout. Refresh after payment for the current balance.</p>
           {data.billing.subscriptions.length ? data.billing.subscriptions.map(s => <div className={styles.auditEntry} key={s.id}>
             <strong>{s.plan}</strong><p>{s.state}{s.nextInvoiceDate ? ` · Next invoice date: ${s.nextInvoiceDate}` : " · Next invoice date unavailable"}</p></div>) : <p>No linked subscriptions found.</p>}
           <h3>Posted invoices and credit notes</h3>
@@ -141,6 +144,10 @@ export default function MemberManagement({ memberId, sessions, now, busy, locked
             <p>{i.date || "Date unavailable"} · {i.paymentState.replaceAll("_", " ")}</p>
             <p>Total {money(i.total, i.currency)} · Remaining {money(i.remaining, i.currency)}</p>
             {i.scope === "household" && <p>Shared household invoice. These are whole-invoice amounts, not this member’s individual balance.</p>}
+            {i.paymentUnavailable === null ? <button disabled={disabled || !!review} onClick={() => prepare({operation: "payment_link",
+              payload: {memberId, invoiceId: i.id, expectedVersion: i.version, expectedAmount: i.remaining},
+              description: `Prepare secure checkout for invoice ${i.number}: ${money(i.remaining, i.currency)}${i.scope === "household" ? " for the whole household invoice" : ""}. The payer reviews and submits payment on Odoo’s checkout page.`})}>Review payment for {i.number}</button>
+              : i.remaining > 0 && i.kind === "out_invoice" && <p>{explainHubError(i.paymentUnavailable || "PAYMENT_SETUP_REQUIRED")}</p>}
           </div>) : <p>No posted invoices linked to these subscriptions. This does not establish a zero balance.</p>}
           <small>Up to 50 subscriptions and 50 linked posted invoices. Next invoice date is not a confirmed payment date.</small>
         </> : <p>Billing is visible only to managers and owners.</p>}
