@@ -1,7 +1,7 @@
 "use client";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import Link from "@/components/primitives/AppLink";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import styles from "./Shell.module.scss";
 import dynamic from "next/dynamic";
 import ConnectedNavigation from "./ConnectedNavigation";
@@ -34,6 +34,9 @@ export default function AdaptiveShell({
   const [companionOpen, setCompanionOpen] = useState(false);
   const [companionVisited, setCompanionVisited] = useState(false);
   const pathname = usePathname();
+  const params = useSearchParams();
+  const routeView = params.get("view");
+  const routeMember = params.get("memberId");
   const { hasPending, pending } = useWorkspaceActions();
   const contextTrigger = useRef<HTMLButtonElement>(null);
   const companionClose = useRef<HTMLButtonElement>(null);
@@ -53,7 +56,7 @@ export default function AdaptiveShell({
   };
   useEffect(() => {
     workspace.current?.scrollTo(0, 0);
-  }, [pathname]);
+  }, [pathname, routeView, routeMember]);
   useEffect(() => {
     if (!contextOpen && !companionOpen) return;
     const panel = document.getElementById(

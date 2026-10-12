@@ -55,11 +55,13 @@ export default function CrmWorkspace({busy,locked,feedback,clearFeedback,retry,a
   const [error,setError]=useState(''),[leadError,setLeadError]=useState(''),[revision,setRevision]=useState(0);
   const [review,setReview]=useState<Review|null>(null),[taskTarget,setTaskTarget]=useState(params.get('memberId')?`member:${params.get('memberId')}`:''),[proposedStage,setProposedStage]=useState('');
   const disabled=busy||locked||!!review;
-  const reviewRef=useRef<HTMLElement>(null);
+  const reviewRef=useRef<HTMLElement>(null),leadRef=useRef<HTMLElement>(null);
+  const openedLead=useRef('');
+  useEffect(()=>{if(detail?.lead.id===selected&&openedLead.current!==selected){openedLead.current=selected;leadRef.current?.focus({preventScroll:true});leadRef.current?.scrollIntoView({block:'start'});}},[detail,selected]);
   useEffect(()=>{if(review){reviewRef.current?.focus({preventScroll:true});reviewRef.current?.scrollIntoView({block:'center'});}},[review]);
   useEffect(()=>{let cancelled=false;void read('crm_context',{query:search}).then((v:Context)=>{if(!Array.isArray(v.leads)||!Array.isArray(v.tasks)||!Array.isArray(v.stages)||!Array.isArray(v.members))throw Error('CRM_DETAILS_UNAVAILABLE');if(!cancelled){setData(v);setError('');}}).catch(e=>{if(!cancelled){setData(null);setError(explainHubError(e.message));}});return()=>{cancelled=true;};},[search,revision]);
   useEffect(()=>{if(!selected)return;let cancelled=false;void read('lead_details',{leadId:selected}).then((v:Detail)=>{if(v.lead?.id!==selected||!Array.isArray(v.tasks)||!Array.isArray(v.stages)||!Array.isArray(v.timeline))throw Error('CRM_DETAILS_UNAVAILABLE');if(!cancelled){setDetail(v);setLeadError('');}}).catch(e=>{if(!cancelled){setDetail(null);setLeadError(explainHubError(e.message));}});return()=>{cancelled=true;};},[selected,revision]);
-  function openLead(id:string){if(disabled)return;setDetail(null);setLeadError('');setTaskTarget(`lead:${id}`);setProposedStage('');setAssignee('');clearFeedback();const next=new URLSearchParams(params);next.set('view','crm');next.set('leadId',id);router.replace('/hub?'+next.toString(),{scroll:false});}
+  function openLead(id:string){if(disabled)return;if(id===selected){leadRef.current?.focus({preventScroll:true});leadRef.current?.scrollIntoView({block:'start'});return;}setDetail(null);setLeadError('');setTaskTarget(`lead:${id}`);setProposedStage('');setAssignee('');clearFeedback();const next=new URLSearchParams(params);next.set('view','crm');next.set('leadId',id);router.push('/hub?'+next.toString(),{scroll:false});}
   function prepare(r:Review){clearFeedback();setReview(r);}
   async function submit(rechecking=false){
     const outcome=await (rechecking?retry?.():review?act(review.operation,review.payload):undefined);
@@ -87,7 +89,7 @@ export default function CrmWorkspace({busy,locked,feedback,clearFeedback,retry,a
       <p>{visible.length} leads shown{data.moreLeads?' · Showing the latest 100 matches; narrow your search.':''}</p>
       <div className={styles.viewToggle} role="group" aria-label="Pipeline view"><button aria-pressed={board} onClick={()=>setBoard(true)}>Board</button><button aria-pressed={!board} onClick={()=>setBoard(false)}>List</button></div>
       <LeadPipeline leads={visible} stages={data.stages} board={board} disabled={disabled} openLead={openLead}/>
-      {selected&&<section className={styles.card} aria-label="Lead detail">{leadError?<p role="alert">{leadError}</p>:!selectedDetail?<p role="status">Loading selected lead…</p>:<>
+      {selected&&<section ref={leadRef} tabIndex={-1} className={styles.card} aria-label="Lead detail">{leadError?<p role="alert">{leadError}</p>:!selectedDetail?<p role="status">Loading selected lead…</p>:<>
         <h2>{selectedDetail.lead.name}</h2><p>{selectedDetail.lead.stage} · {selectedDetail.lead.owner} · Source: {selectedDetail.lead.source}</p>
         <EvidenceDetail value={selectedDetail.lead.evidence}/>
         <section aria-label="Recommended lead action" className={styles.evidenceDetail}><h3>Next best action</h3><p>{actionLabels[selectedDetail.lead.evidence?.nextAction||'follow_up']} · Internal review only</p>
