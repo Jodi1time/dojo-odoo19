@@ -51,6 +51,12 @@ const choose=async(page,name)=>{
   const page=await kiosk.newPage();
   walkthroughPages.push({page,name:'walkthrough-kiosk.webm'});
   await pair(page,'kiosk');
+  await page.getByRole('heading',{name:'Welcome to Dojang',exact:true}).waitFor();
+  await page.getByRole('button',{name:/^Classes View today/}).click();
+  await page.getByRole('heading',{name:'Choose your class',exact:true}).waitFor();
+  await page.getByRole('button',{name:/Demo session/}).waitFor();
+  await page.getByRole('button',{name:'← Back',exact:true}).click();
+  record('Classes opens the live session-first journey without AI and no fictional location branding');
   await page.getByRole('button',{name:/Ask a question/}).click();
   await page.getByRole('button',{name:/What classes are on today/}).click();
   await page.getByRole('heading',{name:"Today's classes",exact:true}).waitFor();

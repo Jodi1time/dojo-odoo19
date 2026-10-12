@@ -65,7 +65,7 @@ export default function OperationsWorkspace({manager,sessions}:{manager:boolean;
         <h3>Current family summary</h3><p>{report.family.households} households · {report.family.membersInHouseholds} active member records in households · {report.family.membersWithoutHousehold} without a linked household</p>
       </div>}
     </>:<p>School-wide reports require manager or owner access. Your authorized class rosters remain available below.</p>}
-    <h3>Class roster</h3><Select ariaLabel="Roster class" value={selection.id} onChange={choose} placeholder="Choose an authorized class" options={[...classes.values()].map(s=>({value:s.id,label:s.name}))}/>
+    <h3>Class roster</h3><Select ariaLabel="Roster class" value={selection.id} onChange={choose} placeholder="Choose an authorized class" options={[...classes.values()].map(s=>({value:s.id,label:`${s.name} · ${new Date(s.startsAt).toLocaleString(undefined,{timeZone:report?.timeZone||'UTC'})} ${report?.timeZone||'UTC'}`}))}/>
     <p className={styles.muted}>Managers can load a report date range to select past classes. This is the current registered roster, not a saved testing roster.</p>
     {rosterLoading&&<p role="status">Loading the actual class roster…</p>}{rosterError&&<p role="alert">{rosterError} <button onClick={()=>choose(selection.id)}>Retry roster</button></p>}
     {roster&&<>
