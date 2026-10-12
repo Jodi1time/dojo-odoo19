@@ -442,6 +442,8 @@ class HubService(models.AbstractModel):
                     return self._context(site, grant, payload)
                 if operation == "member_details":
                     return self._member_details(site, grant, payload)
+                if operation == "member_workspace":
+                    return self._member_workspace(site, grant, payload)
                 if operation == "crm_context":
                     return self._crm_context(site, grant, payload)
                 if operation == "lead_details":
@@ -454,7 +456,8 @@ class HubService(models.AbstractModel):
                     "update_member": self._update_member, "rank": self._rank, "link_guardian": self._link_guardian, "provision": self._provision,
                     "create_lead": self._create_lead, "update_lead": self._update_lead,
                     "create_task": self._create_task, "complete_task": self._complete_task, "propose_stage": self._propose_stage,
-                    "payment_link": self._payment_link, "enable_ai": self._enable_ai}
+                    "payment_link": self._payment_link, "enable_ai": self._enable_ai,
+                    "add_lead_note": self._add_lead_note, "prepare_lead_action": self._prepare_lead_action, "assign_lead": self._assign_lead}
                 if not isinstance(operation, str) or operation not in handlers or not isinstance(request_key, str) or not KEY.fullmatch(request_key):
                     raise HubProblem("INVALID_COMMAND", 400)
                 self.env["dojo.kiosk.service"]._v2_lock("hub:%s:%s:%s" % (site.id, self.env.uid, request_key))
@@ -481,7 +484,7 @@ class HubService(models.AbstractModel):
                         self._message(site, grant, payload["messageId"], unresolved=True)
                     if operation in ("provision", "link_guardian", "update_member", "rank"):
                         self._role(grant, "owner manager")
-                    if operation in ("create_lead", "update_lead", "create_task", "complete_task", "propose_stage"):
+                    if operation in ("create_lead", "update_lead", "create_task", "complete_task", "propose_stage", "add_lead_note", "prepare_lead_action", "assign_lead"):
                         self._role(grant, "owner manager")
                         if receipt.lead_id:
                             self._lead(site, grant, str(receipt.lead_id.id))

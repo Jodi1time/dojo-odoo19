@@ -27,12 +27,12 @@ test('member details are an authenticated fixed read, never a paired-device upgr
 test('provider/backend errors are sanitized and preserve retry uncertainty',async()=>{const cookie=await login();const r=await hubRoute(req({operation:'checkout',payload:{},requestKey:'request-test-00001'},cookie),env,async()=>{throw Error('secret-token')});assert.equal(r.status,503);assert.doesNotMatch(await r.text(),/secret-token/)});
 test('CRM reads require a real user session and mutations require a stable receipt key',async()=>{
  const cookie=await login();
- for(const operation of ['crm_context','lead_details']){
-  const body={operation,payload:operation==='crm_context'?{query:''}:{leadId:'21'},requestKey:null};
+ for(const operation of ['crm_context','lead_details','member_workspace']){
+  const body={operation,payload:operation==='crm_context'?{query:''}:operation==='member_workspace'?{memberId:'25'}:{leadId:'21'},requestKey:null};
   assert.equal((await hubRoute(req(body),env,fixture)).status,401);
   assert.equal((await hubRoute(req(body,cookie),env,fixture)).status,200);
  }
- for(const operation of ['create_lead','update_lead','create_task','complete_task','propose_stage']){
+ for(const operation of ['create_lead','update_lead','create_task','complete_task','propose_stage','add_lead_note','prepare_lead_action','assign_lead']){
   assert.equal((await hubRoute(req({operation,payload:{},requestKey:null},cookie),env,fixture)).status,400);
   assert.equal((await hubRoute(req({operation,payload:{},requestKey:'crm-action-test-0001'},cookie),env,fixture)).status,200);
  }

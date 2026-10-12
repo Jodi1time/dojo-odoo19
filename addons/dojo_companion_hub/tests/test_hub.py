@@ -590,6 +590,103 @@ class TestCompanionHub(TransactionCase):
         self.assertNotIn("error", done, done)
         self.assertEqual(done["memberId"], str(self.member.id))
 
+    def test_member_workspace_private_tabs_are_exact_and_role_scoped(self):
+        self.member.write({"allergies": "Synthetic allergy", "medical_notes": "Private care note"})
+        household = self.env["res.partner"].create({"name": "Synthetic household", "is_household": True, "company_id": self.company.id})
+        self.partner.parent_id = household
+        sibling_partner = self.env["res.partner"].create({"name": "Synthetic sibling", "parent_id": household.id, "company_id": self.company.id})
+        sibling = self.env["dojo.member"].create({"partner_id": sibling_partner.id, "company_id": self.company.id})
+        contact = self.env["dojo.emergency.contact"].create({"member_id": self.member.id, "name": "Synthetic emergency contact", "relationship": "Guardian", "phone": "555-0131"})
+        attachment = self.env["ir.attachment"].create({"name": "Synthetic waiver.txt", "datas": "c3ludGhldGlj", "res_model": "dojo.member", "res_id": self.member.id, "company_id": self.company.id})
+        self.env["ir.attachment"].create({"name": "Sibling private file.txt", "datas": "c3ludGhldGlj", "res_model": "dojo.member", "res_id": sibling.id, "company_id": self.company.id})
+        result = self.act("member_workspace", {"memberId": str(self.member.id)})
+        self.assertNotIn("error", result, result)
+        self.assertEqual(result["member"]["id"], str(self.member.id))
+        self.assertEqual(result["safety"]["medicalNotes"], "Private care note")
+        self.assertEqual(result["safety"]["contacts"][0]["id"], str(contact.id))
+        self.assertIn(str(sibling.id), [m["id"] for m in result["family"]["members"]])
+        self.assertEqual([f["id"] for f in result["documents"]["files"]], [str(attachment.id)])
+        self.assertNotIn("datas", result["documents"]["files"][0])
+        self.assertNotIn("contact_ref", json.dumps(result))
+        instructor = self.act("member_workspace", {"memberId": str(self.member.id)}, role="instructor")
+        self.assertNotIn("error", instructor, instructor)
+        for section in ("family", "safety", "documents", "billing"):
+            self.assertIsNone(instructor[section])
+        for role in ("guardian", "unassigned"):
+            self.assertEqual(self.act("member_workspace", {"memberId": str(self.member.id)}, role=role)["error"]["status"], 403)
+        other = self.env["res.company"].create({"name": "Foreign private tabs"})
+        outsider = self.env["dojo.member"].create({"name": "Foreign member", "company_id": other.id})
+        self.assertEqual(self.act("member_workspace", {"memberId": str(outsider.id)})["error"]["code"], "MEMBER_UNAVAILABLE")
+
+    def test_crm_evidence_uses_recorded_facts_and_due_tasks(self):
+        lead = self.new_lead()
+        context = self.act("crm_context", {"query": lead.name})
+        evidence = next(l["evidence"] for l in context["leads"] if l["id"] == str(lead.id))
+        self.assertEqual(evidence["score"], sum(r["points"] for r in evidence["reasons"]))
+        self.assertEqual(sum(r["available"] for r in evidence["reasons"]), 100)
+        self.assertFalse(evidence["trialLinked"])
+        self.assertFalse(evidence["memberLinked"])
+        created = self.act("create_task", {"relatedType": "lead", "relatedId": str(lead.id), "summary": "Overdue evidence", "due": str(fields.Date.today())})
+        self.env["mail.activity"].browse(int(created["taskId"])).date_deadline = fields.Date.today() - timedelta(days=1)
+        after = self.act("lead_details", {"leadId": str(lead.id)})["lead"]["evidence"]
+        self.assertEqual(after["priority"], "Now")
+        self.assertEqual(after["overdueTasks"], 1)
+        self.assertEqual(after["score"], evidence["score"] + 15)
+        self.assertEqual([a["id"] for a in context["assignees"]], [str(self.users["manager"].id)])
+
+    def test_crm_internal_note_persists_once_without_notifications(self):
+        lead = self.new_lead()
+        lead.message_subscribe(partner_ids=[self.users["guardian"].partner_id.id])
+        payload = {"leadId": str(lead.id), "expectedVersion": session_version(lead), "note": "Internal <script>literal</script> & review"}
+        with patch.object(type(lead), "_notify_thread_by_email") as email:
+            first = self.act("add_lead_note", payload, key="crm-note-request-001")
+            self.assertNotIn("error", first, first)
+            again = self.act("add_lead_note", payload, key="crm-note-request-001")
+            self.assertEqual(first["noteId"], again["noteId"])
+            self.assertTrue(again["replayed"])
+            self.assertFalse(first["messageSent"])
+            email.assert_not_called()
+        notes = self.act("lead_details", {"leadId": str(lead.id)})["notes"]
+        self.assertEqual([n["text"] for n in notes if n["id"] == first["noteId"]], [payload["note"]])
+        self.grants["manager"].role = "instructor"
+        self.assertEqual(self.act("add_lead_note", payload, key="crm-note-request-001")["error"]["status"], 403)
+
+    def test_crm_preparations_create_native_review_tasks_only(self):
+        lead = self.new_lead()
+        stage = lead.stage_id
+        members = self.env["dojo.member"].search_count([])
+        bookings = self.env["dojo.class.enrollment"].search_count([])
+        for kind in ("follow_up", "trial", "reactivation", "conversion"):
+            payload = {"leadId": str(lead.id), "expectedVersion": session_version(lead), "kind": kind, "reason": "Synthetic staff review", "due": str(fields.Date.today())}
+            key = "crm-prepare-" + kind + "-0001"
+            first = self.act("prepare_lead_action", payload, key=key)
+            self.assertNotIn("error", first, first)
+            again = self.act("prepare_lead_action", payload, key=key)
+            self.assertEqual(first["taskId"], again["taskId"])
+            self.assertTrue(again["replayed"])
+            task = self.env["mail.activity"].browse(int(first["taskId"]))
+            self.assertEqual(task.res_id, lead.id)
+            self.assertIn(payload["reason"], task.note)
+            for field in ("messageSent", "bookingCreated", "membershipCreated"):
+                self.assertFalse(first[field])
+            self.assertEqual(self.act("prepare_lead_action", payload, role="instructor")["error"]["status"], 403)
+        self.assertEqual(lead.stage_id, stage)
+        self.assertEqual(self.env["dojo.member"].search_count([]), members)
+        self.assertEqual(self.env["dojo.class.enrollment"].search_count([]), bookings)
+        self.assertEqual(self.act("prepare_lead_action", {**payload, "kind": {}})["error"]["code"], "INVALID_COMMAND")
+
+    def test_crm_owner_assignment_requires_current_site_grant(self):
+        lead = self.new_lead()
+        lead.user_id = False
+        payload = {"leadId": str(lead.id), "expectedVersion": session_version(lead), "ownerId": str(self.users["manager"].id)}
+        grants = self.env["dojo.hub.grant"].search_count([])
+        self.assertEqual(self.act("assign_lead", {**payload, "ownerId": str(self.users["unassigned"].id)})["error"]["status"], 403)
+        saved = self.act("assign_lead", payload, key="crm-owner-request-001")
+        self.assertNotIn("error", saved, saved)
+        self.assertEqual(lead.user_id, self.users["manager"])
+        self.assertTrue(self.act("assign_lead", payload, key="crm-owner-request-001")["replayed"])
+        self.assertEqual(self.env["dojo.hub.grant"].search_count([]), grants)
+
     def _checkout_invoice(self):
         income = self.env['account.account'].create({'name': 'Checkout income', 'code': 'HBPI', 'account_type': 'income', 'company_ids': [(6, 0, [self.company.id])]})
         receivable = self.env['account.account'].create({'name': 'Checkout receivable', 'code': 'HBPR', 'account_type': 'asset_receivable', 'reconcile': True, 'company_ids': [(6, 0, [self.company.id])]})

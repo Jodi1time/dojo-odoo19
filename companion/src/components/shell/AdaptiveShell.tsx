@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import ConnectedNavigation from "./ConnectedNavigation";
 import FloatingNavigation from "./FloatingNavigation";
 import CrestBackdrop from "@/components/branding/CrestBackdrop";
+import { useWorkspaceActions } from "@/components/workspace/WorkspaceActions";
 
 const CompanionRail = dynamic(
   () => import("./rail/companion-rail/CompanionRail"),
@@ -33,6 +34,7 @@ export default function AdaptiveShell({
   const [companionOpen, setCompanionOpen] = useState(false);
   const [companionVisited, setCompanionVisited] = useState(false);
   const pathname = usePathname();
+  const { hasPending, pending } = useWorkspaceActions();
   const contextTrigger = useRef<HTMLButtonElement>(null);
   const companionClose = useRef<HTMLButtonElement>(null);
   const contextClose = useRef<HTMLButtonElement>(null);
@@ -126,6 +128,10 @@ export default function AdaptiveShell({
         {demoMode && (
           <div className={styles.demoBanner}>Preview · Sample data</div>
         )}
+        {hasPending && <div className={styles.actionNotice} role="status">
+          An action is awaiting confirmation. Keep this workspace open until its result is resolved.
+          {pending.current && <Link href={pending.current.returnHref}>Return to the action →</Link>}
+        </div>}
         <main
           ref={workspace}
           id="main-content"
@@ -184,6 +190,12 @@ export default function AdaptiveShell({
             </Link>
           </section>
         )}
+        <nav className={styles.guideLinks} aria-label="Workspace sections">
+          <Link href="/hub?view=crm">Sales pipeline and tasks →</Link>
+          <Link href="/hub">Customer inbox and bookings →</Link>
+          <Link href="/follow-ups">Internal follow-ups →</Link>
+          <Link href="/hub?view=ai">AI drafting settings →</Link>
+        </nav>
       </aside>
       <aside
         id="roster-companion"

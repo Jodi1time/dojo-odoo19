@@ -125,8 +125,21 @@ const choose=async(page,name)=>{
   const history=staffPage.getByRole('tabpanel');
   assert.equal(await history.locator('time').first().getAttribute('datetime'),receipt.receipt.checkedInAt);
   assert.match(await history.innerText(),/Showing the latest check-in only/);
-  assert.equal(await staffPage.getByRole('tab',{name:'Billing',exact:true}).isDisabled(),true);
+  assert.equal(await staffPage.getByRole('tab',{name:'Billing',exact:true}).isDisabled(),false);
   await staffPage.screenshot({path:path.join(output,'08-member-attendance-tab.png'),fullPage:true});
+  await staffPage.getByRole('tab',{name:'Billing',exact:true}).click();
+  await staffPage.getByRole('heading',{name:'Sign in to view these records',exact:true}).waitFor();
+  const memberAuth=await staff.request.post(BASE+'/api/hub',{headers:{origin:BASE},data:{operation:'login',login:fixture.hubLogin,password:fixture.hubPassword}});
+  assert.equal(memberAuth.status(),200);
+  await staffPage.getByRole('button',{name:'Try again',exact:true}).click();
+  await staffPage.getByRole('region',{name:'billing records',exact:true}).getByRole('button',{name:'Refresh records',exact:true}).waitFor();
+  for(const label of ['Timeline','Progress','Membership','Messages','Family','Documents','Safety']){
+    await staffPage.getByRole('tab',{name:label,exact:true}).click();
+    await staffPage.getByRole('region',{name:label.toLowerCase()+' records',exact:true}).getByRole('button',{name:'Refresh records',exact:true}).waitFor();
+  }
+  await staffPage.getByRole('tab',{name:'Billing',exact:true}).click();
+  await staffPage.screenshot({path:path.join(output,'member-connected-billing.png'),fullPage:true});
+  record('Member sections require individual sign-in and load exact authorized Odoo records');
   await staffPage.getByRole('tab',{name:'Overview',exact:true}).click();
   record('Justin attendance tab shows the real latest receipt and labels the history limit');
   await poll(async()=>await page.getByRole('button',{name:/^Check In/i}).count()===1);
@@ -248,7 +261,9 @@ const choose=async(page,name)=>{
   const dockAfter=await mobileNav.boundingBox();
   assert.equal(dockAfter.y,dockBefore.y,'dock stays anchored when content scrolls');
   await staffPage.screenshot({path:path.join(output,'09-mobile-bottom-dock.png'),fullPage:true});
-  await mobileNav.getByRole('link',{name:'Follow-ups',exact:true}).click();
+  await mobileNav.getByRole('link',{name:'Inbox',exact:true}).click();
+  await staffPage.getByRole('button',{name:'Workspace guide',exact:true}).click();
+  await staffPage.getByRole('link',{name:'Internal follow-ups →',exact:true}).click();
   await staffPage.getByRole('main').getByRole('heading',{name:'Follow-ups',exact:true}).waitFor();
   assert.equal(await staffPage.getByRole('main').getByRole('button',{name:'Send',exact:true}).count(),0,'follow-ups is a review list, not chat');
   await mobileNav.getByRole('link',{name:'Today',exact:true}).click();
