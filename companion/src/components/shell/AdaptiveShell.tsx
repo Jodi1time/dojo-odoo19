@@ -6,6 +6,7 @@ import styles from "./Shell.module.scss";
 import dynamic from "next/dynamic";
 import ConnectedNavigation from "./ConnectedNavigation";
 import FloatingNavigation from "./FloatingNavigation";
+import CrestBackdrop from "@/components/branding/CrestBackdrop";
 
 const CompanionRail = dynamic(
   () => import("./rail/companion-rail/CompanionRail"),
@@ -96,6 +97,7 @@ export default function AdaptiveShell({
         />
       </div>
       <div className={styles.workspaceSlot} inert={panelOpen}>
+        <CrestBackdrop paused={panelOpen} />
         <header className={styles.connectedHeader}>
           <Link href="/" className={styles.mobileBrand}>
             DOJANG<span>.</span>

@@ -1,0 +1,63 @@
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.fixed {
+  position: fixed;
+  z-index: 0;
+}
+
+.crest {
+  position: relative;
+  width: min(82%, 36rem, 72svh);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  opacity: 0.13;
+  background: url("/brand/uft-crest.jpg") center / contain no-repeat;
+  // Feather the original round crest into the canvas; no rectangular image edge.
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 56%, rgba(0, 0, 0, 0.9) 76%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, #000 56%, rgba(0, 0, 0, 0.9) 76%, transparent 100%);
+  isolation: isolate;
+}
+
+.shine {
+  position: absolute;
+  inset: -20% auto -20% 0;
+  width: 55%;
+  background: linear-gradient(90deg, transparent, rgba(255, 242, 232, 0.12) 28%, rgba(255, 247, 239, 0.8) 50%, rgba(255, 242, 232, 0.12) 72%, transparent);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: translateX(-180%) skewX(-22deg);
+  animation: crestShine 9s cubic-bezier(0.4, 0, 0.2, 1) 1.2s infinite;
+}
+
+// A short metallic glide, then several quiet seconds: the Afterhours cadence.
+@keyframes crestShine {
+  0%, 8% { transform: translateX(-180%) skewX(-22deg); opacity: 0; }
+  12% { opacity: 0.7; }
+  30% { opacity: 0.7; }
+  36%, 100% { transform: translateX(300%) skewX(-22deg); opacity: 0; }
+}
+
+.backdrop[data-visible="false"] .shine,
+.backdrop[data-paused="true"] .shine,
+:global(body:has(dialog[open])) .shine {
+  animation-play-state: paused;
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shine { animation: none; display: none; }
+}
+
+@media (prefers-contrast: more), (forced-colors: active) {
+  .backdrop { display: none; }
+}

@@ -50,7 +50,7 @@ export default function MemberGrid({
       </article>
       <article>
         <span className={styles.label}>Attendance</span>
-        <h2>{liveTest ? "Verified check-ins" : "Recorded check-ins"}</h2>
+        <h2>{liveTest ? "Verified attendance" : "Recorded check-ins"}</h2>
         <StatList
           stats={[
             { label: "Check-ins (7 days)", value: attendance.lastSevenDays },

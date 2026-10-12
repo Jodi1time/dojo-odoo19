@@ -60,8 +60,14 @@ reviewed follow-up history and does not invent a pending-work feed.
 Use the supplied reference's open schedule rows, generous spacing, warm type,
 and editorial serif headings. Glass belongs on the main class card, member
 detail cards, review surfaces, and sheets; keep lists and ordinary text open.
-The background uses stationary, faint red light on near-black. Never animate
-blur or add continuous decoration. Content may arrive over 420ms; controls get
+The background uses stationary, faint red light on near-black. The original UFT
+kiosk crest sits centered behind workspace and kiosk content, with a circular
+feathered edge and low opacity. Reuse `addons/dojo_kiosk/static/src/img/uft-logo.png`
+unchanged (it contains JPEG bytes, served as `public/brand/uft-crest.jpg`). Its
+Afterhours-style metallic shine glides briefly every nine seconds, pausing in
+hidden tabs, off-screen, and behind dialogs/panels. Reduced motion keeps a still
+crest; increased contrast hides the decoration. Never animate blur or the page
+background. Content may arrive over 420ms; controls get
 short press feedback. Never transform the shell or dock ancestor. Respect
 reduced motion and transparency; the glass mixin provides a solid fallback.
 Keep existing live-data labels accurate rather than copying invented reference
