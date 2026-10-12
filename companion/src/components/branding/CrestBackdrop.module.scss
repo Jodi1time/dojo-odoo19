@@ -16,23 +16,32 @@
 
 .crest {
   position: relative;
-  width: min(82%, 36rem, 72svh);
+  width: min(70%, 30rem, 62svh);
   aspect-ratio: 1;
   border-radius: 50%;
   overflow: hidden;
-  opacity: 0.13;
-  background: url("/brand/uft-crest.jpg") center / contain no-repeat;
-  // Feather the original round crest into the canvas; no rectangular image edge.
-  -webkit-mask-image: radial-gradient(circle closest-side, #000 56%, rgba(0, 0, 0, 0.9) 76%, transparent 100%);
-  mask-image: radial-gradient(circle closest-side, #000 56%, rgba(0, 0, 0, 0.9) 76%, transparent 100%);
+  opacity: 0.085;
+  mix-blend-mode: screen;
+  // The white paper becomes black and disappears through screen blending.
+  // This leaves a quiet etched silhouette instead of a pale disk behind text.
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 38%, rgba(0, 0, 0, 0.75) 66%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, #000 38%, rgba(0, 0, 0, 0.75) 66%, transparent 100%);
   isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: url("/brand/uft-crest.jpg") center / contain no-repeat;
+    filter: grayscale(1) invert(1);
+  }
 }
 
 .shine {
   position: absolute;
   inset: -20% auto -20% 0;
-  width: 55%;
-  background: linear-gradient(90deg, transparent, rgba(255, 242, 232, 0.12) 28%, rgba(255, 247, 239, 0.8) 50%, rgba(255, 242, 232, 0.12) 72%, transparent);
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 242, 232, 0.06) 28%, rgba(255, 247, 239, 0.6) 50%, rgba(255, 242, 232, 0.06) 72%, transparent);
   mix-blend-mode: screen;
   opacity: 0;
   transform: translateX(-180%) skewX(-22deg);
@@ -42,9 +51,9 @@
 // A short metallic glide, then several quiet seconds: the Afterhours cadence.
 @keyframes crestShine {
   0%, 8% { transform: translateX(-180%) skewX(-22deg); opacity: 0; }
-  12% { opacity: 0.7; }
-  30% { opacity: 0.7; }
-  36%, 100% { transform: translateX(300%) skewX(-22deg); opacity: 0; }
+  12% { opacity: 0.5; }
+  30% { opacity: 0.5; }
+  36%, 100% { transform: translateX(380%) skewX(-22deg); opacity: 0; }
 }
 
 .backdrop[data-visible="false"] .shine,
