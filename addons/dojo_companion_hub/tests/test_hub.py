@@ -355,6 +355,89 @@ class TestCompanionHub(TransactionCase):
         self.assertEqual(result["state"], "updated")
         self.assertEqual(self.member.name, "Updated synthetic name")
 
+    def test_member_details_are_scoped_and_do_not_create_receipts(self):
+        before = self.env["dojo.hub.receipt"].search_count([])
+        result = self.act("member_details", {"memberId": str(self.member.id)})
+        self.assertNotIn("error", result)
+        self.assertEqual(result["member"]["id"], str(self.member.id))
+        self.assertEqual(result["bookings"][0]["id"], str(self.enrollment.id))
+        self.assertEqual(result["billing"]["subscriptions"][0]["id"], str(self.subscription.id))
+        self.assertEqual(result["billing"]["paymentProcessing"], "not_connected")
+        self.assertEqual(self.env["dojo.hub.receipt"].search_count([]), before)
+        self.assertEqual(self.act("member_details", {"memberId": "2147483647"})["error"]["code"], "MEMBER_UNAVAILABLE")
+        self.assertEqual(self.act("member_details", {"memberId": str(self.member.id)}, role="guardian")["error"]["status"], 403)
+
+    def test_instructor_details_do_not_expose_billing_or_contact_edits(self):
+        self.partner.write({"email": "private@example.invalid", "phone": "5550100"})
+        result = self.act("member_details", {"memberId": str(self.member.id)}, role="instructor")
+        self.assertFalse(result["canEdit"])
+        self.assertIsNone(result["billing"])
+        self.assertIsNone(result["member"]["email"])
+        self.assertIsNone(result["member"]["phone"])
+        self.assertEqual(result["ranks"], [])
+        self.grants["instructor"].session_ids = False
+        self.assertEqual(self.act("member_details", {"memberId": str(self.member.id)}, role="instructor")["error"]["code"], "MEMBER_UNAVAILABLE")
+
+    def test_details_checkout_and_rank_history_are_read_from_saved_records(self):
+        attendance = self.env["dojo.attendance.log"].create({"member_id": self.member.id, "session_id": self.session.id,
+            "enrollment_id": self.enrollment.id, "status": "present", "checkin_datetime": fields.Datetime.now() - timedelta(minutes=2)})
+        rank = self.env["dojo.belt.rank"].create({"name": "Details Yellow", "company_id": self.company.id, "max_stripes": 4})
+        self.assertNotIn("error", self.act("rank", {"memberId": str(self.member.id), "rankId": str(rank.id),
+            "expectedVersion": session_version(self.member), "stripes": 1, "reason": "Synthetic verified assessment"}))
+        checkout = self.act("checkout", {"memberId": str(self.member.id), "sessionId": str(self.session.id)})
+        self.assertNotIn("error", checkout)
+        result = self.act("member_details", {"memberId": str(self.member.id)})
+        self.assertEqual(result["attendance"][0]["id"], str(attendance.id))
+        self.assertEqual(result["attendance"][0]["checkedOutAt"], checkout["checkedOutAt"])
+        self.assertEqual(result["rankHistory"][0]["rank"], "Details Yellow")
+        self.assertEqual(result["member"]["stripes"], 1)
+
+    def test_contact_edit_checks_partner_version_and_can_clear_optional_fields(self):
+        self.partner.write({"email": "synthetic@example.invalid", "phone": "5550100"})
+        details = self.act("member_details", {"memberId": str(self.member.id)})
+        payload = {"memberId": str(self.member.id), "expectedVersion": details["member"]["version"],
+            "expectedPartnerVersion": details["member"]["partnerVersion"], "changes": {"email": "", "phone": ""}}
+        self.assertEqual(self.act("update_member", {**payload, "expectedPartnerVersion": 1})["error"]["code"], "VERSION_CONFLICT")
+        result = self.act("update_member", payload, key="contact-clear-request-01")
+        self.assertEqual(result["state"], "updated")
+        replay = self.act("update_member", payload, key="contact-clear-request-01")
+        self.assertTrue(replay["replayed"])
+        refreshed = self.act("member_details", {"memberId": str(self.member.id)})
+        self.assertEqual(refreshed["member"]["email"], "")
+        self.assertEqual(refreshed["member"]["phone"], "")
+        self.assertEqual(self.act("update_member", {"memberId": str(self.member.id), "expectedVersion": session_version(self.member), "changes": {"name": " "}})["error"]["code"], "INVALID_COMMAND")
+
+    def test_billing_uses_explicit_links_and_marks_household_totals(self):
+        income = self.env["account.account"].create({"name": "Hub test income", "code": "HUBI1", "account_type": "income", "company_ids": [(6, 0, [self.company.id])]})
+        receivable = self.env["account.account"].create({"name": "Hub test receivable", "code": "HUBR1", "account_type": "asset_receivable", "reconcile": True, "company_ids": [(6, 0, [self.company.id])]})
+        journal = self.env["account.journal"].create({"name": "Hub test sales", "code": "HBTS", "type": "sale", "company_id": self.company.id, "default_account_id": income.id})
+        self.partner.with_company(self.company).property_account_receivable_id = receivable
+        def invoice(amount, linked=False):
+            record = self.env["account.move"].create({"move_type": "out_invoice", "partner_id": self.partner.id,
+                "company_id": self.company.id, "journal_id": journal.id, "invoice_date": fields.Date.today(),
+                "subscription_id": self.subscription.id if linked else False,
+                "invoice_line_ids": [(0, 0, {"name": "Synthetic tuition", "quantity": 1, "price_unit": amount, "account_id": income.id, "tax_ids": [(5, 0, 0)]})]})
+            record.action_post()
+            return record
+        own, shared, unrelated = invoice(30, True), invoice(80), invoice(99)
+        self.subscription.household_invoice_ids = [(4, shared.id)]
+        billing = self.act("member_details", {"memberId": str(self.member.id)})["billing"]
+        rows = {i["id"]: i for i in billing["invoices"]}
+        self.assertEqual(set(rows), {str(own.id), str(shared.id)})
+        self.assertNotIn(str(unrelated.id), rows)
+        self.assertEqual(rows[str(own.id)]["scope"], "member")
+        self.assertEqual(rows[str(shared.id)]["scope"], "household")
+        self.assertEqual(rows[str(shared.id)]["total"], 80)
+
+    def test_contact_edit_cannot_silently_change_a_shared_member_identity(self):
+        duplicate = self.env["dojo.member"].create({"partner_id": self.partner.id, "company_id": self.company.id})
+        before = duplicate.name
+        details = self.act("member_details", {"memberId": str(self.member.id)})
+        self.assertFalse(details["canEditContact"])
+        result = self.act("update_member", {"memberId": str(self.member.id), "expectedVersion": session_version(self.member), "changes": {"name": "Must not change"}})
+        self.assertEqual(result["error"]["code"], "SHARED_CONTACT_REVIEW_REQUIRED")
+        self.assertEqual(duplicate.name, before)
+
     def test_belt_awards_keep_history_and_latest_same_day_rank(self):
         ranks = [self.env["dojo.belt.rank"].create({"name": name, "company_id": self.company.id}) for name in ("White", "Yellow")]
         for rank in ranks:
