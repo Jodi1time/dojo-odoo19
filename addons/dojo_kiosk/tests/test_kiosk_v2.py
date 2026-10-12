@@ -54,6 +54,20 @@ class TestKioskSessionFirstV2(TransactionCase):
         body.update(overrides)
         return body
 
+    def test_public_schedule_uses_school_day_and_preserves_staff_future_schedule(self):
+        self.company.partner_id.tz = "America/Los_Angeles"
+        tomorrow = self.session.copy({"start_datetime": self.session.start_datetime + timedelta(days=2),
+                                      "end_datetime": self.session.end_datetime + timedelta(days=2)})
+        self.kiosk.integration_session_ids = [(4, tomorrow.id)]
+        public = self.service._v2_dispatch("sessions", self.kiosk.kiosk_token, self.gateway_key, {})
+        self.assertNotIn(str(tomorrow.id), [s["sessionId"] for s in public["sessions"]])
+        staff = self.service._v2_sessions(self.kiosk)
+        self.assertIn(str(tomorrow.id), [s["sessionId"] for s in staff["sessions"]])
+        row = next(s for s in staff["sessions"] if s["sessionId"] == str(self.session.id))
+        self.assertEqual(row["timeZone"], "America/Los_Angeles")
+        self.assertEqual(row["location"], self.kiosk.name)
+        self.assertIsNone(row["instructor"])
+
     def call(self, action="checkin", params=None, gateway=None):
         return self.service._v2_dispatch(action, self.kiosk.kiosk_token,
             self.gateway_key if gateway is None else gateway, {"command": self.command()} if params is None else params)

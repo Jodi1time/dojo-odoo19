@@ -6,8 +6,8 @@ type Config = {origin:string; backend:string; database:string; siteId:string; se
 const cookieName = 'dojang_hub_session';
 const responseHeaders = {'cache-control':'private, no-store', vary:'Cookie'};
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const reads = new Set(['context','member_details','member_workspace','crm_context','lead_details','ai_settings']);
-const operations = new Set([...reads,'resolve','draft','approve_reply','checkout','book','change_class','update_member','rank','link_guardian','provision','create_lead','update_lead','create_task','complete_task','propose_stage','payment_link','enable_ai','add_lead_note','prepare_lead_action','assign_lead']);
+const reads = new Set(['context','member_details','member_workspace','crm_context','lead_details','ai_settings','instructor_context']);
+const operations = new Set([...reads,'resolve','draft','approve_reply','checkout','book','change_class','update_member','rank','link_guardian','provision','create_lead','update_lead','create_task','complete_task','propose_stage','payment_link','enable_ai','add_lead_note','prepare_lead_action','assign_lead','instructor_clock','correct_timesheet']);
 const reject = (code:string,status=400) => Response.json({error:{code,status}},{status,headers:responseHeaders});
 
 export function hubConfig(env: NodeJS.ProcessEnv): Config {
@@ -96,6 +96,15 @@ export async function hubRoute(request:Request, env:NodeJS.ProcessEnv, fetcher:F
     if(object(result.error)){
       const status=[400,401,403,404,409,422,503].includes(Number(result.error.status))?Number(result.error.status):503;
       return reject(typeof result.error.code==='string' && /^[A-Z_]{1,80}$/.test(result.error.code)?result.error.code:'BACKEND_UNAVAILABLE',status);
+    }
+    if(operation==='instructor_clock'||operation==='correct_timesheet'){
+      const shift=result.shift;
+      const expected=operation==='correct_timesheet'?'timesheet_corrected':data.payload.direction==='in'?'clocked_in':'clocked_out';
+      if(result.state!==expected||!object(shift)||typeof shift.id!=='string'||!/^[1-9][0-9]*$/.test(shift.id)||
+        typeof shift.checkIn!=='string'||!Number.isFinite(Date.parse(shift.checkIn))||
+        (expected==='clocked_in'?shift.checkOut!==null:typeof shift.checkOut!=='string'||!Number.isFinite(Date.parse(shift.checkOut)))||
+        (operation==='correct_timesheet'&&shift.id!==data.payload.shiftId)||
+        (operation==='instructor_clock'&&data.payload.direction==='out'&&shift.id!==data.payload.currentShiftId))return reject('BACKEND_UNAVAILABLE_RETRY_SAME_ACTION',503);
     }
     if(operation==='payment_link'){
       // Never let backend data navigate the browser to a different origin or

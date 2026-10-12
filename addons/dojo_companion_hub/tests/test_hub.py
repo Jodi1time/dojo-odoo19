@@ -62,6 +62,88 @@ class TestCompanionHub(TransactionCase):
         self.addCleanup(self.env_patch.stop)
         self.counter = 0
 
+    def instructor_profile(self, role="instructor"):
+        user = self.users[role]
+        return self.env["dojo.instructor.profile"].create({"name": "Synthetic Instructor", "user_id": user.id,
+            "partner_id": user.partner_id.id, "company_id": self.company.id})
+
+    def test_instructor_clock_is_native_scoped_and_idempotent(self):
+        profile = self.instructor_profile()
+        p = {"direction": "in", "currentShiftId": None, "pin": "321654"}
+        result = self.act("instructor_clock", p, role="instructor", key="clock-in-repeated-0001")
+        self.assertEqual(result["state"], "clocked_in")
+        shift = self.env["hr.attendance"].browse(int(result["shift"]["id"]))
+        self.assertEqual(shift.employee_id, profile.employee_id)
+        self.assertFalse(shift.check_out)
+        self.assertTrue(self.act("instructor_clock", p, role="instructor", key="clock-in-repeated-0001")["replayed"])
+        self.assertEqual(self.act("instructor_clock", p, role="instructor")["error"]["code"], "ALREADY_CLOCKED_IN")
+        data = self.act("instructor_context", role="instructor")
+        self.assertEqual(data["current"]["id"], str(shift.id))
+        out = {"direction": "out", "currentShiftId": str(shift.id), "pin": "321654"}
+        self.assertEqual(self.act("instructor_clock", out, role="instructor", key="clock-out-repeated-001")["state"], "clocked_out")
+        self.assertTrue(self.act("instructor_clock", out, role="instructor", key="clock-out-repeated-001")["replayed"])
+        self.assertIsNone(self.act("instructor_context", role="instructor")["current"])
+        self.assertEqual(self.env["hr.attendance"].search_count([("employee_id", "=", profile.employee_id.id)]), 1)
+        receipts = self.env["dojo.hub.receipt"].search([("operation", "=", "instructor_clock")])
+        self.assertNotIn("321654", "".join(receipts.mapped("response_json")))
+
+    def test_clock_pin_failures_persist_and_lock(self):
+        self.instructor_profile()
+        p = {"direction": "in", "currentShiftId": None, "pin": "000000"}
+        for _ in range(5):
+            result = self.act("instructor_clock", p, role="instructor")
+            self.assertIn(result["error"]["code"], ("PIN_INCORRECT", "PIN_LOCKED"))
+        self.assertEqual(self.act("instructor_clock", {**p, "pin": "321654"}, role="instructor")["error"]["code"], "PIN_LOCKED")
+        self.assertFalse(self.env["dojo.hub.receipt"].search_count([("operation", "=", "instructor_clock")]))
+
+    def test_staff_identity_cannot_be_selected_with_shared_pin(self):
+        self.instructor_profile()
+        p = {"direction": "in", "currentShiftId": None, "pin": "321654"}
+        self.assertEqual(self.act("instructor_clock", p)["error"]["code"], "INSTRUCTOR_PROFILE_REQUIRED")
+        self.assertEqual(self.act("instructor_clock", {**p, "userId": str(self.users["manager"].id)}, role="instructor")["error"]["code"], "INVALID_COMMAND")
+        self.assertEqual(self.act("instructor_context", role="guardian")["error"]["status"], 403)
+
+    def closed_shift(self):
+        profile = self.instructor_profile()
+        now = fields.Datetime.now()
+        shift = self.env["hr.attendance"].create({"employee_id": profile.employee_id.id,
+            "check_in": now-timedelta(hours=4), "check_out": now-timedelta(hours=2), "out_mode": "auto_check_out"})
+        p = {"shiftId": str(shift.id), "expectedVersion": session_version(shift),
+            "checkIn": (now-timedelta(hours=5)).isoformat()+"Z", "checkOut": (now-timedelta(hours=2)).isoformat()+"Z", "reason": "Reviewed synthetic missed clock-out"}
+        return shift, p
+
+    def test_manager_timesheet_correction_is_reviewed_and_replayed(self):
+        shift, p = self.closed_shift()
+        self.assertTrue(self.act("instructor_context")["shifts"][0]["needsReview"])
+        result = self.act("correct_timesheet", p, key="timesheet-correct-001")
+        self.assertEqual(result["state"], "timesheet_corrected")
+        self.assertEqual(result["shift"]["hours"], 3)
+        self.assertEqual(result["reason"], p["reason"])
+        self.assertTrue(self.act("correct_timesheet", p, key="timesheet-correct-001")["replayed"])
+        self.assertFalse(self.act("instructor_context")["shifts"][0]["needsReview"])
+        self.assertEqual(shift.out_mode, "manual")
+
+    def test_timesheet_scope_role_version_and_time_guards(self):
+        shift, p = self.closed_shift()
+        self.assertEqual(self.act("correct_timesheet", p, role="instructor")["error"]["status"], 403)
+        self.assertEqual(self.act("correct_timesheet", {**p, "expectedVersion": -1})["error"]["code"], "VERSION_CONFLICT")
+        self.assertEqual(self.act("correct_timesheet", {**p, "checkOut": p["checkIn"]})["error"]["code"], "INVALID_SHIFT_TIMES")
+        self.assertEqual(self.act("correct_timesheet", {**p, "checkIn": p["checkIn"][:-1]})["error"]["code"], "INVALID_COMMAND")
+        shift.state = "validated"
+        self.assertEqual(self.act("correct_timesheet", {**p, "expectedVersion": session_version(shift)})["error"]["code"], "TIMESHEET_REVIEW_REQUIRED")
+
+    def test_timesheets_do_not_expose_another_instructor_or_company(self):
+        shift, p = self.closed_shift()
+        manager_profile = self.instructor_profile("manager")
+        row = self.env["hr.attendance"].create({"employee_id": manager_profile.employee_id.id})
+        data = self.act("instructor_context", role="instructor")
+        self.assertEqual([s["id"] for s in data["shifts"]], [str(shift.id)])
+        other = self.env["res.company"].create({"name": "Other timesheet school"})
+        foreign = self.env["dojo.hub.site"].create({"name": "Other shift site", "company_id": other.id,
+            "kiosk_config_id": self.env["dojo.kiosk.config"].create({"name": "Other", "company_id": other.id, "pin_code": "123456"}).id, "workspace_ref": "foreign-shift"})
+        self.assertEqual(self.act("correct_timesheet", p, site=foreign)["error"]["status"], 403)
+        self.assertNotIn(str(row.id), [s["id"] for s in data["shifts"]])
+
     def act(self, operation, payload=None, role="manager", key=None, site=None):
         self.counter += 1
         return self.env["dojo.hub.service"].with_user(self.users[role])._dispatch(str((site or self.site).id), operation,

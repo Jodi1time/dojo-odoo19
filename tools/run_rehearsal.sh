@@ -105,6 +105,7 @@ fi
 (cd companion && node tests/rehearsal/hub-feedback.cjs) 2>&1 | tee rehearsal-evidence/hub-feedback-browser.log
 (cd companion && node tests/rehearsal/member-management.cjs) 2>&1 | tee rehearsal-evidence/member-management-browser.log
 (cd companion && node tests/rehearsal/crm.cjs) 2>&1 | tee rehearsal-evidence/crm-browser.log
+(cd companion && node tests/rehearsal/instructor.cjs) 2>&1 | tee rehearsal-evidence/instructor-browser.log
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_attendance_log;')
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
 followups=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_companion_followup WHERE state = 'approved';")

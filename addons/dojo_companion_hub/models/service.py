@@ -450,6 +450,8 @@ class HubService(models.AbstractModel):
                     return self._lead_details(site, grant, payload)
                 if operation == "ai_settings":
                     return self._ai_settings(site, grant, payload)
+                if operation == "instructor_context":
+                    return self._instructor_context(site, grant, payload)
                 self._role(grant)
                 handlers = {"resolve": self._resolve, "draft": self._draft, "approve_reply": self._approve_reply,
                     "checkout": self._checkout, "book": self._book, "change_class": self._change_class,
@@ -457,15 +459,26 @@ class HubService(models.AbstractModel):
                     "create_lead": self._create_lead, "update_lead": self._update_lead,
                     "create_task": self._create_task, "complete_task": self._complete_task, "propose_stage": self._propose_stage,
                     "payment_link": self._payment_link, "enable_ai": self._enable_ai,
-                    "add_lead_note": self._add_lead_note, "prepare_lead_action": self._prepare_lead_action, "assign_lead": self._assign_lead}
+                    "add_lead_note": self._add_lead_note, "prepare_lead_action": self._prepare_lead_action, "assign_lead": self._assign_lead,
+                    "instructor_clock": self._instructor_clock, "correct_timesheet": self._correct_timesheet}
                 if not isinstance(operation, str) or operation not in handlers or not isinstance(request_key, str) or not KEY.fullmatch(request_key):
                     raise HubProblem("INVALID_COMMAND", 400)
                 self.env["dojo.kiosk.service"]._v2_lock("hub:%s:%s:%s" % (site.id, self.env.uid, request_key))
-                digest = fingerprint({"operation": operation, "payload": payload})
+                if operation == "instructor_clock":
+                    failure = self._clock_gate(site, grant, payload)
+                    if failure:
+                        return failure
+                if operation == "correct_timesheet":
+                    self._role(grant, "owner manager")
+                # Never persist PIN material, even in a guessable audit digest.
+                audited_payload = {k: v for k, v in payload.items() if k != "pin"} if operation == "instructor_clock" else payload
+                digest = fingerprint({"operation": operation, "payload": audited_payload})
                 receipt = self.env["dojo.hub.receipt"].sudo().search([("site_id", "=", site.id), ("user_id", "=", self.env.uid), ("request_key", "=", request_key)], limit=1)
                 if receipt:
                     if receipt.fingerprint != digest:
                         raise HubProblem("IDEMPOTENCY_CONFLICT")
+                    if operation in ("instructor_clock", "correct_timesheet"):
+                        self._recheck_shift_receipt(site, grant, json.loads(receipt.response_json), own=operation == "instructor_clock")
                     if operation == "payment_link":
                         _, invoice = self._billing_invoice(site, grant, payload["memberId"], payload["invoiceId"])
                         unavailable = self._payment_availability(invoice)
