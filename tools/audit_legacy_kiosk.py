@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-PAGE_RE = re.compile(r'<(?:div|section)\b[^>]*\bid=["\\']page-([a-zA-Z0-9_-]+)["\\']', re.I)
+PAGE_RE = re.compile(r'<(?:div|section)\b[^>]*\bid=.page-([a-zA-Z0-9_-]+)', re.I)
 FUNC_RE = re.compile(r'\b(?:async\s+)?function\s+([a-zA-Z_$][\w$]*)\s*\(')
 API_RE = re.compile(r'/api/(?:[a-zA-Z0-9_./?-]|\$\{[^}]*\})+')
 SECRET_RE = re.compile(r'(?i)(?:token|password|secret|authorization)')
