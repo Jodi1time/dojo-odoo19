@@ -64,7 +64,7 @@ The background uses stationary, faint red light on near-black. The original UFT
 kiosk crest sits centered behind workspace and kiosk content, with a circular
 feathered edge and low opacity. Keep it at 70% width (capped at 30rem/62svh),
 with its original colors intact at 12% opacity. Do not make the main crest
-monochrome, invert it, or recolor it. Surround it with 22 small, stationary,
+monochrome, invert it, or recolor it. Surround it with 44 small, stationary,
 monochrome copies at 4.5% opacity, scattered with varied size and rotation.
 Keep their irregular positions stable across hydration/navigation. Only these
 miniatures use grayscale/inversion and screen blending for a transparent look.
