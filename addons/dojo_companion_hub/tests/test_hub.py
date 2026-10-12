@@ -483,3 +483,109 @@ class TestCompanionHub(TransactionCase):
              "partnerId": str(self.users["guardian"].partner_id.id), "memberIds": [str(self.member.id)],
              "sessionIds": [], "verificationRef": self.binding.verification_ref}
         self.assertEqual(self.act("provision", p)["error"]["code"], "VERIFIED_GUARDIAN_REQUIRED")
+
+    def new_lead(self):
+        result = self.act("create_lead", {"name": "Synthetic CRM lead", "contact": "Synthetic Contact", "email": "crm@example.invalid", "phone": "555-0110"})
+        self.assertNotIn("error", result, result)
+        return self.env["crm.lead"].browse(int(result["leadId"]))
+
+    def test_crm_scope_roles_and_cross_company(self):
+        lead = self.new_lead()
+        for role in ("guardian", "instructor", "unassigned"):
+            self.assertEqual(self.act("crm_context", {"query": ""}, role=role)["error"]["status"], 403)
+            self.assertEqual(self.act("lead_details", {"leadId": str(lead.id)}, role=role)["error"]["status"], 403)
+        other = self.env["res.company"].create({"name": "Other CRM company"})
+        outsider = self.env["crm.lead"].create({"name": "Other lead", "company_id": other.id})
+        data = self.act("crm_context", {"query": ""})
+        self.assertIn(str(lead.id), [l["id"] for l in data["leads"]])
+        self.assertNotIn(str(outsider.id), [l["id"] for l in data["leads"]])
+        self.assertEqual(self.act("lead_details", {"leadId": str(outsider.id)})["error"]["code"], "LEAD_UNAVAILABLE")
+
+    def test_crm_lead_creation_replay_and_validation(self):
+        p = {"name": "One lead", "contact": "One contact", "email": "one@example.invalid", "phone": ""}
+        first = self.act("create_lead", p, key="crm-lead-create-0001")
+        again = self.act("create_lead", p, key="crm-lead-create-0001")
+        self.assertEqual(first["leadId"], again["leadId"])
+        self.assertTrue(again["replayed"])
+        self.assertEqual(self.act("create_lead", {**p, "email": "invalid"})["error"]["code"], "INVALID_COMMAND")
+        self.assertEqual(self.act("create_lead", {**p, "company_id": self.company.id})["error"]["code"], "INVALID_COMMAND")
+        self.assertEqual(self.act("crm_context", {"query": "One lead"})["leads"][0]["id"], first["leadId"])
+        self.grants["manager"].role = "instructor"
+        self.assertEqual(self.act("create_lead", p, key="crm-lead-create-0001")["error"]["status"], 403)
+
+    def test_crm_lead_update_exact_identity_conflict_and_linked_partner(self):
+        lead = self.new_lead()
+        p = {"leadId": str(lead.id), "expectedVersion": session_version(lead), "changes": {"phone": "555-0199"}}
+        self.assertEqual(self.act("update_lead", {**p, "expectedVersion": 1})["error"]["code"], "VERSION_CONFLICT")
+        self.assertNotIn("error", self.act("update_lead", p))
+        self.assertEqual(lead.phone, "555-0199")
+        self.assertNotEqual(self.member.phone, lead.phone)
+        lead.partner_id = self.partner
+        details = self.act("lead_details", {"leadId": str(lead.id)})
+        self.assertFalse(details["lead"]["canEditContact"])
+        result = self.act("update_lead", {**p, "expectedVersion": session_version(lead)})
+        self.assertEqual(result["error"]["code"], "SHARED_CONTACT_REVIEW_REQUIRED")
+
+    def test_crm_native_task_receipt_completion_and_history_no_notifications(self):
+        lead = self.new_lead()
+        p = {"relatedType": "lead", "relatedId": str(lead.id), "summary": "Review trial options", "due": str(fields.Date.today())}
+        # Follower notifications are suppressed for this internal-only path.
+        lead.message_subscribe(partner_ids=[self.users["guardian"].partner_id.id])
+        with patch.object(type(self.env["mail.activity"]), "action_notify") as notify, patch.object(type(lead), "_notify_thread_by_email") as email:
+            first = self.act("create_task", p, key="crm-task-create-0001")
+            self.assertNotIn("error", first, first)
+            again = self.act("create_task", p, key="crm-task-create-0001")
+            self.assertEqual(first["taskId"], again["taskId"])
+            task = self.env["mail.activity"].browse(int(first["taskId"]))
+            self.assertEqual(task.res_model, "crm.lead")
+            self.assertEqual(task.res_id, lead.id)
+            self.assertEqual(task.user_id, self.users["manager"])
+            done = {"taskId": str(task.id), "expectedVersion": session_version(task), "feedback": "Reviewed availability; no message sent"}
+            self.assertNotIn("error", self.act("complete_task", done, key="crm-task-done-00001"))
+            self.assertTrue(self.act("complete_task", done, key="crm-task-done-00001")["replayed"])
+            self.assertFalse(task.active)
+            self.assertEqual(task.feedback, done["feedback"])
+            notify.assert_not_called()
+            email.assert_not_called()
+        detail = self.act("lead_details", {"leadId": str(lead.id)})
+        self.assertEqual(detail["tasks"][0]["state"], "done")
+        self.assertEqual(detail["tasks"][0]["feedback"], done["feedback"])
+        self.assertTrue(any(a["action"] == "complete_task" for a in detail["timeline"]))
+
+    def test_crm_task_scope_and_automated_completion_guard(self):
+        lead = self.new_lead()
+        p = {"relatedType": "lead", "relatedId": str(lead.id), "summary": "Review", "due": str(fields.Date.today())}
+        created = self.act("create_task", p)
+        task = self.env["mail.activity"].browse(int(created["taskId"]))
+        task.automated = True
+        done = {"taskId": str(task.id), "expectedVersion": session_version(task), "feedback": "No"}
+        self.assertEqual(self.act("complete_task", done)["error"]["code"], "AUTOMATED_TASK_REVIEW_REQUIRED")
+        self.assertTrue(task.active)
+        self.assertEqual(self.act("create_task", {**p, "due": "2026-02-30"})["error"]["code"], "INVALID_COMMAND")
+        self.assertEqual(self.act("create_task", {**p, "relatedType": "res.users"})["error"]["code"], "INVALID_COMMAND")
+        other = self.env["res.company"].create({"name": "Other task company"})
+        lead.company_id = other
+        self.assertEqual(self.act("complete_task", done)["error"]["code"], "LEAD_UNAVAILABLE")
+
+    def test_crm_stage_proposal_does_not_mutate_stage_or_trial_attendance(self):
+        lead = self.new_lead()
+        original = lead.stage_id
+        target = self.env["crm.stage"].create({"name": "Synthetic evaluation", "sequence": 90})
+        p = {"leadId": str(lead.id), "expectedVersion": session_version(lead), "stageId": str(target.id), "reason": "Review readiness", "due": str(fields.Date.today())}
+        result = self.act("propose_stage", p)
+        self.assertNotIn("error", result, result)
+        self.assertEqual(result["state"], "proposed")
+        self.assertFalse(result["stageChanged"])
+        self.assertEqual(lead.stage_id, original)
+        self.assertEqual(self.env["mail.activity"].browse(int(result["taskId"])).res_id, lead.id)
+
+    def test_crm_member_linked_task_preserves_exact_member(self):
+        p = {"relatedType": "member", "relatedId": str(self.member.id), "summary": "Review member booking", "due": str(fields.Date.today())}
+        result = self.act("create_task", p)
+        self.assertNotIn("error", result, result)
+        task = self.env["mail.activity"].browse(int(result["taskId"]))
+        self.assertEqual(task.res_model, "dojo.member")
+        self.assertEqual(task.res_id, self.member.id)
+        done = self.act("complete_task", {"taskId": str(task.id), "expectedVersion": session_version(task), "feedback": "Reviewed"})
+        self.assertNotIn("error", done, done)
+        self.assertEqual(done["memberId"], str(self.member.id))

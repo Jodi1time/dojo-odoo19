@@ -441,10 +441,16 @@ class HubService(models.AbstractModel):
                     return self._context(site, grant, payload)
                 if operation == "member_details":
                     return self._member_details(site, grant, payload)
+                if operation == "crm_context":
+                    return self._crm_context(site, grant, payload)
+                if operation == "lead_details":
+                    return self._lead_details(site, grant, payload)
                 self._role(grant)
                 handlers = {"resolve": self._resolve, "draft": self._draft, "approve_reply": self._approve_reply,
                     "checkout": self._checkout, "book": self._book, "change_class": self._change_class,
-                    "update_member": self._update_member, "rank": self._rank, "link_guardian": self._link_guardian, "provision": self._provision}
+                    "update_member": self._update_member, "rank": self._rank, "link_guardian": self._link_guardian, "provision": self._provision,
+                    "create_lead": self._create_lead, "update_lead": self._update_lead,
+                    "create_task": self._create_task, "complete_task": self._complete_task, "propose_stage": self._propose_stage}
                 if not isinstance(operation, str) or operation not in handlers or not isinstance(request_key, str) or not KEY.fullmatch(request_key):
                     raise HubProblem("INVALID_COMMAND", 400)
                 self.env["dojo.kiosk.service"]._v2_lock("hub:%s:%s:%s" % (site.id, self.env.uid, request_key))
@@ -461,11 +467,19 @@ class HubService(models.AbstractModel):
                         self._message(site, grant, payload["messageId"], unresolved=True)
                     if operation in ("provision", "link_guardian", "update_member", "rank"):
                         self._role(grant, "owner manager")
+                    if operation in ("create_lead", "update_lead", "create_task", "complete_task", "propose_stage"):
+                        self._role(grant, "owner manager")
+                        if receipt.lead_id:
+                            self._lead(site, grant, str(receipt.lead_id.id))
+                        if receipt.task_id:
+                            self._task(site, grant, str(receipt.task_id.id))
                     return {**json.loads(receipt.response_json), "replayed": True}
                 result = handlers[operation](site, grant, payload)
                 self.env["dojo.hub.receipt"].sudo().create({"site_id": site.id, "user_id": self.env.uid, "request_key": request_key,
                     "operation": operation, "fingerprint": digest, "member_id": int(result["memberId"]) if result.get("memberId") else False,
-                    "session_id": int(result["sessionId"]) if result.get("sessionId") else False, "response_json": json.dumps(result)})
+                    "session_id": int(result["sessionId"]) if result.get("sessionId") else False,
+                    "lead_id": int(result["leadId"]) if result.get("leadId") else False,
+                    "task_id": int(result["taskId"]) if result.get("taskId") else False, "response_json": json.dumps(result)})
                 return {**result, "replayed": False}
         except HubProblem as exc:
             return {"error": {"code": exc.code, "status": exc.status}}

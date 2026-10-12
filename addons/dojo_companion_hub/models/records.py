@@ -119,6 +119,8 @@ class HubReceipt(models.Model):
     user_id = fields.Many2one("res.users", required=True, ondelete="restrict")
     request_key = fields.Char(required=True)
     operation = fields.Char(required=True)
+    lead_id = fields.Many2one("crm.lead", ondelete="restrict", index=True)
+    task_id = fields.Many2one("mail.activity", ondelete="set null")
     fingerprint = fields.Char(required=True)
     member_id = fields.Many2one("dojo.member", ondelete="restrict")
     session_id = fields.Many2one("dojo.class.session", ondelete="restrict")
