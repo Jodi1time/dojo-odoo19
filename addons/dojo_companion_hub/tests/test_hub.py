@@ -599,8 +599,8 @@ class TestCompanionHub(TransactionCase):
             'company_id': self.company.id, 'journal_id': journal.id, 'invoice_date': fields.Date.today(), 'subscription_id': self.subscription.id,
             'invoice_line_ids': [(0, 0, {'name': 'Synthetic tuition', 'quantity': 1, 'price_unit': 30, 'account_id': income.id, 'tax_ids': [(5, 0, 0)]})]})
         invoice.action_post()
-        self.env['ir.config_parameter'].sudo().set_param('web.base.url', 'https://odoo.example.test')
-        self.env['ir.config_parameter'].sudo().set_param('account_payment.enable_portal_payment', True)
+        self.env['ir.config_parameter'].sudo().set_str('web.base.url', 'https://odoo.example.test')
+        self.env['ir.config_parameter'].sudo().set_bool('account_payment.enable_portal_payment', True)
         invoice.flush_recordset()
         return invoice, {'memberId': str(self.member.id), 'invoiceId': str(invoice.id), 'expectedVersion': session_version(invoice), 'expectedAmount': 30}
 
@@ -635,7 +635,7 @@ class TestCompanionHub(TransactionCase):
 
     def test_checkout_requires_online_configuration_and_rechecks_replay_scope(self):
         invoice, payload = self._checkout_invoice()
-        self.env['ir.config_parameter'].sudo().set_param('account_payment.enable_portal_payment', False)
+        self.env['ir.config_parameter'].sudo().set_bool('account_payment.enable_portal_payment', False)
         self.assertEqual(self.act('payment_link', payload)['error']['code'], 'PAYMENT_SETUP_REQUIRED')
         self.assertEqual(self.act('payment_link', payload, role='instructor')['error']['code'], 'FORBIDDEN')
         with patch.object(type(self.env['dojo.hub.service']), '_payment_availability', return_value=None):
@@ -653,7 +653,7 @@ class TestCompanionHub(TransactionCase):
 
     def test_ai_activation_requires_owner_and_a_real_successful_draft(self):
         self.grants['manager'].role = 'owner'
-        self.env['ir.config_parameter'].sudo().set_param('elevenlabs_connector.ai_provider', 'openai')
+        self.env['ir.config_parameter'].sudo().set_str('elevenlabs_connector.ai_provider', 'openai')
         with patch.dict(os.environ, {'DOJANG_OPENAI_API_KEY': 'synthetic-key-not-a-real-secret', 'DOJANG_OPENAI_CHAT_MODEL': 'gpt-4o-mini'}):
             settings = self.act('ai_settings')
             self.assertTrue(settings['configured'])
@@ -673,7 +673,7 @@ class TestCompanionHub(TransactionCase):
 
     def test_ai_failure_rolls_back_flags_and_never_reports_template_as_ai(self):
         self.grants['manager'].role = 'owner'
-        self.env['ir.config_parameter'].sudo().set_param('elevenlabs_connector.ai_provider', 'openai')
+        self.env['ir.config_parameter'].sudo().set_str('elevenlabs_connector.ai_provider', 'openai')
         with patch.dict(os.environ, {'DOJANG_OPENAI_API_KEY': 'synthetic-key-not-a-real-secret'}):
             settings = self.act('ai_settings')
             payload = {'expectedSiteVersion': settings['siteVersion'], 'expectedConfigVersion': settings['configVersion']}

@@ -13,7 +13,8 @@ permissions:
   contents: read
 concurrency:
   group: browser-rehearsal-${{ github.ref }}
-  cancel-in-progress: false
+  # Test the latest PR revision; keep manual/release rehearsals uninterrupted.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   real-odoo-browser:
     runs-on: ubuntu-24.04
