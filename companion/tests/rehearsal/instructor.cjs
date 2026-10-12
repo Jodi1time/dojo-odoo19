@@ -88,6 +88,7 @@ const pass=name=>{checks.push({name,result:'passed'});console.log('PASS '+name);
   if(out)await page.screenshot({path:path.join(out,'instructor-connected-wide.png'),fullPage:true});
   pass('connected instructor workspace fits phone, tablet, desktop and wide layouts');
   await context.close();
+  if(out)await page.video().saveAs(path.join(out,'walkthrough-instructor.webm'));
   if(out)fs.writeFileSync(path.join(out,'instructor-browser-results.json'),JSON.stringify({mode:'real Odoo native HR attendance with one lost response',checks},null,2));
  }finally{await browser.close();}
 })().catch(error=>{console.error('Instructor rehearsal failed at '+stage+': '+(error.code||error.name||'Error'));process.exitCode=1;});

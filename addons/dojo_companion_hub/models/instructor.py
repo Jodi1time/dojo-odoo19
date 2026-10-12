@@ -79,7 +79,10 @@ class InstructorService(models.AbstractModel):
         else:
             if not current or current.id != record_id(p["currentShiftId"]):
                 raise HubProblem("SHIFT_CHANGED")
-            if current.state != "draft" or current.source_attendance_id:
+            # Odoo's no-validation policy approves records at creation, even
+            # while open. Closing that own open record is not a historical
+            # correction or a payroll approval. Refused/derived rows stay locked.
+            if current.state == "refused" or current.source_attendance_id:
                 raise HubProblem("TIMESHEET_REVIEW_REQUIRED")
             shift = current
             shift.write({"check_out": fields.Datetime.now(), "out_mode": "manual"})

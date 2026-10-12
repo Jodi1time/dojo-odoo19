@@ -18,6 +18,8 @@ if env["dojo.kiosk.config"].sudo().search_count([("integration_tenant_ref", "=",
     raise RuntimeError("Demo already exists. Start a separate disposable database.")
 base = env(context=dict(env.context, tracking_disable=True, mail_create_nosubscribe=True))
 company = base.company
+# Synthetic rehearsal explicitly exercises reviewed, not auto-approved HR shifts.
+company.attendance_validation = "manual_validation"
 keys = {name: secrets.token_urlsafe(48) for name in ("DOJANG_COOKIE_SECRET", "DOJANG_KIOSK_GATEWAY_KEY", "DOJANG_STAFF_GATEWAY_KEY", "DOJANG_KIOSK_PAIR_KEY", "DOJANG_STAFF_PAIR_KEY")}
 program = base["dojo.program"].create({"name": "Demo program", "company_id": company.id})
 members = base["dojo.member"]

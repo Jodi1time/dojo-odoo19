@@ -56,8 +56,10 @@ class TestKioskSessionFirstV2(TransactionCase):
 
     def test_public_schedule_uses_school_day_and_preserves_staff_future_schedule(self):
         self.company.partner_id.tz = "America/Los_Angeles"
-        tomorrow = self.session.copy({"start_datetime": self.session.start_datetime + timedelta(days=2),
-                                      "end_datetime": self.session.end_datetime + timedelta(days=2)})
+        tomorrow = self.env["dojo.class.session"].create({"template_id": self.template.id,
+            "company_id": self.company.id, "state": "open",
+            "start_datetime": self.session.start_datetime + timedelta(days=2),
+            "end_datetime": self.session.end_datetime + timedelta(days=2)})
         self.kiosk.integration_session_ids = [(4, tomorrow.id)]
         public = self.service._v2_dispatch("sessions", self.kiosk.kiosk_token, self.gateway_key, {})
         self.assertNotIn(str(tomorrow.id), [s["sessionId"] for s in public["sessions"]])

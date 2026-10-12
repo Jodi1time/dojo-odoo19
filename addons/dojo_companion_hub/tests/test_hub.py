@@ -68,6 +68,7 @@ class TestCompanionHub(TransactionCase):
             "partner_id": user.partner_id.id, "company_id": self.company.id})
 
     def test_instructor_clock_is_native_scoped_and_idempotent(self):
+        self.company.attendance_validation = "no_validation"
         profile = self.instructor_profile()
         p = {"direction": "in", "currentShiftId": None, "pin": "321654"}
         result = self.act("instructor_clock", p, role="instructor", key="clock-in-repeated-0001")
@@ -75,6 +76,7 @@ class TestCompanionHub(TransactionCase):
         shift = self.env["hr.attendance"].browse(int(result["shift"]["id"]))
         self.assertEqual(shift.employee_id, profile.employee_id)
         self.assertFalse(shift.check_out)
+        self.assertEqual(shift.state, "validated")
         self.assertTrue(self.act("instructor_clock", p, role="instructor", key="clock-in-repeated-0001")["replayed"])
         self.assertEqual(self.act("instructor_clock", p, role="instructor")["error"]["code"], "ALREADY_CLOCKED_IN")
         data = self.act("instructor_context", role="instructor")
@@ -104,6 +106,7 @@ class TestCompanionHub(TransactionCase):
         self.assertEqual(self.act("instructor_context", role="guardian")["error"]["status"], 403)
 
     def closed_shift(self):
+        self.company.attendance_validation = "manual_validation"
         profile = self.instructor_profile()
         now = fields.Datetime.now()
         shift = self.env["hr.attendance"].create({"employee_id": profile.employee_id.id,
@@ -116,6 +119,7 @@ class TestCompanionHub(TransactionCase):
         shift, p = self.closed_shift()
         self.assertTrue(self.act("instructor_context")["shifts"][0]["needsReview"])
         result = self.act("correct_timesheet", p, key="timesheet-correct-001")
+        self.assertNotIn("error", result)
         self.assertEqual(result["state"], "timesheet_corrected")
         self.assertEqual(result["shift"]["hours"], 3)
         self.assertEqual(result["reason"], p["reason"])
