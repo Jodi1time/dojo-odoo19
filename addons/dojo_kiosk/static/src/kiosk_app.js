@@ -2721,7 +2721,7 @@ class KioskApp extends Component {
                 <!-- ════ STUDENT FLOW ════ -->
                 <t t-if="!state.instructorMode">
                     <div class="k-welcome-screen">
-                        <img class="k-welcome-logo" src="/dojo_kiosk/static/src/img/uft-logo-horizontal.png"/>
+                        <div class="k-welcome-wordmark">Dojang<span aria-hidden="true">.</span></div>
                         <div class="k-welcome-title">WELCOME!</div>
                         <div class="k-welcome-subtitle">Type your name to check in</div>
                         <div class="k-search-container">
