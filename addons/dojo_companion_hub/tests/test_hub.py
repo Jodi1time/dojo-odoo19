@@ -362,7 +362,7 @@ class TestCompanionHub(TransactionCase):
         self.assertEqual(result["member"]["id"], str(self.member.id))
         self.assertEqual(result["bookings"][0]["id"], str(self.enrollment.id))
         self.assertEqual(result["billing"]["subscriptions"][0]["id"], str(self.subscription.id))
-        self.assertEqual(result["billing"]["paymentProcessing"], "not_connected")
+        self.assertEqual(result["billing"]["paymentProcessing"], "odoo_portal")
         self.assertEqual(self.env["dojo.hub.receipt"].search_count([]), before)
         self.assertEqual(self.act("member_details", {"memberId": "2147483647"})["error"]["code"], "MEMBER_UNAVAILABLE")
         self.assertEqual(self.act("member_details", {"memberId": str(self.member.id)}, role="guardian")["error"]["status"], 403)
@@ -589,3 +589,99 @@ class TestCompanionHub(TransactionCase):
         done = self.act("complete_task", {"taskId": str(task.id), "expectedVersion": session_version(task), "feedback": "Reviewed"})
         self.assertNotIn("error", done, done)
         self.assertEqual(done["memberId"], str(self.member.id))
+
+    def _checkout_invoice(self):
+        income = self.env['account.account'].create({'name': 'Checkout income', 'code': 'HBPI', 'account_type': 'income', 'company_ids': [(6, 0, [self.company.id])]})
+        receivable = self.env['account.account'].create({'name': 'Checkout receivable', 'code': 'HBPR', 'account_type': 'asset_receivable', 'reconcile': True, 'company_ids': [(6, 0, [self.company.id])]})
+        journal = self.env['account.journal'].create({'name': 'Checkout sales', 'code': 'HBPS', 'type': 'sale', 'company_id': self.company.id, 'default_account_id': income.id})
+        self.partner.with_company(self.company).property_account_receivable_id = receivable
+        invoice = self.env['account.move'].create({'move_type': 'out_invoice', 'partner_id': self.partner.id,
+            'company_id': self.company.id, 'journal_id': journal.id, 'invoice_date': fields.Date.today(), 'subscription_id': self.subscription.id,
+            'invoice_line_ids': [(0, 0, {'name': 'Synthetic tuition', 'quantity': 1, 'price_unit': 30, 'account_id': income.id, 'tax_ids': [(5, 0, 0)]})]})
+        invoice.action_post()
+        self.env['ir.config_parameter'].sudo().set_str('web.base.url', 'https://odoo.example.test')
+        self.env['ir.config_parameter'].sudo().set_bool('account_payment.enable_portal_payment', True)
+        invoice.flush_recordset()
+        return invoice, {'memberId': str(self.member.id), 'invoiceId': str(invoice.id), 'expectedVersion': session_version(invoice), 'expectedAmount': 30}
+
+    def test_checkout_uses_native_signed_invoice_and_creates_no_payment(self):
+        from urllib.parse import urlsplit, parse_qs
+        invoice, payload = self._checkout_invoice()
+        before = self.env['payment.transaction'].search_count([])
+        with patch.object(type(self.env['dojo.hub.service']), '_payment_availability', return_value=None):
+            result = self.act('payment_link', payload, key='checkout-native-request-01')
+            self.assertNotIn('error', result)
+            query = parse_qs(urlsplit(result['checkoutUrl']).query)
+            self.assertEqual(query['move_id'], [str(invoice.id)])
+            self.assertEqual(query['amount'], ['30.0'])
+            self.assertTrue(query['access_token'][0])
+            self.assertTrue(query['payment_token'][0])
+            replay = self.act('payment_link', payload, key='checkout-native-request-01')
+            self.assertTrue(replay['replayed'])
+            self.assertEqual(replay['checkoutUrl'], result['checkoutUrl'])
+            self.assertEqual(invoice.amount_residual, 30)
+            self.assertEqual(self.env['payment.transaction'].search_count([]), before)
+            # An old request key must not retain financial access after demotion.
+            self.grants['manager'].role = 'instructor'
+            self.assertEqual(self.act('payment_link', payload, key='checkout-native-request-01')['error']['code'], 'FORBIDDEN')
+
+    def test_checkout_rejects_changed_balances_versions_and_unlinked_invoices(self):
+        invoice, payload = self._checkout_invoice()
+        self.assertEqual(self.act('payment_link', {**payload, 'expectedAmount': 29})['error']['code'], 'VERSION_CONFLICT')
+        self.assertEqual(self.act('payment_link', {**payload, 'expectedVersion': 1})['error']['code'], 'VERSION_CONFLICT')
+        self.assertEqual(self.act('payment_link', {**payload, 'expectedAmount': True})['error']['code'], 'INVALID_COMMAND')
+        invoice.subscription_id = False
+        self.assertEqual(self.act('payment_link', payload)['error']['code'], 'INVOICE_UNAVAILABLE')
+
+    def test_checkout_requires_online_configuration_and_rechecks_replay_scope(self):
+        invoice, payload = self._checkout_invoice()
+        self.env['ir.config_parameter'].sudo().set_bool('account_payment.enable_portal_payment', False)
+        self.assertEqual(self.act('payment_link', payload)['error']['code'], 'PAYMENT_SETUP_REQUIRED')
+        self.assertEqual(self.act('payment_link', payload, role='instructor')['error']['code'], 'FORBIDDEN')
+        with patch.object(type(self.env['dojo.hub.service']), '_payment_availability', return_value=None):
+            self.assertNotIn('error', self.act('payment_link', payload, key='checkout-scope-request-001'))
+            invoice.subscription_id = False
+            self.assertEqual(self.act('payment_link', payload, key='checkout-scope-request-001')['error']['code'], 'INVOICE_UNAVAILABLE')
+
+    def test_checkout_checks_odoo20_published_provider_and_active_methods(self):
+        invoice, payload = self._checkout_invoice()
+        self.env['payment.provider'].sudo().search([]).write({'is_published': False})
+        self.assertEqual(self.act('payment_link', payload)['error']['code'], 'PAYMENT_PROVIDER_UNAVAILABLE')
+        # A placeholder provider must never be presented as working payments.
+        self.env['payment.provider'].sudo().create({'name': 'Placeholder only', 'code': 'none', 'company_id': self.company.id, 'is_published': True})
+        self.assertEqual(self.act('payment_link', payload)['error']['code'], 'PAYMENT_PROVIDER_UNAVAILABLE')
+
+    def test_ai_activation_requires_owner_and_a_real_successful_draft(self):
+        self.grants['manager'].role = 'owner'
+        self.env['ir.config_parameter'].sudo().set_str('elevenlabs_connector.ai_provider', 'openai')
+        with patch.dict(os.environ, {'DOJANG_OPENAI_API_KEY': 'synthetic-key-not-a-real-secret', 'DOJANG_OPENAI_CHAT_MODEL': 'gpt-4o-mini'}):
+            settings = self.act('ai_settings')
+            self.assertTrue(settings['configured'])
+            self.assertNotIn('synthetic-key', json.dumps(settings))
+            payload = {'expectedSiteVersion': settings['siteVersion'], 'expectedConfigVersion': settings['configVersion']}
+            with patch('odoo.addons.ai_assistant.models.openai_conversation.complete', return_value=json.dumps({'summary': 'Guardian asks staff to review makeup options.', 'reply': 'Staff will review the available options and eligibility.'})) as provider:
+                result = self.act('enable_ai', payload, key='ai-enable-test-request-01')
+                self.assertEqual(result['state'], 'ai_enabled')
+                self.assertTrue(self.site.ai_enabled)
+                self.assertTrue(self.kiosk.integration_companion_ai_enabled)
+                self.assertTrue(self.act('enable_ai', payload, key='ai-enable-test-request-01')['replayed'])
+                self.assertEqual(provider.call_count, 1)
+                self.assertEqual(self.act('ai_settings')['lastCheck']['model'], 'gpt-4o-mini')
+            self.grants['manager'].role = 'manager'
+            self.assertEqual(self.act('enable_ai', payload, key='ai-enable-test-request-01')['error']['code'], 'FORBIDDEN')
+        self.assertEqual(self.act('ai_settings', role='instructor')['error']['code'], 'FORBIDDEN')
+
+    def test_ai_failure_rolls_back_flags_and_never_reports_template_as_ai(self):
+        self.grants['manager'].role = 'owner'
+        self.env['ir.config_parameter'].sudo().set_str('elevenlabs_connector.ai_provider', 'openai')
+        with patch.dict(os.environ, {'DOJANG_OPENAI_API_KEY': 'synthetic-key-not-a-real-secret'}):
+            settings = self.act('ai_settings')
+            payload = {'expectedSiteVersion': settings['siteVersion'], 'expectedConfigVersion': settings['configVersion']}
+            with patch('odoo.addons.ai_assistant.models.openai_conversation.complete', return_value='not valid draft JSON'):
+                self.assertEqual(self.act('enable_ai', payload)['error']['code'], 'AI_CHECK_FAILED')
+            self.assertFalse(self.site.ai_enabled)
+            self.assertFalse(self.kiosk.integration_companion_ai_enabled)
+            self.assertIsNone(self.act('ai_settings')['lastCheck'])
+        with patch.dict(os.environ, {'DOJANG_OPENAI_API_KEY': ''}):
+            self.assertFalse(self.act('ai_settings')['configured'])
+            self.assertEqual(self.act('enable_ai', payload)['error']['code'], 'AI_CONFIGURATION_REQUIRED')

@@ -211,9 +211,10 @@ class HubService(models.AbstractModel):
                 "invoices": [{"id": str(i.id), "number": i.name, "kind": i.move_type,
                     "date": str(i.invoice_date) if i.invoice_date else None,
                     "paymentState": i.payment_state, "total": i.amount_total, "remaining": i.amount_residual,
-                    "currency": i.currency_id.name,
+                    "currency": i.currency_id.name, "version": session_version(i),
+                    "paymentUnavailable": self._payment_availability(i),
                     "scope": "household" if i in household or i.partner_id != member.partner_id else "member"} for i in invoices],
-                "limit": 50, "paymentProcessing": "not_connected"}
+                "limit": 50, "paymentProcessing": "odoo_portal"}
         return {"member": {"id": str(member.id), "name": member.name,
                 "version": session_version(member), "partnerVersion": session_version(member.partner_id),
                 "phone": (member.phone or "") if manage else None, "email": (member.email or "") if manage else None,
@@ -445,12 +446,15 @@ class HubService(models.AbstractModel):
                     return self._crm_context(site, grant, payload)
                 if operation == "lead_details":
                     return self._lead_details(site, grant, payload)
+                if operation == "ai_settings":
+                    return self._ai_settings(site, grant, payload)
                 self._role(grant)
                 handlers = {"resolve": self._resolve, "draft": self._draft, "approve_reply": self._approve_reply,
                     "checkout": self._checkout, "book": self._book, "change_class": self._change_class,
                     "update_member": self._update_member, "rank": self._rank, "link_guardian": self._link_guardian, "provision": self._provision,
                     "create_lead": self._create_lead, "update_lead": self._update_lead,
-                    "create_task": self._create_task, "complete_task": self._complete_task, "propose_stage": self._propose_stage}
+                    "create_task": self._create_task, "complete_task": self._complete_task, "propose_stage": self._propose_stage,
+                    "payment_link": self._payment_link, "enable_ai": self._enable_ai}
                 if not isinstance(operation, str) or operation not in handlers or not isinstance(request_key, str) or not KEY.fullmatch(request_key):
                     raise HubProblem("INVALID_COMMAND", 400)
                 self.env["dojo.kiosk.service"]._v2_lock("hub:%s:%s:%s" % (site.id, self.env.uid, request_key))
@@ -459,6 +463,16 @@ class HubService(models.AbstractModel):
                 if receipt:
                     if receipt.fingerprint != digest:
                         raise HubProblem("IDEMPOTENCY_CONFLICT")
+                    if operation == "payment_link":
+                        _, invoice = self._billing_invoice(site, grant, payload["memberId"], payload["invoiceId"])
+                        unavailable = self._payment_availability(invoice)
+                        if unavailable:
+                            raise HubProblem(unavailable)
+                        saved = json.loads(receipt.response_json)
+                        if invoice.currency_id.compare_amounts(saved["amount"], invoice.amount_residual):
+                            raise HubProblem("VERSION_CONFLICT")
+                    if operation == "enable_ai":
+                        self._role(grant, "owner")
                     if receipt.member_id:
                         self._member(site, grant, str(receipt.member_id.id))
                     if isinstance(payload, dict) and payload.get("sessionId"):
