@@ -71,8 +71,7 @@ export default function ConnectedNavigation({
       {items.filter(item => !mobile || !item.desktopOnly).map((item) => (
         <Link
           key={item.href}
-          href={item.label === "Members" && memberId ? `/people/${encodeURIComponent(memberId)}` :
-            memberId && ["Sales", "Inbox"].includes(item.label) ? `/hub?view=${item.label === "Sales" ? "crm" : "messages"}&memberId=${encodeURIComponent(memberId)}` : item.href}
+          href={memberId && ["Sales", "Inbox"].includes(item.label) ? `/hub?view=${item.label === "Sales" ? "crm" : "messages"}&memberId=${encodeURIComponent(memberId)}` : item.href}
           aria-current={item.matches(pathname, view) ? "page" : undefined}
         >
           <span className={styles.navSymbol}>
