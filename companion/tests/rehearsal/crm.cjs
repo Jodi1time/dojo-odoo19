@@ -25,12 +25,27 @@ const passed=name=>{console.log('PASS '+name);evidence.push(name);};
   await crm.getByRole('button',{name:'Open lead Browser CRM enquiry',exact:true}).waitFor();
   const created=(await call('crm_context',{query:'Browser CRM enquiry'})).leads;assert.equal(created.length,1);const id=created[0].id;
   passed('lead creation waits for explicit review and persists once in native CRM');
+  let lostKey;const editKeys=[];let loseReply=true;
+  await page.route('**/api/hub',async route=>{
+   const body=route.request().postDataJSON();
+   if(body?.operation==='update_lead'){
+    editKeys.push(body.requestKey);
+    if(loseReply){loseReply=false;lostKey=body.requestKey;const saved=await route.fetch();assert.equal(saved.status(),200);await route.abort();return;}
+   }
+   await route.continue();
+  });
   stage='lead edit';await crm.getByRole('button',{name:'Open lead Browser CRM enquiry',exact:true}).click();
   const detail=crm.getByRole('region',{name:'Lead detail',exact:true});await detail.getByLabel('Lead phone',{exact:true}).fill('555-0142');
   await detail.getByRole('button',{name:'Review lead changes',exact:true}).click();await crm.getByRole('button',{name:'Confirm CRM action in Odoo',exact:true}).click();
+  await crm.getByRole('button',{name:'Check CRM action result',exact:true}).waitFor();
+  assert.equal(await crm.getByRole('button',{name:'Confirm CRM action in Odoo',exact:true}).isDisabled(),true);
+  await crm.getByRole('button',{name:'Check CRM action result',exact:true}).click();
+  await crm.getByRole('status',{name:'CRM action result',exact:true}).getByText('Saved in Odoo.',{exact:true}).waitFor();
   await detail.getByLabel('Lead phone',{exact:true}).waitFor();assert.equal(await detail.getByLabel('Lead phone',{exact:true}).inputValue(),'555-0142');
+  assert.equal(editKeys.length,2);assert.equal(editKeys[1],lostKey);
+  await page.unroute('**/api/hub');
   await page.reload();await crm.getByRole('button',{name:'Open lead Browser CRM enquiry',exact:true}).click();assert.equal(await detail.getByLabel('Lead phone',{exact:true}).inputValue(),'555-0142');
-  passed('exact lead contact edit survives a full browser reload');
+  passed('lost edit response locks new actions; same-key retry reconciles saved Odoo receipt; exact contact edit survives reload');
   stage='create linked task';const form=crm.getByRole('region',{name:'Create linked task',exact:true});await pick(form,'Task linked record',`lead:${id}`);
   await form.getByLabel('Task summary',{exact:true}).fill('Review a suitable trial');await form.getByRole('button',{name:'Review new task',exact:true}).click();await crm.getByRole('button',{name:'Confirm CRM action in Odoo',exact:true}).click();
   const tasks=crm.getByRole('region',{name:'Open CRM tasks',exact:true});await tasks.getByText('Review a suitable trial',{exact:true}).waitFor();

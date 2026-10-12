@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type FormEvent} from 'react';
 import Link from '@/components/primitives/AppLink';
 import Select from '@/components/primitives/select/Select';
 import {explainHubError,type ActionFeedback} from '@/domain/hub-actions';
@@ -8,7 +8,7 @@ import styles from './page.module.css';
 type Lead={id:string;name:string;contact:string;email:string;phone:string;version:number;stageId:string|null;stage:string;ownerId:string|null;owner:string;source:string;tags:{id:string;name:string}[];canEditContact:boolean};
 type Task={id:string;relatedType:'lead'|'member';relatedId:string;relatedName:string;summary:string;due:string;owner:string;state:string;version:number;canComplete:boolean;feedback:string};
 type Context={leads:Lead[];tasks:Task[];stages:{id:string;name:string}[];members:{id:string;name:string}[];moreLeads:boolean;moreTasks:boolean};
-type Detail={lead:Lead;tasks:Task[];memberId:string|null;trial:{title:string;startsAt:string}|null;timeline:{id:string;action:string;actor:string;at:string}[]};
+type Detail={lead:Lead;tasks:Task[];stages:{id:string;name:string}[];memberId:string|null;trial:{title:string;startsAt:string}|null;timeline:{id:string;action:string;actor:string;at:string}[]};
 type Review={operation:string;payload:Record<string,unknown>;description:string};
 type Props={busy:boolean;locked:boolean;feedback?:ActionFeedback;clearFeedback:()=>void;retry?:()=>Promise<ActionFeedback|undefined>;act:(operation:string,payload:Record<string,unknown>)=>Promise<ActionFeedback|undefined>};
 async function read(operation:string,payload:Record<string,unknown>){
@@ -47,8 +47,10 @@ export default function CrmWorkspace({busy,locked,feedback,clearFeedback,retry,a
   const [selected,setSelected]=useState(''),[error,setError]=useState(''),[leadError,setLeadError]=useState(''),[revision,setRevision]=useState(0);
   const [review,setReview]=useState<Review|null>(null),[taskTarget,setTaskTarget]=useState(''),[proposedStage,setProposedStage]=useState('');
   const disabled=busy||locked||!!review;
+  const reviewRef=useRef<HTMLElement>(null);
+  useEffect(()=>{if(review){reviewRef.current?.focus({preventScroll:true});reviewRef.current?.scrollIntoView({block:'center'});}},[review]);
   useEffect(()=>{let cancelled=false;void read('crm_context',{query:search}).then((v:Context)=>{if(!Array.isArray(v.leads)||!Array.isArray(v.tasks)||!Array.isArray(v.stages)||!Array.isArray(v.members))throw Error('CRM_DETAILS_UNAVAILABLE');if(!cancelled){setData(v);setError('');}}).catch(e=>{if(!cancelled){setData(null);setError(explainHubError(e.message));}});return()=>{cancelled=true;};},[search,revision]);
-  useEffect(()=>{if(!selected)return;let cancelled=false;void read('lead_details',{leadId:selected}).then((v:Detail)=>{if(v.lead?.id!==selected||!Array.isArray(v.tasks))throw Error('CRM_DETAILS_UNAVAILABLE');if(!cancelled){setDetail(v);setLeadError('');}}).catch(e=>{if(!cancelled){setDetail(null);setLeadError(explainHubError(e.message));}});return()=>{cancelled=true;};},[selected,revision]);
+  useEffect(()=>{if(!selected)return;let cancelled=false;void read('lead_details',{leadId:selected}).then((v:Detail)=>{if(v.lead?.id!==selected||!Array.isArray(v.tasks)||!Array.isArray(v.stages)||!Array.isArray(v.timeline))throw Error('CRM_DETAILS_UNAVAILABLE');if(!cancelled){setDetail(v);setLeadError('');}}).catch(e=>{if(!cancelled){setDetail(null);setLeadError(explainHubError(e.message));}});return()=>{cancelled=true;};},[selected,revision]);
   function openLead(id:string){if(disabled)return;setDetail(null);setLeadError('');setSelected(id);setTaskTarget(`lead:${id}`);setProposedStage('');clearFeedback();}
   function prepare(r:Review){clearFeedback();setReview(r);}
   async function submit(rechecking=false){
@@ -63,7 +65,7 @@ export default function CrmWorkspace({busy,locked,feedback,clearFeedback,retry,a
     <header className={styles.row}><h2>Sales & tasks</h2><button disabled={disabled} onClick={()=>{setData(null);setDetail(null);setRevision(v=>v+1);}}>Refresh CRM</button></header>
     <p className={styles.muted}>Live Odoo records. Changes are reviewed before saving. Stage proposals create internal review tasks, not automatic customer messages.</p>
     {feedback&&<div role={feedback.kind==='error'?'alert':'status'} aria-label="CRM action result" className={styles.notice}><p>{feedback.text}</p>{feedback.refreshWarning&&<p>{feedback.refreshWarning}</p>}{feedback.kind==='uncertain'&&retry&&<button disabled={busy} onClick={()=>void submit(true)}>Check CRM action result</button>}</div>}
-    {review&&<section role="group" aria-label="Review CRM action" className={styles.card}><h3>Review before saving</h3><p>{review.description}</p><button disabled={busy||locked} onClick={()=>void submit()}>Confirm CRM action in Odoo</button><button disabled={busy||locked} onClick={()=>setReview(null)}>Cancel review</button></section>}
+    {review&&<section ref={reviewRef} tabIndex={-1} role="group" aria-label="Review CRM action" className={styles.card}><h3>Review before saving</h3><p>{review.description}</p><button disabled={busy||locked} onClick={()=>void submit()}>Confirm CRM action in Odoo</button><button disabled={busy||locked} onClick={()=>setReview(null)}>Cancel review</button></section>}
     {error?<p role="alert">{error}</p>:!data?<p role="status">Loading CRM records…</p>:<>
       <details className={styles.booking}><summary>New lead</summary><LeadForm key={`new-${revision}`} disabled={disabled} review={prepare}/></details>
       <form className={styles.fields} onSubmit={e=>{e.preventDefault();setData(null);setSearch(query);setRevision(v=>v+1);}}><label>Search leads<input aria-label="Search leads" value={query} onChange={e=>setQuery(e.target.value)} maxLength={100} disabled={disabled}/></label><button disabled={disabled}>Search CRM</button></form>
@@ -79,8 +81,8 @@ export default function CrmWorkspace({busy,locked,feedback,clearFeedback,retry,a
         <LeadForm key={`${selectedDetail.lead.id}:${selectedDetail.lead.version}:${revision}`} lead={selectedDetail.lead} disabled={disabled} review={prepare}/>
         {selectedDetail.memberId&&<Link href={`/hub?memberId=${encodeURIComponent(selectedDetail.memberId)}&view=manage`}>Open linked member →</Link>}
         {selectedDetail.trial?<p>Linked trial: {selectedDetail.trial.title} · {new Date(selectedDetail.trial.startsAt).toLocaleString()}. Attendance must be checked on the class roster.</p>:<p>No trial session linked in Odoo. A task is not a booking.</p>}
-        <details className={styles.booking}><summary>Propose a stage change</summary><form className={styles.fields} onSubmit={e=>{const f=formFields(e);const next=data.stages.find(s=>s.id===proposedStage);if(!next)return;const reason=String(f.get('reason')||'');prepare({operation:'propose_stage',payload:{leadId:selected,expectedVersion:selectedDetail.lead.version,stageId:next.id,reason,due:String(f.get('due')||'')},description:`Create a review task for ${selectedDetail.lead.name}: ${selectedDetail.lead.stage} → ${next.name}. ${reason}. The lead stays in its current stage until reviewed in Odoo.`});}}>
-          <Select ariaLabel="Proposed stage" value={proposedStage} onChange={setProposedStage} disabled={disabled} placeholder="Choose configured stage" options={data.stages.filter(s=>s.id!==selectedDetail.lead.stageId).map(s=>({value:s.id,label:s.name}))}/>
+        <details className={styles.booking}><summary>Propose a stage change</summary><form className={styles.fields} onSubmit={e=>{const f=formFields(e);const next=selectedDetail.stages.find(s=>s.id===proposedStage);if(!next)return;const reason=String(f.get('reason')||'');prepare({operation:'propose_stage',payload:{leadId:selected,expectedVersion:selectedDetail.lead.version,stageId:next.id,reason,due:String(f.get('due')||'')},description:`Create a review task for ${selectedDetail.lead.name}: ${selectedDetail.lead.stage} → ${next.name}. ${reason}. The lead stays in its current stage until reviewed in Odoo.`});}}>
+          <Select ariaLabel="Proposed stage" value={proposedStage} onChange={setProposedStage} disabled={disabled} placeholder="Choose configured stage" options={selectedDetail.stages.filter(s=>s.id!==selectedDetail.lead.stageId).map(s=>({value:s.id,label:s.name}))}/>
           <label>Reason<input name="reason" required maxLength={120} disabled={disabled}/></label><label>Review due<input name="due" type="date" required defaultValue={today()} disabled={disabled}/></label><button disabled={disabled||!proposedStage}>Review stage proposal</button>
         </form></details>
         <h3>Lead tasks and outcomes</h3><TaskRows tasks={selectedDetail.tasks} disabled={disabled} review={prepare} openLead={openLead}/>

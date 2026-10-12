@@ -94,7 +94,7 @@ class HubCrm(models.AbstractModel):
         return {"leads": [self._lead_row(l) for l in leads[:100]], "tasks": [self._task_row(t) for t in tasks[:100]],
             "moreLeads": len(leads) > 100, "moreTasks": len(tasks) > 100,
             "limit": 100, "stages": [{"id": str(s.id), "name": s.name} for s in self.env["crm.stage"].sudo().search([
-                "|", ("team_id", "=", False), ("team_id.company_id", "=", site.company_id.id)], order="sequence, id")],
+                "|", ("team_ids", "=", False), ("team_ids.company_id", "=", site.company_id.id)], order="sequence, id")],
             "members": [{"id": str(m.id), "name": m.name} for m in members]}
 
     def _lead_details(self, site, grant, p):
@@ -107,9 +107,11 @@ class HubCrm(models.AbstractModel):
         if member and member not in self._members(site, grant):
             member = self.env["dojo.member"]
         trial = lead.trial_session_id if "trial_session_id" in lead._fields else self.env["dojo.class.session"]
-        if trial and trial.company_id != site.company_id:
+        if trial and (trial.company_id != site.company_id or trial.template_id.company_id != site.company_id):
             trial = self.env["dojo.class.session"]
         return {"lead": self._lead_row(lead), "tasks": [self._task_row(t, lead.name) for t in tasks],
+            "stages": [{"id": str(s.id), "name": s.name} for s in self.env["crm.stage"].sudo().search([
+                "|", ("team_ids", "=", False), ("team_ids", "in", lead.team_id.ids)], order="sequence, id")],
             "memberId": str(member.id) if member else None,
             "trial": {"title": trial.template_id.name, "startsAt": iso(trial.start_datetime)} if trial else None,
             # Never present a CRM stage/flag as factual attendance.
@@ -133,7 +135,7 @@ class HubCrm(models.AbstractModel):
         exact(p, "name contact email phone")
         vals = self._lead_values(p)
         # Start in the configured global intake stage, never jump to a won stage.
-        stage = self.env["crm.stage"].sudo().search([("team_id", "=", False), ("is_won", "=", False)], order="sequence, id", limit=1)
+        stage = self.env["crm.stage"].sudo().search([("team_ids", "=", False), ("is_won", "=", False)], order="sequence, id", limit=1)
         if not stage:
             raise HubProblem("CRM_SETUP_REQUIRED")
         lead = self.env["crm.lead"].sudo().with_context(tracking_disable=True, mail_create_nosubscribe=True).create({
@@ -192,7 +194,7 @@ class HubCrm(models.AbstractModel):
         if type(p["expectedVersion"]) is not int or p["expectedVersion"] != session_version(lead):
             raise HubProblem("VERSION_CONFLICT")
         stage = self.env["crm.stage"].sudo().search([("id", "=", record_id(p["stageId"])),
-            "|", ("team_id", "=", False), ("team_id", "=", lead.team_id.id)], limit=1)
+            "|", ("team_ids", "=", False), ("team_ids", "in", lead.team_id.ids)], limit=1)
         if not stage or stage == lead.stage_id:
             raise HubProblem("INVALID_COMMAND", 400)
         reason = text(p["reason"], 120)
