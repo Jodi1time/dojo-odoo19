@@ -143,7 +143,12 @@ const choose=async(page,name)=>{
   record('Already-present attendance is explained as a review requirement, not an agent outage');
   await staffPage.goto(BASE+'/');
   await staffPage.getByRole('heading',{name:'Today',exact:true}).waitFor();
-  await staffPage.locator(`a[href="/ops/sessions/${fixture.sessionId}"]`).getByText('Demo session',{exact:true}).waitFor();
+  const nextClassLink=staffPage.getByRole('link',{name:'Open Demo session roster',exact:true});
+  await nextClassLink.waitFor();
+  assert.equal(await nextClassLink.getAttribute('href'),`/ops/sessions/${fixture.sessionId}`);
+  await nextClassLink.click();
+  await staffPage.getByRole('heading',{name:'Demo session',exact:true}).waitFor();
+  record('The entire next-class card opens the correct Odoo roster');
   await staffPage.getByRole('navigation',{name:'Staff navigation',exact:true}).getByRole('link',{name:'Members',exact:true}).click();
   await staffPage.getByRole('link',{name:'Followup Student',exact:true}).click();
   await staffPage.getByRole('button',{name:'Open companion',exact:true}).click();
