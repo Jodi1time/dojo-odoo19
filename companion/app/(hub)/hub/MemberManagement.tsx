@@ -9,6 +9,7 @@ type Session = { id: string; title: string; startsAt: string; future: boolean; v
 type Details = {
   member: { id: string; name: string; version: number; partnerVersion: number; phone: string | null; email: string | null; state: string; rank: string; stripes: number };
   canEdit: boolean;
+  canEditContact: boolean;
   ranks: { id: string; name: string; maxStripes: number }[];
   rankHistory: { id: string; rank: string; stripes: number; date: string }[];
   bookings: { id: string; sessionId: string; title: string; startsAt: string; attendanceState: string; replaceable: boolean }[];
@@ -126,8 +127,8 @@ export default function MemberManagement({ memberId, sessions, now, busy, locked
           <button disabled={disabled} onClick={() => setReview(null)}>Cancel review</button></div>
       </div>}
       <details className={styles.booking} open><summary>Contact details</summary>
-        {data.canEdit ? <ContactForm key={`${data.member.version}:${data.member.partnerVersion}`} data={data} disabled={disabled || !!review} review={prepare} />
-          : <p>Only a manager or owner can edit contact details.</p>}
+        {data.canEditContact ? <ContactForm key={`${data.member.version}:${data.member.partnerVersion}`} data={data} disabled={disabled || !!review} review={prepare} />
+          : <p>{data.canEdit ? "This contact is shared or outside the site's company. An administrator must review it in Odoo before editing." : "Only a manager or owner can edit contact details."}</p>}
       </details>
       <details className={styles.booking}><summary>Membership and billing</summary>
         {data.billing ? <>

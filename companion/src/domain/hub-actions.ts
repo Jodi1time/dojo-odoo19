@@ -18,6 +18,7 @@ const messages: Record<string, string> = {
   SESSION_NOT_OPEN: 'This class is no longer open for booking. Refresh and choose an available future class.',
   SESSION_FULL: 'This class is full. Choose another available class.',
   MEMBER_DETAILS_UNAVAILABLE: 'This member’s details could not be verified. Refresh before continuing.',
+  SHARED_CONTACT_REVIEW_REQUIRED: 'This contact is shared or outside this company. Ask an administrator to review it in Odoo; no member was changed.',
   INVALID_COMMAND: 'This action is unavailable or its fields are invalid. Confirm that the matching frontend and Odoo update are deployed.',
   NOT_CHECKED_IN: 'No eligible check-in was found for this member and class.',
   PENDING_ACTION: 'Resolve the unconfirmed action before starting another change.',

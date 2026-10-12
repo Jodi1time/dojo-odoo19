@@ -429,6 +429,15 @@ class TestCompanionHub(TransactionCase):
         self.assertEqual(rows[str(shared.id)]["scope"], "household")
         self.assertEqual(rows[str(shared.id)]["total"], 80)
 
+    def test_contact_edit_cannot_silently_change_a_shared_member_identity(self):
+        duplicate = self.env["dojo.member"].create({"partner_id": self.partner.id, "company_id": self.company.id})
+        before = duplicate.name
+        details = self.act("member_details", {"memberId": str(self.member.id)})
+        self.assertFalse(details["canEditContact"])
+        result = self.act("update_member", {"memberId": str(self.member.id), "expectedVersion": session_version(self.member), "changes": {"name": "Must not change"}})
+        self.assertEqual(result["error"]["code"], "SHARED_CONTACT_REVIEW_REQUIRED")
+        self.assertEqual(duplicate.name, before)
+
     def test_belt_awards_keep_history_and_latest_same_day_rank(self):
         ranks = [self.env["dojo.belt.rank"].create({"name": name, "company_id": self.company.id}) for name in ("White", "Yellow")]
         for rank in ranks:

@@ -16,7 +16,7 @@ let stage='start';
    const commands=[],reads=[];
    const sessions=[{id:'10',title:'Original class',startsAt:new Date(Date.now()+3600000).toISOString(),future:true,version:7},{id:'20',title:'Replacement class',startsAt:new Date(Date.now()+7200000).toISOString(),future:true,version:8}];
    const data={principal:{name:'Synthetic Manager',role:mode==='guardian'?'guardian':'manager'},members:[{id:'5',name:'Maya'},{id:'6',name:'Theo'}],sessions,messages:[],deliveries:[],timeline:[],capabilities:{outbound:'not_configured',ai:'disabled',inbound:'test_fixture'}};
-   const profile={member:{id:'6',name:'Theo',phone:'555-0106',email:'theo@example.invalid',version:10,partnerVersion:11,state:'active',rank:'White',stripes:0},canEdit:true,
+   const profile={member:{id:'6',name:'Theo',phone:'555-0106',email:'theo@example.invalid',version:10,partnerVersion:11,state:'active',rank:'White',stripes:0},canEdit:true,canEditContact:true,
     ranks:[{id:'r1',name:'Yellow',maxStripes:4}],rankHistory:[],
     bookings:[{id:'b1',sessionId:'10',title:'Original class',startsAt:sessions[0].startsAt,attendanceState:'pending',replaceable:true}],attendance:[],
     billing:{subscriptions:[{id:'s6',plan:'Theo plan',state:'active',nextInvoiceDate:null}],invoices:[{id:'i6',number:'INV-006',kind:'out_invoice',date:'2026-10-12',paymentState:'partial',total:100,remaining:20,currency:'USD',scope:'household'}]}};

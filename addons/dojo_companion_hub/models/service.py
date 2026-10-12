@@ -169,6 +169,13 @@ class HubService(models.AbstractModel):
                 "state": enrollment.status, "attendanceState": enrollment.attendance_state}
         return entry
 
+    def _contact_editable(self, site, member):
+        # Delegated res.partner edits must not silently change another member
+        # record (including one in another company or an archived duplicate).
+        return (member.partner_id.company_id in (self.env["res.company"], site.company_id)
+                and not self.env["dojo.member"].sudo().with_context(active_test=False).search_count([
+                    ("partner_id", "=", member.partner_id.id), ("id", "!=", member.id)]))
+
     def _member_details(self, site, grant, p):
         """Read one scoped member, never a household/name-based fallback."""
         self._role(grant)
@@ -211,7 +218,7 @@ class HubService(models.AbstractModel):
                 "version": session_version(member), "partnerVersion": session_version(member.partner_id),
                 "phone": (member.phone or "") if manage else None, "email": (member.email or "") if manage else None,
                 "state": member.membership_state, "rank": member.current_rank_id.name or "Unassigned", "stripes": member.current_stripe_count},
-            "canEdit": manage, "billing": billing,
+            "canEdit": manage, "canEditContact": manage and self._contact_editable(site, member), "billing": billing,
             "ranks": [{"id": str(r.id), "name": r.name, "maxStripes": r.max_stripes} for r in ranks],
             "rankHistory": [{"id": str(r.id), "rank": r.rank_id.name, "stripes": r.stripe_count, "date": str(r.date_awarded)} for r in history],
             "bookings": [{"id": str(b.id), "sessionId": str(b.session_id.id), "title": b.session_id.template_id.name,
@@ -339,6 +346,8 @@ class HubService(models.AbstractModel):
         member = self._member(site, grant, p["memberId"])
         self._lock(member)
         self._lock(member.partner_id)
+        if not self._contact_editable(site, member):
+            raise HubProblem("SHARED_CONTACT_REVIEW_REQUIRED")
         if type(p["expectedVersion"]) is not int or p["expectedVersion"] != session_version(member):
             raise HubProblem("VERSION_CONFLICT")
         if "expectedPartnerVersion" in p and (type(p["expectedPartnerVersion"]) is not int or p["expectedPartnerVersion"] != session_version(member.partner_id)):
