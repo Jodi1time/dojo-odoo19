@@ -169,6 +169,58 @@ class HubService(models.AbstractModel):
                 "state": enrollment.status, "attendanceState": enrollment.attendance_state}
         return entry
 
+    def _member_details(self, site, grant, p):
+        """Read one scoped member, never a household/name-based fallback."""
+        self._role(grant)
+        exact(p, "memberId")
+        member = self._member(site, grant, p["memberId"])
+        manage = grant.role in ("owner", "manager")
+        session_scope = [("session_id.company_id", "=", site.company_id.id),
+                         ("session_id.template_id.company_id", "=", site.company_id.id)]
+        if grant.role == "instructor":
+            session_scope.append(("session_id", "in", grant.session_ids.ids))
+        bookings = self.env["dojo.class.enrollment"].sudo().search([
+            ("member_id", "=", member.id), ("status", "=", "registered"),
+            ("session_id.end_datetime", ">", fields.Datetime.now()), *session_scope], limit=100)
+        attendance = self.env["dojo.attendance.log"].sudo().search([
+            ("member_id", "=", member.id), ("company_id", "=", site.company_id.id),
+            ("status", "in", ["present", "late"]), *session_scope], order="checkin_datetime desc, id desc", limit=30)
+        ranks = self.env["dojo.belt.rank"].sudo().search([
+            ("company_id", "=", site.company_id.id), ("active", "=", True)], limit=100) if manage else self.env["dojo.belt.rank"]
+        history = self.env["dojo.member.rank"].sudo().search([
+            ("member_id", "=", member.id), ("rank_id.company_id", "=", site.company_id.id)], order="date_awarded desc, id desc", limit=20)
+        billing = None
+        if manage:
+            subscriptions = self.env["sale.subscription"].sudo().search([
+                ("member_id", "=", member.id), ("company_id", "=", site.company_id.id)], order="id desc", limit=50)
+            # Only explicit subscription links establish billing identity. Do not
+            # search invoices by email, display name, or a guessed guardian.
+            household = subscriptions.household_invoice_ids
+            invoices = (subscriptions.invoice_ids | household).filtered(
+                lambda i: i.company_id == site.company_id and i.state == "posted"
+                and i.move_type in ("out_invoice", "out_refund")).sorted(key=lambda i: i.id, reverse=True)[:50]
+            billing = {"subscriptions": [{"id": str(s.id), "plan": s.plan_id.name or "Unnamed plan",
+                "state": s.state, "nextInvoiceDate": str(s.recurring_next_date) if s.recurring_next_date else None} for s in subscriptions],
+                "invoices": [{"id": str(i.id), "number": i.name, "kind": i.move_type,
+                    "date": str(i.invoice_date) if i.invoice_date else None,
+                    "paymentState": i.payment_state, "total": i.amount_total, "remaining": i.amount_residual,
+                    "currency": i.currency_id.name,
+                    "scope": "household" if i in household or i.partner_id != member.partner_id else "member"} for i in invoices],
+                "limit": 50, "paymentProcessing": "not_connected"}
+        return {"member": {"id": str(member.id), "name": member.name,
+                "version": session_version(member), "partnerVersion": session_version(member.partner_id),
+                "phone": (member.phone or "") if manage else None, "email": (member.email or "") if manage else None,
+                "state": member.membership_state, "rank": member.current_rank_id.name or "Unassigned", "stripes": member.current_stripe_count},
+            "canEdit": manage, "billing": billing,
+            "ranks": [{"id": str(r.id), "name": r.name, "maxStripes": r.max_stripes} for r in ranks],
+            "rankHistory": [{"id": str(r.id), "rank": r.rank_id.name, "stripes": r.stripe_count, "date": str(r.date_awarded)} for r in history],
+            "bookings": [{"id": str(b.id), "sessionId": str(b.session_id.id), "title": b.session_id.template_id.name,
+                "startsAt": iso(b.session_id.start_datetime), "attendanceState": b.attendance_state,
+                "replaceable": b.session_id.state == "open" and b.session_id.start_datetime > fields.Datetime.now() and b.attendance_state == "pending"} for b in bookings],
+            "attendance": [{"id": str(a.id), "sessionId": str(a.session_id.id), "title": a.session_id.template_id.name,
+                "checkedInAt": iso(a.checkin_datetime), "checkedOutAt": iso(a.checkout_datetime) if a.checkout_datetime else None} for a in attendance],
+            "limits": {"bookings": 100, "attendance": 30, "rankHistory": 20}}
+
     def _resolve(self, site, grant, p):
         exact(p, "messageId memberId sessionId expectedRevision")
         message = self._message(site, grant, p["messageId"], unresolved=True)
@@ -283,15 +335,22 @@ class HubService(models.AbstractModel):
 
     def _update_member(self, site, grant, p):
         self._role(grant, "owner manager")
-        exact(p, "memberId expectedVersion changes")
+        exact(p, "memberId expectedVersion changes" + (" expectedPartnerVersion" if isinstance(p, dict) and "expectedPartnerVersion" in p else ""))
         member = self._member(site, grant, p["memberId"])
         self._lock(member)
+        self._lock(member.partner_id)
         if type(p["expectedVersion"]) is not int or p["expectedVersion"] != session_version(member):
+            raise HubProblem("VERSION_CONFLICT")
+        if "expectedPartnerVersion" in p and (type(p["expectedPartnerVersion"]) is not int or p["expectedPartnerVersion"] != session_version(member.partner_id)):
             raise HubProblem("VERSION_CONFLICT")
         changes = p["changes"]
         if not isinstance(changes, dict) or not changes or set(changes) - {"name", "phone", "email"}:
             raise HubProblem("INVALID_COMMAND", 400)
-        member.write({k: text(v, 200) for k, v in changes.items()})
+        if any(not isinstance(v, str) or len(v.strip()) > 200 for v in changes.values()):
+            raise HubProblem("INVALID_COMMAND", 400)
+        if "name" in changes:
+            text(changes["name"], 200)
+        member.write({k: v.strip() or False for k, v in changes.items()})
         return {"memberId": str(member.id), "version": session_version(member), "state": "updated"}
 
     def _rank(self, site, grant, p):
@@ -371,6 +430,8 @@ class HubService(models.AbstractModel):
                 site, grant = self._principal(site_id)
                 if operation == "context":
                     return self._context(site, grant, payload)
+                if operation == "member_details":
+                    return self._member_details(site, grant, payload)
                 self._role(grant)
                 handlers = {"resolve": self._resolve, "draft": self._draft, "approve_reply": self._approve_reply,
                     "checkout": self._checkout, "book": self._book, "change_class": self._change_class,

@@ -17,8 +17,11 @@ const messages: Record<string, string> = {
   ENROLLMENT_REVIEW_REQUIRED: 'The original registration cannot be replaced. Its class may have started, attendance may already be recorded, or the registration may no longer be active. Review the original record. A separate future booking must still meet Odoo eligibility rules.',
   SESSION_NOT_OPEN: 'This class is no longer open for booking. Refresh and choose an available future class.',
   SESSION_FULL: 'This class is full. Choose another available class.',
-  PENDING_ACTION: 'Resolve the unconfirmed action before starting another booking.',
-  BACKEND_UNAVAILABLE_RETRY_SAME_ACTION: 'Odoo has not confirmed the result. Do not create another booking. Retry this same action to check its original receipt.',
+  MEMBER_DETAILS_UNAVAILABLE: 'This member’s details could not be verified. Refresh before continuing.',
+  INVALID_COMMAND: 'This action is unavailable or its fields are invalid. Confirm that the matching frontend and Odoo update are deployed.',
+  NOT_CHECKED_IN: 'No eligible check-in was found for this member and class.',
+  PENDING_ACTION: 'Resolve the unconfirmed action before starting another change.',
+  BACKEND_UNAVAILABLE_RETRY_SAME_ACTION: 'Odoo has not confirmed the result. Do not submit a new action. Retry this same action to check its original receipt.',
 };
 
 export function explainHubError(code: string): string {
