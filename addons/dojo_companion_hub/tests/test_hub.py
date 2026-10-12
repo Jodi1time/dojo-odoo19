@@ -615,7 +615,9 @@ class TestCompanionHub(TransactionCase):
         for role in ("guardian", "unassigned"):
             self.assertEqual(self.act("member_workspace", {"memberId": str(self.member.id)}, role=role)["error"]["status"], 403)
         other = self.env["res.company"].create({"name": "Foreign private tabs"})
-        outsider = self.env["dojo.member"].create({"name": "Foreign member", "company_id": other.id})
+        outside_partner = self.env["res.partner"].create({"name": "Foreign member", "company_id": other.id})
+        outsider = self.env["dojo.member"].create({"partner_id": outside_partner.id, "company_id": other.id})
+        self.assertEqual(outsider.company_id, other)
         self.assertEqual(self.act("member_workspace", {"memberId": str(outsider.id)})["error"]["code"], "MEMBER_UNAVAILABLE")
 
     def test_crm_evidence_uses_recorded_facts_and_due_tasks(self):
@@ -677,7 +679,8 @@ class TestCompanionHub(TransactionCase):
 
     def test_crm_owner_assignment_requires_current_site_grant(self):
         lead = self.new_lead()
-        lead.user_id = False
+        lead.write({"user_id": False, "company_id": self.company.id})
+        self.assertEqual(lead.company_id, self.company)
         payload = {"leadId": str(lead.id), "expectedVersion": session_version(lead), "ownerId": str(self.users["manager"].id)}
         grants = self.env["dojo.hub.grant"].search_count([])
         self.assertEqual(self.act("assign_lead", {**payload, "ownerId": str(self.users["unassigned"].id)})["error"]["status"], 403)
@@ -686,6 +689,11 @@ class TestCompanionHub(TransactionCase):
         self.assertEqual(lead.user_id, self.users["manager"])
         self.assertTrue(self.act("assign_lead", payload, key="crm-owner-request-001")["replayed"])
         self.assertEqual(self.env["dojo.hub.grant"].search_count([]), grants)
+        other = self.env["res.company"].create({"name": "Assignee other main company"})
+        self.users["manager"].write({"company_ids": [(4, other.id)], "company_id": other.id})
+        payload["expectedVersion"] = session_version(lead)
+        self.assertNotIn("error", self.act("assign_lead", payload))
+        self.assertEqual(lead.company_id, self.company)
 
     def _checkout_invoice(self):
         income = self.env['account.account'].create({'name': 'Checkout income', 'code': 'HBPI', 'account_type': 'income', 'company_ids': [(6, 0, [self.company.id])]})

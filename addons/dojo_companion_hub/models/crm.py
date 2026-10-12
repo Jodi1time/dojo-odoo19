@@ -215,7 +215,7 @@ class HubCrm(models.AbstractModel):
         owner = self._crm_assignees(site).filtered(lambda u: u.id == record_id(p["ownerId"]))
         if not owner:
             raise HubProblem("FORBIDDEN", 403)
-        lead.with_context(tracking_disable=True, mail_create_nosubscribe=True).write({"user_id": owner.id})
+        lead.with_context(tracking_disable=True, mail_create_nosubscribe=True).write({"user_id": owner.id, "company_id": site.company_id.id})
         return {"leadId": str(lead.id), "ownerId": str(owner.id), "state": "assigned"}
 
     def _prepare_lead_action(self, site, grant, p):
