@@ -63,7 +63,7 @@ let stage='login';
   await row.getByRole('button',{name:'Review approval'}).click();
   await review.getByText(/count as sent only when the provider confirms/).waitFor();
   await confirm();
-  await result().getByText(/Broadcast approved: 1 messages queued\. No provider is connected, so nothing is sent\./).waitFor();
+  await result().getByText(fixture.twilioTest?/Broadcast approved: 1 messages queued\. Use Review sending to send them through Twilio test credentials\./:/Broadcast approved: 1 messages queued\. No provider is connected, so nothing is sent\./).waitFor();
   await row.getByText(/approved by Demo Hub Manager/).waitFor();
   await page.screenshot({path:path.join(process.env.DOJANG_EVIDENCE_DIR,'comms-approved.png'),fullPage:true});
   pass('approval rechecks consent and queues without claiming delivery');
