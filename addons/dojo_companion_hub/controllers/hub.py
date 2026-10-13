@@ -12,6 +12,12 @@ class HubController(http.Controller):
             return {"error": {"code": "INVALID_COMMAND", "status": 400}}
         return request.env["dojo.hub.service"]._dispatch(siteId, operation, payload, requestKey)
 
+    @http.route("/companion/hub/photo", type="jsonrpc", auth="user", methods=["POST"], max_content_length=524288)
+    def photo(self, siteId=None, operation=None, payload=None, requestKey=None, **kw):
+        if kw or operation != "update_member_photo" or (request.httprequest.content_length or 0) > 524288:
+            return {"error": {"code": "INVALID_COMMAND", "status": 400}}
+        return request.env["dojo.hub.service"]._dispatch(siteId, operation, payload, requestKey)
+
     @http.route("/companion/hub/inbound/<int:site_id>", type="http", auth="public", methods=["POST"], csrf=False, save_session=False, max_content_length=16384)
     def inbound(self, site_id):
         headers = {"Cache-Control": "no-store"}
