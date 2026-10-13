@@ -44,3 +44,18 @@ test('lost student response remains uncertain for the original-key retry',async(
  let acknowledged=false;const result=await runHubAction(async()=>{throw Error('BACKEND_UNAVAILABLE_RETRY_SAME_ACTION');},async()=>{},()=>{acknowledged=true;});
  assert.equal(result.kind,'uncertain');assert.equal(acknowledged,false);
 });
+test('duplicate review stays a read and passes exact existing-record references, never a review token',async()=>{
+ const cookie=await login();let sent;
+ const review={valid:false,code:'DUPLICATE_STUDENT_REVIEW_REQUIRED',issues:[{field:'student.name',message:'Open the existing profile.'}],
+  duplicateStudents:[{memberId:'25',name:'Synthetic',memberNumber:'DJ-00025',active:true}],guardianMatches:[],unselectableGuardianMatch:false};
+ const r=await hubRoute(req({operation:'intake_preview',payload:{intake:{}},requestKey:null},cookie),env,async(_url,init)=>{sent=JSON.parse(init.body).params;return Response.json({result:review});});
+ assert.equal(r.status,200);assert.equal(sent.requestKey,null);
+ const value=await r.json();assert.deepEqual(value.duplicateStudents,review.duplicateStudents);assert.equal(value.reviewToken,undefined);
+});
+test('a duplicate found at save time is a definite rejection, not an uncertain write',async()=>{
+ const cookie=await login();
+ const r=await hubRoute(req(command,cookie),env,async()=>Response.json({result:{error:{code:'DUPLICATE_STUDENT_REVIEW_REQUIRED',status:409}}}));
+ assert.equal(r.status,409);assert.equal((await r.json()).error.code,'DUPLICATE_STUDENT_REVIEW_REQUIRED');
+ const result=await runHubAction(async()=>{throw Error('DUPLICATE_STUDENT_REVIEW_REQUIRED');},async()=>{},()=>{});
+ assert.equal(result.kind,'error');
+});

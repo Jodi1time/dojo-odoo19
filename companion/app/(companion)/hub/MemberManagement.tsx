@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Select from "@/components/primitives/select/Select";
 import { explainHubError, type ActionFeedback } from "@/domain/hub-actions";
+import ConnectedMemberDetails from "@/components/people/member-360/ConnectedMemberDetails";
 import styles from "./page.module.css";
 
 type Session = { id: string; title: string; startsAt: string; future: boolean; version: number };
 export type MemberDetails = {
-  member: { id: string; name: string; version: number; partnerVersion: number; phone: string | null; email: string | null; state: string; rank: string; stripes: number };
+  member: { id: string; name: string; version: number; partnerVersion: number; phone: string | null; email: string | null; dateOfBirth?: string | null; state: string; rank: string; stripes: number };
   canEdit: boolean;
   canEditContact: boolean;
   ranks: { id: string; name: string; maxStripes: number }[];
@@ -79,6 +80,7 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState<Review | null>(null);
   const [replacement, setReplacement] = useState("");
+  const [familyOpen, setFamilyOpen] = useState(section === "family");
   const reviewRef = useRef<HTMLDivElement>(null);
   const submitRef = useRef(false);
   const disabled = busy || locked || loading;
@@ -134,8 +136,12 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
           <button disabled={disabled} onClick={() => setReview(null)}>Cancel review</button></div>
       </div>}
       <details className={styles.booking} open={!section || section === 'profile'}><summary>Contact details</summary>
+        {data.canEdit && <p>Date of birth: {data.member.dateOfBirth || "Not recorded"}</p>}
         {data.canEditContact ? <ContactForm key={`${data.member.version}:${data.member.partnerVersion}`} data={data} disabled={disabled || !!review} review={prepare} />
           : <p>{data.canEdit ? "This contact is shared or outside the site's company. An administrator must review it in Odoo before editing." : "Only a manager or owner can edit contact details."}</p>}
+      </details>
+      <details className={styles.booking} open={familyOpen} onToggle={event => setFamilyOpen(event.currentTarget.open)}><summary>Household and guardians</summary>
+        {!data.canEdit ? <p>Family and guardian details require manager or owner access.</p> : familyOpen && <ConnectedMemberDetails memberId={memberId} section="family" />}
       </details>
       <details className={styles.booking} open={section === 'billing' || section === 'membership'}><summary>Membership and billing</summary>
         {data.billing ? <>

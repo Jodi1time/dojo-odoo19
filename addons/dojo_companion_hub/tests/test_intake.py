@@ -43,8 +43,10 @@ class TestStudentIntake(TransactionCase):
         return {"intake": value["intake"], "reviewToken": value["reviewToken"]}
 
     def counts(self):
-        return {model: self.env[model].sudo().with_context(active_test=False).search_count([]) for model in
-                ("dojo.member", "res.partner", "sale.subscription", "dojo.class.enrollment", "res.users", "dojo.hub.guardian", "dojo.hub.delivery", "mail.mail")}
+        models = ("dojo.member", "res.partner", "sale.subscription", "dojo.class.enrollment", "res.users", "dojo.hub.guardian",
+                  "dojo.hub.delivery", "mail.mail", "mail.message", "mail.activity", "crm.lead", "account.move", "sms.sms")
+        return {model: self.env[model].sudo().with_context(active_test=False).search_count([])
+                for model in models if model in self.env}
 
     def test_preview_collects_missing_fields_without_writes(self):
         p = self.intake(child=True)
@@ -111,9 +113,28 @@ class TestStudentIntake(TransactionCase):
         first = self.act("create_student", p)
         result = self.act("create_student", p, key="student-intake-request-0002")
         self.assertEqual(result["error"]["code"], "DUPLICATE_STUDENT_REVIEW_REQUIRED")
+        # A stale browser that lost the response is pointed at the exact profile.
+        changed = dict(p["intake"], student=dict(p["intake"]["student"], name="  synthetic   NEW student "))
+        review = self.act("intake_preview", {"intake": changed})
+        self.assertEqual((review["valid"], review["code"]), (False, "DUPLICATE_STUDENT_REVIEW_REQUIRED"))
+        self.assertNotIn("reviewToken", review)
+        self.assertEqual(review["duplicateStudents"], [{"memberId": first["memberId"], "name": "Synthetic New Student",
+            "memberNumber": first["memberNumber"], "active": True}])
+        self.assertEqual(review["issues"][0]["field"], "student.name")
         self.env["dojo.member"].browse(int(first["memberId"])).active = False
-        self.assertEqual(self.act("intake_preview", {"intake": p["intake"]})["error"]["code"], "DUPLICATE_STUDENT_REVIEW_REQUIRED")
+        review = self.act("intake_preview", {"intake": p["intake"]})
+        self.assertEqual(review["code"], "DUPLICATE_STUDENT_REVIEW_REQUIRED")
+        self.assertFalse(review["duplicateStudents"][0]["active"])
         self.assertTrue(self.act("create_student", p)["replayed"])
+
+    def test_duplicate_review_never_reveals_another_school(self):
+        other = self.env["res.company"].create({"name": "Foreign duplicate school"})
+        partner = self.env["res.partner"].create({"name": "Synthetic New Student", "company_id": other.id,
+            "email": "intake-parent@example.invalid"})
+        self.env["dojo.member"].create({"partner_id": partner.id, "company_id": other.id, "date_of_birth": "1995-01-02"})
+        review = self.act("intake_preview", {"intake": self.intake()})
+        self.assertTrue(review["valid"], review)
+        self.assertTrue(self.act("intake_preview", {"intake": self.intake(child=True)})["valid"])
 
     def test_changed_intake_requires_new_review_and_same_key_is_not_repurposed(self):
         p = self.command()
@@ -153,12 +174,82 @@ class TestStudentIntake(TransactionCase):
         p["guardian"] = {"kind": "existing", "partnerId": row["id"], "householdId": row["householdId"],
             "expectedVersion": row["version"], "expectedHouseholdVersion": row["householdVersion"]}
         command = self.command(p)
-        self.env["res.partner"].browse(int(row["id"])).write({"write_date": fields.Datetime.now() + timedelta(seconds=5)})
+        before = self.counts()
+        # Odoo stamps write_date with the transaction time and ignores a caller
+        # value, so simulate another staff transaction committing a later edit.
+        self.env["res.partner"].flush_model()
+        self.env.cr.execute("UPDATE res_partner SET write_date = write_date + interval '5 seconds' WHERE id = %s", [int(row["id"])])
+        self.env["res.partner"].invalidate_model(["write_date"])
         self.assertEqual(self.act("create_student", command, key="student-intake-request-0002")["error"]["code"], "VERSION_CONFLICT")
+        self.assertEqual(self.counts(), before)
+        refreshed = self.act("intake_context", {"query": ""})["guardians"][0]
+        self.assertGreater(refreshed["version"], row["version"])
 
     def test_duplicate_guardian_requires_explicit_selection(self):
-        self.env["res.partner"].create({"name": "Known guardian", "email": "INTAKE-PARENT@example.invalid", "company_id": self.company.id})
-        self.assertEqual(self.act("intake_preview", {"intake": self.intake(child=True)})["error"]["code"], "GUARDIAN_DUPLICATE_REVIEW_REQUIRED")
+        known = self.env["res.partner"].create({"name": "Known contact", "email": " INTAKE-PARENT@example.invalid ", "company_id": self.company.id})
+        review = self.act("intake_preview", {"intake": self.intake(child=True)})
+        self.assertEqual((review["valid"], review["code"]), (False, "GUARDIAN_DUPLICATE_REVIEW_REQUIRED"))
+        # A matching contact that is not a household guardian is never offered as authority.
+        self.assertEqual(review["guardianMatches"], [])
+        self.assertTrue(review["unselectableGuardianMatch"])
+        self.assertNotIn(known.name, str(review))
+        before = self.counts()
+        command = {"intake": self.intake(child=True), "reviewToken": "not-reviewed"}
+        self.assertEqual(self.act("create_student", command)["error"]["code"], "GUARDIAN_DUPLICATE_REVIEW_REQUIRED")
+        self.assertEqual(self.counts(), before)
+
+    def test_guardian_phone_match_offers_only_the_exact_existing_household(self):
+        first = self.act("create_student", self.command(dict(self.intake(child=True), guardian={"kind": "new",
+            "name": "Synthetic Phone Parent", "email": "", "phone": "+1 (555) 010-7788"})))
+        p = self.intake(child=True)
+        p["student"]["name"] = "Synthetic Phone Sibling"
+        p["guardian"] = {"kind": "new", "name": "Different spelling", "email": "", "phone": "15550107788"}
+        review = self.act("intake_preview", {"intake": p})
+        self.assertEqual(review["code"], "GUARDIAN_DUPLICATE_REVIEW_REQUIRED")
+        self.assertFalse(review["unselectableGuardianMatch"])
+        match = review["guardianMatches"][0]
+        self.assertEqual((match["id"], match["householdId"]), (first["guardianId"], first["householdId"]))
+        p["guardian"] = {"kind": "existing", "partnerId": match["id"], "householdId": match["householdId"],
+            "expectedVersion": match["version"], "expectedHouseholdVersion": match["householdVersion"]}
+        result = self.act("create_student", self.command(p), key="student-intake-request-0002")
+        self.assertEqual((result["guardianId"], result["householdId"]), (first["guardianId"], first["householdId"]))
+
+    def test_member360_reads_back_native_household_guardian_and_birth_date(self):
+        result = self.act("create_student", self.command(self.intake(child=True)))
+        workspace = self.act("member_workspace", {"memberId": result["memberId"]})
+        self.assertNotIn("error", workspace, workspace)
+        self.assertEqual(workspace["member"]["dateOfBirth"], "2018-01-02")
+        self.assertEqual(workspace["member"]["state"], "lead")
+        self.assertEqual(workspace["family"]["household"], "Family of Synthetic New Guardian")
+        self.assertEqual(workspace["family"]["householdGuardians"],
+            [{"id": result["guardianId"], "name": "Synthetic New Guardian", "primary": True}])
+        # Household authority is not a verified messaging channel.
+        self.assertEqual(workspace["family"]["guardians"], [])
+        self.assertEqual([m["id"] for m in workspace["family"]["members"]], [result["memberId"]])
+        self.assertEqual(workspace["billing"]["subscriptions"], [])
+        self.assertEqual(workspace["bookings"], [])
+        instructor = self.act("member_workspace", {"memberId": result["memberId"]}, role="instructor")
+        self.assertIn("error", instructor)
+
+    def test_recent_receipts_are_newest_first_and_only_the_actors_own(self):
+        first = self.act("create_student", self.command())
+        p = self.intake()
+        p["student"]["name"] = "Synthetic Later Student"
+        second = self.act("create_student", self.command(p), key="student-intake-request-0002")
+        recent = self.act("intake_context", {"query": ""})["recent"]
+        self.assertEqual([r["memberId"] for r in recent], [second["memberId"], first["memberId"]])
+        owner = self.env["res.users"].with_context(no_reset_password=True).create({"name": "Intake owner",
+            "login": "intake-owner@example.invalid", "company_id": self.company.id, "company_ids": [(6, 0, [self.company.id])],
+            "group_ids": [(6, 0, [self.env.ref("base.group_portal").id])]})
+        self.env["dojo.hub.grant"].create({"site_id": self.site.id, "user_id": owner.id, "role": "owner"})
+        self.users["owner"] = owner
+        self.assertEqual(self.act("intake_context", {"query": ""}, role="owner")["recent"], [])
+        self.assertEqual(self.act("intake_preview", {"intake": self.intake()}, role="owner")["code"], "DUPLICATE_STUDENT_REVIEW_REQUIRED")
+        # Another staff identity reusing this actor's key gets no replayed receipt.
+        before = self.counts()
+        result = self.act("create_student", {"intake": self.intake(), "reviewToken": "copied"}, role="owner")
+        self.assertEqual(result["error"]["code"], "DUPLICATE_STUDENT_REVIEW_REQUIRED")
+        self.assertEqual(self.counts(), before)
 
     def test_receipt_failure_rolls_back_student_guardian_and_household(self):
         from odoo.exceptions import ValidationError

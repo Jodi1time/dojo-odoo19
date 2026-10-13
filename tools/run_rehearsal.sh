@@ -119,8 +119,16 @@ clock_receipts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "S
 correction_receipts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'correct_timesheet';")
 intake_receipts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'create_student';")
 intake_members=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_member m JOIN res_partner p ON p.id=m.partner_id WHERE p.name LIKE 'Rehearsal Intake %' AND m.membership_state='lead';")
+intake_identity_keys=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(DISTINCT intake_identity_key) FROM dojo_hub_receipt WHERE operation = 'create_student';")
+intake_households=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM res_partner h JOIN res_partner g ON g.id = h.primary_guardian_id WHERE h.is_household AND h.name = 'Family of Rehearsal Intake Parent' AND g.name = 'Rehearsal Intake Parent' AND g.is_guardian AND g.parent_id = h.id AND g.company_id = h.company_id;")
+intake_household_children=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_member m JOIN res_partner c ON c.id = m.partner_id JOIN res_partner h ON h.id = c.parent_id WHERE h.name = 'Family of Rehearsal Intake Parent' AND c.is_minor AND c.is_student AND m.company_id = h.company_id;")
+intake_side_effects=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT (SELECT count(*) FROM sale_subscription s JOIN dojo_member m ON m.id = s.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name LIKE 'Rehearsal Intake %') + (SELECT count(*) FROM dojo_class_enrollment e JOIN dojo_member m ON m.id = e.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name LIKE 'Rehearsal Intake %') + (SELECT count(*) FROM res_users u JOIN res_partner p ON p.id = u.partner_id WHERE p.name LIKE 'Rehearsal Intake %') + (SELECT count(*) FROM dojo_hub_guardian b JOIN res_partner p ON p.id = b.partner_id WHERE p.name LIKE 'Rehearsal Intake %');")
 test "$intake_receipts" = 3
 test "$intake_members" = 3
+test "$intake_identity_keys" = 3
+test "$intake_households" = 1
+test "$intake_household_children" = 2
+test "$intake_side_effects" = 0
 test "$attendance" = 2
 test "$reviews" = 1
 test "$followups" = 1
@@ -134,6 +142,6 @@ test "$correction_receipts" = 1
 printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$attendance" "$reviews" "$followups" > rehearsal-evidence/database-verification.txt
 printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
 printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%s\ncorrection_receipts=%s\n' "$instructor_shifts" "$open_shifts" "$clock_receipts" "$correction_receipts" >> rehearsal-evidence/database-verification.txt
-printf 'intake_receipts=%s\nintake_members=%s\n' "$intake_receipts" "$intake_members" >> rehearsal-evidence/database-verification.txt
+printf 'intake_receipts=%s\nintake_members=%s\nintake_identity_keys=%s\nintake_households=%s\nintake_household_children=%s\nintake_side_effects=%s\n' "$intake_receipts" "$intake_members" "$intake_identity_keys" "$intake_households" "$intake_household_children" "$intake_side_effects" >> rehearsal-evidence/database-verification.txt
 docker logs "$ODOO" > rehearsal-evidence/odoo-http.log 2>&1
 printf 'PASS: browser, server gateway and Odoo database agree. Synthetic data only.\n' > rehearsal-evidence/rehearsal-result.txt

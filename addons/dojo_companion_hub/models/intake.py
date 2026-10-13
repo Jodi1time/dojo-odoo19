@@ -16,14 +16,22 @@ QUIET = dict(companion_internal_task=True, tracking_disable=True,
 class HubIntake(models.AbstractModel):
     _inherit = "dojo.hub.service"
 
+    def _intake_guardian_domain(self, site):
+        return [("company_id", "=", site.company_id.id), ("active", "=", True),
+                ("is_guardian", "=", True), ("is_minor", "=", False), ("is_household", "=", False),
+                ("parent_id.is_household", "=", True), ("parent_id.active", "=", True),
+                ("parent_id.company_id", "=", site.company_id.id)]
+
     def _intake_guardians(self, site, query):
-        domain = [("company_id", "=", site.company_id.id), ("active", "=", True),
-                  ("is_guardian", "=", True), ("is_minor", "=", False),
-                  ("parent_id.is_household", "=", True), ("parent_id.active", "=", True),
-                  ("parent_id.company_id", "=", site.company_id.id)]
+        domain = self._intake_guardian_domain(site)
         if query:
             domain += ["|", ("name", "ilike", query), ("parent_id.name", "ilike", query)]
         return self.env["res.partner"].sudo().search(domain, order="name, id", limit=51)
+
+    def _intake_guardian_row(self, partner):
+        return {"id": str(partner.id), "name": partner.name,
+            "householdId": str(partner.parent_id.id), "household": partner.parent_id.name,
+            "version": session_version(partner), "householdVersion": session_version(partner.parent_id)}
 
     def _intake_context(self, site, grant, p):
         exact(p, "query")
@@ -33,10 +41,8 @@ class HubIntake(models.AbstractModel):
         receipts = self.env["dojo.hub.receipt"].sudo().search([
             ("site_id", "=", site.id), ("user_id", "=", self.env.uid),
             ("operation", "=", "create_student"), ("member_id.company_id", "=", site.company_id.id),
-            ("member_id.active", "=", True)], limit=10)
-        return {"guardians": [{"id": str(r.id), "name": r.name,
-            "householdId": str(r.parent_id.id), "household": r.parent_id.name,
-            "version": session_version(r), "householdVersion": session_version(r.parent_id)} for r in rows[:50]],
+            ("member_id.active", "=", True)], order="id desc", limit=10)
+        return {"guardians": [self._intake_guardian_row(r) for r in rows[:50]],
             "moreGuardians": len(rows) > 50, "school": site.company_id.name,
             "today": str(fields.Date.context_today(self.with_context(tz=site.company_id.partner_id.tz or "UTC"))),
             "recent": [{"memberId": str(r.member_id.id), "name": r.member_id.name,
@@ -64,28 +70,62 @@ class HubIntake(models.AbstractModel):
             raise HubProblem("VERSION_CONFLICT")
         return guardian, household
 
-    def _intake_check_duplicates(self, site, value):
+    def _intake_student_matches(self, site, student):
         # Contact details are not identity. A name + birth-date collision requires
         # staff review; it never silently merges records or reveals another school.
-        student = value["student"]
         members = self.env["dojo.member"].sudo().with_context(active_test=False).search([
-            ("company_id", "=", site.company_id.id), ("date_of_birth", "=", student["dateOfBirth"])], limit=1001)
+            ("company_id", "=", site.company_id.id), ("date_of_birth", "=", student["dateOfBirth"])],
+            order="id", limit=1001)
         if len(members) > 1000:
             raise HubProblem("INTAKE_SCOPE_REVIEW_REQUIRED")
-        if any(normalized_name(m.name) == normalized_name(student["name"]) for m in members):
+        name = normalized_name(student["name"])
+        return members.filtered(lambda m: normalized_name(m.name or "") == name)
+
+    def _intake_contact_matches(self, site, guardian):
+        # Same-school candidates only, archived included. Matching contact never
+        # grants authority; it only stops a second guardian identity being created.
+        Partner = self.env["res.partner"].sudo().with_context(active_test=False)
+        if not guardian or guardian["kind"] != "new":
+            return Partner
+        email = guardian["email"].strip().lower()
+        phone = re.sub(r"\D", "", guardian["phone"])
+        if not email and not phone:
+            return Partner
+        Partner.flush_model(["email", "phone", "company_id", "is_household"])
+        self.env.cr.execute("""
+            SELECT id FROM res_partner
+             WHERE company_id = %s AND is_household IS NOT TRUE
+               AND ((%s <> '' AND lower(btrim(coalesce(email, ''))) = %s)
+                 OR (%s <> '' AND regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = %s))
+             ORDER BY id LIMIT 21""", [site.company_id.id, email, email, phone, phone])
+        return Partner.browse([row[0] for row in self.env.cr.fetchall()])
+
+    def _intake_check_duplicates(self, site, value):
+        if self._intake_student_matches(site, value["student"]):
             raise HubProblem("DUPLICATE_STUDENT_REVIEW_REQUIRED")
-        guardian = value["guardian"]
-        if guardian and guardian["kind"] == "new":
-            # Same-school candidates only. Matching contact never grants authority.
-            domain = [("company_id", "=", site.company_id.id), ("is_household", "=", False)]
-            candidates = self.env["res.partner"].sudo().with_context(active_test=False).search(domain, limit=10001)
-            if len(candidates) > 10000:
-                raise HubProblem("INTAKE_SCOPE_REVIEW_REQUIRED")
-            phone = re.sub(r"\D", "", guardian["phone"])
-            email = guardian["email"].casefold()
-            if any((email and (r.email or "").strip().casefold() == email) or
-                   (phone and re.sub(r"\D", "", r.phone or "") == phone) for r in candidates):
-                raise HubProblem("GUARDIAN_DUPLICATE_REVIEW_REQUIRED")
+        if self._intake_contact_matches(site, value["guardian"]):
+            raise HubProblem("GUARDIAN_DUPLICATE_REVIEW_REQUIRED")
+
+    def _intake_duplicate_review(self, site, value):
+        students = self._intake_student_matches(site, value["student"])
+        contacts = self._intake_contact_matches(site, value["guardian"])
+        if not students and not contacts:
+            return None
+        issues = []
+        if students:
+            issues.append({"field": "student.name", "message": "A student with this name and birth date already "
+                "exists in this school. Open the existing profile instead of creating another."})
+        selectable = contacts.filtered_domain(self._intake_guardian_domain(site)) if contacts else contacts
+        if contacts:
+            field = "guardian.email" if value["guardian"]["email"] else "guardian.phone"
+            issues.append({"field": field, "message": "This guardian contact already belongs to a record in this school. "
+                + ("Use the matching existing household below." if selectable else
+                   "It is not a selectable guardian household, so an administrator must review it in Odoo.")})
+        return {"valid": False, "code": "DUPLICATE_STUDENT_REVIEW_REQUIRED" if students else "GUARDIAN_DUPLICATE_REVIEW_REQUIRED",
+            "issues": issues, "duplicateStudents": [{"memberId": str(m.id), "name": m.name,
+                "memberNumber": m.member_number or "", "active": bool(m.active)} for m in students[:10]],
+            "guardianMatches": [self._intake_guardian_row(r) for r in selectable[:10]],
+            "unselectableGuardianMatch": len(selectable) < len(contacts)}
 
     def _intake_review(self, site, payload, lock=False):
         today = fields.Date.context_today(self.with_context(tz=site.company_id.partner_id.tz or "UTC"))
@@ -97,7 +137,7 @@ class HubIntake(models.AbstractModel):
             # Serializes intake across staff identities and request keys. Existing
             # per-command locks still protect retries; no customer data in lock keys.
             self.env["dojo.kiosk.service"]._v2_lock("intake-company:%s" % site.company_id.id)
-        self._intake_check_duplicates(site, value)
+            self._intake_check_duplicates(site, value)
         token = fingerprint({"intake": value, "siteId": site.id, "userId": self.env.uid})
         return value, token, guardian, household
 
@@ -106,7 +146,10 @@ class HubIntake(models.AbstractModel):
         try:
             value, token, guardian, household = self._intake_review(site, p["intake"])
         except IntakeValidationError as exc:
-            return {"valid": False, "issues": exc.issues}
+            return {"valid": False, "code": "INTAKE_FIELDS_REQUIRED", "issues": exc.issues}
+        duplicates = self._intake_duplicate_review(site, value)
+        if duplicates:
+            return duplicates
         return {"valid": True, "issues": [], "intake": value, "reviewToken": token,
             "guardianName": guardian.name if guardian else value["guardian"]["name"] if value["guardian"] else None,
             "householdName": household.name if household else None,
