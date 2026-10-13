@@ -45,7 +45,7 @@ docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
 INSTALL=dojo_companion_hub
-TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning,/dojo_companion_hub:TestOnboardingChecklists
 if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
   MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
@@ -59,7 +59,7 @@ import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning')]
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning'),('addons/dojo_companion_hub/tests/test_onboarding.py','TestOnboardingChecklists')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
 for source,klass in sources:
@@ -123,6 +123,7 @@ fi
 (cd companion && node tests/rehearsal/refunds.cjs) 2>&1 | tee rehearsal-evidence/refunds-browser.log
 (cd companion && node tests/rehearsal/signing.cjs) 2>&1 | tee rehearsal-evidence/signing-browser.log
 (cd companion && node tests/rehearsal/testing.cjs) 2>&1 | tee rehearsal-evidence/testing-browser.log
+(cd companion && node tests/rehearsal/responsive.cjs) 2>&1 | tee rehearsal-evidence/responsive-browser.log
 (cd companion && node tests/rehearsal/trial.cjs complete) 2>&1 | tee rehearsal-evidence/trial-complete-browser.log
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_attendance_log l JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Demo session';")
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
