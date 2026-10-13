@@ -6,6 +6,7 @@ import Image from "next/image";
 import Select from "@/components/primitives/select/Select";
 import { explainHubError, type ActionFeedback } from "@/domain/hub-actions";
 import ConnectedMemberDetails from "@/components/people/member-360/ConnectedMemberDetails";
+import { ChecklistItems } from "./SetupChecklist";
 import styles from "./page.module.css";
 
 type Session = { id: string; title: string; startsAt: string; future: boolean; version: number };
@@ -277,6 +278,22 @@ function WaiverForm({ data, disabled, review }: { data: Details; disabled: boole
   </div>;
 }
 
+function OnboardingStatus({ memberId }: { memberId: string }) {
+  const [data, setData] = useState<{ items: { key: string; label: string; done: boolean; detail: string; where: string }[]; done: number; total: number } | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/hub", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operation: "member_onboarding", payload: { memberId }, requestKey: null }) })
+      .then(async response => { const value = await response.json(); if (!response.ok) throw Error(value.error?.code || "CONNECTION_UNAVAILABLE"); if (!cancelled) setData(value); })
+      .catch(problem => { if (!cancelled) setError(explainHubError(problem.message)); });
+    return () => { cancelled = true; };
+  }, [memberId]);
+  if (error) return <p role="alert">{error}</p>;
+  if (!data) return <p role="status">Checking onboarding…</p>;
+  return <><p>{data.done} of {data.total} steps complete</p><ChecklistItems items={data.items} /></>;
+}
+
 function RankForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
   const [rankId, setRank] = useState("");
   const rank = data.ranks.find(item => item.id === rankId);
@@ -311,6 +328,7 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
   const [kioskOpen, setKioskOpen] = useState(section === "kiosk");
   const [refundsOpen, setRefundsOpen] = useState(section === "refunds");
   const [waiverOpen, setWaiverOpen] = useState(section === "waiver");
+  const [onboardingOpen, setOnboardingOpen] = useState(section === "onboarding");
   const [kioskKey, setKioskKey] = useState(0);
   const reviewRef = useRef<HTMLDivElement>(null);
   const submitRef = useRef(false);
@@ -376,6 +394,9 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
         <div className={styles.row}><button disabled={disabled} onClick={() => void confirm()}>{review.operation === "payment_link" ? "Prepare secure checkout" : review.archive ? "Confirm archive in Odoo" : "Confirm member action in Odoo"}</button>
           <button disabled={disabled} onClick={() => setReview(null)}>Cancel review</button></div>
       </div>}
+      {data.canEdit && <details className={styles.booking} open={onboardingOpen} onToggle={event => setOnboardingOpen(event.currentTarget.open)}><summary>Onboarding checklist</summary>
+        {onboardingOpen && <OnboardingStatus key={kioskKey} memberId={data.member.id} />}
+      </details>}
       <details className={styles.booking} open={!section || section === 'profile'}><summary>Contact details</summary>
         {data.canEditContact ? <ContactForm key={`${data.member.version}:${data.member.partnerVersion}`} data={data} disabled={disabled || !!review} review={prepare} />
           : <p>{data.canEdit ? "This contact is shared or outside the site's company. An administrator must review it in Odoo before editing." : "Only a manager or owner can edit contact details."}</p>}

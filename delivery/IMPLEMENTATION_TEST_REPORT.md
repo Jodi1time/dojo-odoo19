@@ -1,5 +1,32 @@
 # Integrated Dojang verification and handoff
 
+## Remaining-feature stack (PR31–PR38) — 13 October 2026
+
+Each PR is stacked on the one before it, so they merge in order. PR30 is merged (`876aa1c`) and PR31 now targets `integration/monday-release`. Every application commit below passed the connected rehearsal on its own branch. Each of those runs covered the pinned Odoo 20 native tests, the gateway/contract tests, lint, the production Next build, every preserved browser rehearsal plus the new ones, and every SQL gate. Nothing is staged or deployed.
+
+| PR | Branch | Tested app commit | Connected run | Adds | Native tests |
+| --- | --- | --- | --- | --- | --- |
+| [#31](https://github.com/Jodi1time/dojo-odoo19/pull/31) | `feat/audited-attendance` | `b178db0` | [38356756283](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38356756283) | Audited manual attendance and manager-only reversal; staff marks no longer send the guardian "just checked in" notice | 144 |
+| [#32](https://github.com/Jodi1time/dojo-odoo19/pull/32) | `feat/trial-reservation-conversion` | `bf135f6` | [38357198275](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38357198275) | Trial reservation, cancel, attended/no-show, previewed conversion; no stage move, payment, portal invite or message | 151 |
+| [#33](https://github.com/Jodi1time/dojo-odoo19/pull/33) | `feat/testing-promotions` | `c80da48` | [38360137558](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38360137558) | Testing eligibility, saved testing rosters, results, reviewed bulk promotion, latest-award reversal | 155 |
+| [#34](https://github.com/Jodi1time/dojo-odoo19/pull/34) | `feat/guardian-kiosk` | `0b27c15` | [38360179541](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38360179541) | Parent check-in at the kiosk with phone and a staff-set hashed PIN; lockouts; own children only | 159 |
+| [#35](https://github.com/Jodi1time/dojo-odoo19/pull/35) | `feat/communications-consent` | `cee21f1` | [38361407561](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38361407561) | Consent history, frozen-audience broadcasts with approval and quiet hours (queued, never "sent" without a provider), owner-only automation pause | 163 |
+| [#36](https://github.com/Jodi1time/dojo-odoo19/pull/36) | `feat/refunds-settlement` | `3afcc10` | [38362484340](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38362484340) | Settlement evidence per payment; manager request, owner approval, native credit note, staff-recorded refund payment | 166 |
+| [#37](https://github.com/Jodi1time/dojo-odoo19/pull/37) | `feat/waiver-signing` | `a95913e` | [38363509842](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38363509842) | Staff-witnessed waiver signing on the native `dojo_sign` record with evidence hashes | 168 |
+| [#38](https://github.com/Jodi1time/dojo-odoo19/pull/38) | `feat/onboarding-setup` | `136e1a8` | [38364054476](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38364054476) | School setup and member onboarding checklists; responsive no-overflow check | 170 |
+
+**CI diagnostics.** `tools/run_rehearsal.sh` now writes the failing step and its gate values as GitHub annotations. Those can be read through the API even though log downloads are blocked here. One stacked run failed and was fixed before acceptance: `38358048379` (`74f730b`). A testing-roster row and its result select shared one accessible name; `c80da48` fixed this.
+
+**Decisions and boundaries recorded in this stack**
+- **Source of truth (from Paul's write-up):** the dojo addons own members and memberships.
+  - EB-Gym is a reference only and no bridge is installed.
+  - The private Odoo 20 EB-Gym port `20.0.1.3.0` installs cleanly on the pinned Odoo 20 and is not committed.
+- **Messaging:** no provider is connected in the rehearsal. Approved broadcasts stay queued. No provider credentials were used or stored.
+- **Payments:** a payment counts as settled only through Odoo reconciliation, and each payment shows either the provider reference or that staff recorded it. Online-payment refunds wait for the provider's refund transaction; nothing calls the provider.
+- **Dreams template:** the visual layer belongs to Justin. Its licensed files must not be committed to this public repository.
+- **Deployment:** still blocked on deployment-owner access to promote matching frontend and backend revisions.
+
+
 ## Reviewed student intake increment (PR29) — 12 October 2026
 
 This increment completes reviewed student/guardian/household **profile intake**. It is not membership sale, trial booking, onboarding or production rollout.
