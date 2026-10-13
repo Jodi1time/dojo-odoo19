@@ -129,14 +129,13 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
       {feedback.kind === "uncertain" && retry && <button disabled={busy} onClick={() => void retry().then(result => { if (result?.kind === "success") refresh(); })}>Check original member action</button>}
     </div>}
     {data && !loading && <>
-      <p>{data.member.state} · {data.member.rank} · {data.member.stripes} stripes</p>
+      <p>{data.member.state} · {data.member.rank} · {data.member.stripes} stripes{data.member.dateOfBirth && <> · Born {data.member.dateOfBirth}</>}</p>
       {review && <div ref={reviewRef} tabIndex={-1} className={styles.savedReceipt} role="group" aria-label="Review member action">
         <h3>Review before saving</h3><p>{review.description}</p><p>No message will be sent and no payment will be collected.</p>
         <div className={styles.row}><button disabled={disabled} onClick={() => void confirm()}>{review.operation === "payment_link" ? "Prepare secure checkout" : "Confirm member action in Odoo"}</button>
           <button disabled={disabled} onClick={() => setReview(null)}>Cancel review</button></div>
       </div>}
       <details className={styles.booking} open={!section || section === 'profile'}><summary>Contact details</summary>
-        {data.canEdit && <p>Date of birth: {data.member.dateOfBirth || "Not recorded"}</p>}
         {data.canEditContact ? <ContactForm key={`${data.member.version}:${data.member.partnerVersion}`} data={data} disabled={disabled || !!review} review={prepare} />
           : <p>{data.canEdit ? "This contact is shared or outside the site's company. An administrator must review it in Odoo before editing." : "Only a manager or owner can edit contact details."}</p>}
       </details>
