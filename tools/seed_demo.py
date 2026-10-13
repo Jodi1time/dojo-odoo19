@@ -74,12 +74,21 @@ if "dojo.hub.site" in base:
         "start_datetime": now - timedelta(hours=26), "end_datetime": now - timedelta(hours=25), "state": "open", "capacity": 10})
     for member in members:
         base["dojo.class.enrollment"].create({"session_id": review_session.id, "member_id": member.id, "status": "registered", "attendance_state": "pending"})
+    trial_template = base["dojo.class.template"].create({"name": "Trial class", "company_id": company.id,
+        "program_id": program.id, "auto_enroll_members": False})
+    trial_session = base["dojo.class.session"].create({"template_id": trial_template.id, "company_id": company.id,
+        "start_datetime": now + timedelta(minutes=14), "end_datetime": now + timedelta(minutes=74), "state": "open", "capacity": 10})
+    trial_member = base["dojo.member"].create({"partner_id": base["res.partner"].create({"name": "Trial Rehearsal Student",
+        "company_id": company.id, "email": "trial-rehearsal-student@example.invalid"}).id, "company_id": company.id, "membership_state": "lead"})
+    trial_lead = base["crm.lead"].create({"name": "Trial Rehearsal Enquiry", "company_id": company.id, "type": "opportunity",
+        "contact_name": "Trial Rehearsal Parent", "email_from": "trial-rehearsal-parent@example.invalid"})
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
     hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
         "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id), "courseTemplateId": str(course.id),
         "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id),
-        "attendanceSessionId": str(review_session.id)}
+        "attendanceSessionId": str(review_session.id), "trialLeadId": str(trial_lead.id), "trialMemberId": str(trial_member.id),
+        "trialSessionId": str(trial_session.id), "planId": str(plan.id)}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
