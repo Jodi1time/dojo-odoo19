@@ -194,7 +194,6 @@
 .quote {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  border-left: 3px solid var(--line);
   padding-left: 16px;
   color: var(--text);
 }
@@ -341,7 +340,6 @@
 }
 
 .bookingHelp {
-  border-left: 3px solid var(--warning);
   padding: 8px 12px;
   background: color-mix(in srgb, var(--warning) 8%, transparent);
   font-size: 0.875rem;
