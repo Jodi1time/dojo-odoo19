@@ -107,7 +107,7 @@ if "dojo.hub.site" in base:
         "company_id": company.id, "phone": "512-555-0177"})
     family.primary_guardian_id = guardian_parent
     guardian_child = base["dojo.member"].create({"partner_id": base["res.partner"].create({"name": "Mia Rehearsal", "parent_id": family.id,
-        "company_id": company.id}).id, "company_id": company.id, "membership_state": "active"})
+        "is_minor": True, "company_id": company.id}).id, "company_id": company.id, "membership_state": "active"})
     base["sale.subscription"].create({"partner_id": guardian_parent.id, "company_id": company.id, "template_id": plan.template_id.id,
         "pricelist_id": pricelist.id, "stage_id": stage.id, "member_id": guardian_child.id, "plan_id": plan.id})
     base["dojo.class.enrollment"].create({"session_id": guardian_session.id, "member_id": guardian_child.id, "status": "registered", "attendance_state": "pending"})

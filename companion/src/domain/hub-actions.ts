@@ -10,6 +10,12 @@ export type ActionFeedback = {
 
 const messages: Record<string, string> = {
   TRIAL_STUDENT_REVIEW_REQUIRED: 'Only a student in lead or trial status can take a trial. This student already has a membership status.',
+  SIGNATURE_INVALID: 'The signature image could not be read. Clear it and sign again.',
+  SIGNATURE_EMPTY: 'Please sign in the box before saving.',
+  SIGNATURE_AGREEMENT_REQUIRED: 'The signer must confirm they read and agree to the waiver.',
+  WAIVER_TEXT_CHANGED: 'The waiver text changed. Show the signer the current version.',
+  SIGNER_NOT_AUTHORIZED: 'Only the adult student or a household guardian can sign.',
+  WAIVER_ALREADY_SIGNED: 'This student already has a signed waiver in Odoo.',
   REFUND_NOT_SETTLED: 'Only a paid invoice can be refunded here.',
   REFUND_ALREADY_OPEN: 'This invoice already has a refund in progress or completed.',
   REFUND_ALREADY_CREDITED: 'This invoice already has a credit note in Odoo. Review it in accounting.',
@@ -136,7 +142,7 @@ export function replacementBlockReason(original: {startsAt: string; future: bool
 
 /** Do not turn an acknowledged write into a failure when its follow-up read fails. */
 export async function runHubAction(
-  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; creditNote?: string; payment?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
+  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; signedBy?: string; pdfStored?: boolean; creditNote?: string; payment?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
   refresh: () => Promise<void>,
   onAcknowledged: (feedback: ActionFeedback) => void,
 ): Promise<ActionFeedback> {
@@ -161,6 +167,7 @@ export async function runHubAction(
       result.state==='trial_no_show' ? 'No-show saved in Odoo. No automatic follow-up was scheduled.' :
       result.state==='trial_converted' ? `Converted in Odoo: ${result.plan} membership ${result.membershipState==='active'?'started today':`ready to start on ${result.startDate}`}. No payment, portal invitation or message.` :
       result.state==='attendance_recorded' ? `Attendance saved in Odoo: ${result.before} → ${result.after}.${result.reversal?' The original check-in record and receipt are kept; no class credit was refunded.':''}` :
+      result.state==='waiver_signed' ? `Waiver signed by ${result.signedBy} and stored in Odoo${result.pdfStored ? ' with the signed PDF' : '. The signature is saved; the PDF could not be generated here'}. No message was sent.` :
       result.state==='refund_requested' ? 'Refund request saved for owner approval. No credit note was posted and no money was returned.' :
       result.state==='refund_approved' ? `Refund approved: credit note ${result.creditNote} posted in Odoo. Money has not been returned yet.` :
       result.state==='refund_payment_recorded' ? `Refund payment ${result.payment} recorded by staff in Odoo.` :
