@@ -9,6 +9,7 @@ import hmac
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from psycopg2 import errors as pg_errors
 from odoo import api, fields, models
@@ -146,13 +147,24 @@ class DojoKioskV2Service(models.AbstractModel):
                 "startsAt": iso(session.start_datetime), "endsAt": iso(session.end_datetime),
                 "version": session_version(session), "capacity": session.capacity, "seatsTaken": session.seats_taken}
 
-    def _v2_sessions(self, config):
-        rows = self.env["dojo.class.session"].sudo().search([
+    def _v2_sessions(self, config, today_only=False):
+        tz = config.company_id.partner_id.tz or "UTC"
+        domain = [
             ("id", "in", config.integration_session_ids.ids),
             ("company_id", "=", config.company_id.id), ("state", "=", "open"),
             ("end_datetime", ">", fields.Datetime.now()),
-        ], order="start_datetime asc", limit=100)
-        return {"sessions": [self._v2_option(s) for s in rows
+        ]
+        if today_only:
+            # A device is bound to one configured location. Its browser's
+            # timezone must not turn tomorrow's class into "today".
+            local = fields.Datetime.now().replace(tzinfo=timezone.utc).astimezone(ZoneInfo(tz))
+            start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = start + timedelta(days=1)
+            domain += [("start_datetime", "<", end.astimezone(timezone.utc).replace(tzinfo=None)),
+                       ("end_datetime", ">", start.astimezone(timezone.utc).replace(tzinfo=None))]
+        rows = self.env["dojo.class.session"].sudo().search(domain, order="start_datetime asc", limit=100)
+        return {"sessions": [{**self._v2_option(s), "instructor": s.instructor_profile_id.name or None,
+                             "location": config.name, "timeZone": tz} for s in rows
                              if s.template_id.active and s.template_id.company_id == config.company_id]}
 
     def _v2_roster(self, config, session_id):
@@ -338,7 +350,7 @@ class DojoKioskV2Service(models.AbstractModel):
                 config = self._v2_authorize(token, gateway_key, staff=staff)
                 self = self.sudo().with_company(config.company_id).with_context(allowed_company_ids=[config.company_id.id])
                 if action == "sessions":
-                    return self._v2_sessions(config)
+                    return self._v2_sessions(config, today_only=True)
                 if action == "roster":
                     return self._v2_roster(config, params.get("sessionId"))
                 if action == "checkin":

@@ -12,7 +12,7 @@ const passed=name=>{console.log('PASS '+name);evidence.push(name);};
 (async()=>{
  const browser=await chromium.launch({headless:true});
  try{
-  const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage();page.setDefaultTimeout(20000);
+  const context=await browser.newContext({viewport:{width:390,height:844},recordVideo:{dir:path.join(process.env.DOJANG_EVIDENCE_DIR,'video-crm'),size:{width:390,height:844}}}),page=await context.newPage();page.setDefaultTimeout(20000);
   const signin=await context.request.post(origin+'/api/hub',{headers:{origin},data:{operation:'login',login:fixture.hubLogin,password:fixture.hubPassword}});assert.equal(signin.status(),200);
   const call=async(operation,payload,key=null)=>{const r=await context.request.post(origin+'/api/hub',{headers:{origin},data:{operation,payload,requestKey:key}});assert.equal(r.status(),200);return r.json();};
   await page.goto(origin+'/hub?view=crm');const crm=page.getByRole('region',{name:'CRM workspace',exact:true});
@@ -92,5 +92,6 @@ const passed=name=>{console.log('PASS '+name);evidence.push(name);};
   passed('second browser reads persisted lead/task results; repeated completion stays done; CRM fits mobile width');
   fs.writeFileSync(path.join(process.env.DOJANG_EVIDENCE_DIR,'crm-browser-results.json'),JSON.stringify({mode:'real Odoo synthetic database; no external send or charge',checks:evidence},null,2));
   await second.close();await context.close();
+  await page.video().saveAs(path.join(process.env.DOJANG_EVIDENCE_DIR,'walkthrough-crm.webm'));
  }finally{await browser.close();}
 })().catch(error=>{console.error(`CRM rehearsal failed at ${stage}: ${error.code||error.name||'Error'}`);process.exitCode=1;});

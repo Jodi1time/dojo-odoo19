@@ -34,6 +34,7 @@ const choose=async(page,name)=>{
 (async()=>{
  const browser=await chromium.launch({headless:true});
  const contexts=[];
+ const walkthroughPages=[];
  try {
   const anonymous=await browser.newContext();contexts.push(anonymous);
   assert.equal((await anonymous.request.get(BASE+'/api/v2/sessions')).status(),403);
@@ -48,7 +49,14 @@ const choose=async(page,name)=>{
   record('unpaired concierge access and simulated action receipts remain blocked');
   const kiosk=await browser.newContext({viewport:{width:820,height:1180},recordVideo:{dir:path.join(output,'video'),size:{width:820,height:1180}}});contexts.push(kiosk);
   const page=await kiosk.newPage();
+  walkthroughPages.push({page,name:'walkthrough-kiosk.webm'});
   await pair(page,'kiosk');
+  await page.getByRole('heading',{name:'Welcome to Dojang',exact:true}).waitFor();
+  await page.getByRole('button',{name:/^Classes View today/}).click();
+  await page.getByRole('heading',{name:'Choose your class',exact:true}).waitFor();
+  await page.getByRole('button',{name:/Demo session/}).waitFor();
+  await page.getByRole('button',{name:'← Back',exact:true}).click();
+  record('Classes opens the live session-first journey without AI and no fictional location branding');
   await page.getByRole('button',{name:/Ask a question/}).click();
   await page.getByRole('button',{name:/What classes are on today/}).click();
   await page.getByRole('heading',{name:"Today's classes",exact:true}).waitFor();
@@ -65,8 +73,9 @@ const choose=async(page,name)=>{
   record('Ask shows the real Odoo class schedule; unsupported trial requests make no simulated promise');
   assert.equal((await kiosk.request.get(BASE+'/api/v2/members')).status(),403);
   record('paired kiosk cannot read staff member details');
-  const staff=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(staff);
+  const staff=await browser.newContext({viewport:{width:1440,height:1000},recordVideo:{dir:path.join(output,'video-staff'),size:{width:1440,height:1000}}});contexts.push(staff);
   const staffPage=await staff.newPage();await pair(staffPage,'staff');
+  walkthroughPages.push({page:staffPage,name:'walkthrough-staff.webm'});
   const browserErrors=[];
   staffPage.on('pageerror',error=>browserErrors.push(error.message));
   assert.equal((await staff.request.get(BASE+'/api/v2/sessions')).status(),403);
@@ -316,6 +325,7 @@ const choose=async(page,name)=>{
   throw error;
  } finally {
   for(const context of contexts)await context.close();
+  for(const recording of walkthroughPages)await recording.page.video().saveAs(path.join(output,recording.name));
   await browser.close();
  }
 })().catch(error=>{console.error(error.message);process.exitCode=1});

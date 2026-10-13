@@ -105,19 +105,29 @@ fi
 (cd companion && node tests/rehearsal/hub-feedback.cjs) 2>&1 | tee rehearsal-evidence/hub-feedback-browser.log
 (cd companion && node tests/rehearsal/member-management.cjs) 2>&1 | tee rehearsal-evidence/member-management-browser.log
 (cd companion && node tests/rehearsal/crm.cjs) 2>&1 | tee rehearsal-evidence/crm-browser.log
+(cd companion && node tests/rehearsal/instructor.cjs) 2>&1 | tee rehearsal-evidence/instructor-browser.log
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_attendance_log;')
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
 followups=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_companion_followup WHERE state = 'approved';")
 hub_messages=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_message WHERE state = 'resolved' AND summary IS NOT NULL;")
 hub_bookings=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_class_enrollment e JOIN dojo_class_session s ON s.id = e.session_id WHERE s.start_datetime > now() AND e.status = 'registered';")
 checkouts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_attendance_log WHERE checkout_datetime IS NOT NULL;")
+instructor_shifts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM hr_attendance WHERE source_attendance_id IS NULL;")
+open_shifts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM hr_attendance WHERE check_out IS NULL;")
+clock_receipts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'instructor_clock';")
+correction_receipts=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'correct_timesheet';")
 test "$attendance" = 2
 test "$reviews" = 1
 test "$followups" = 1
 test "$hub_messages" = 1
 test "$hub_bookings" = 1
 test "$checkouts" = 1
+test "$instructor_shifts" = 2
+test "$open_shifts" = 0
+test "$clock_receipts" = 2
+test "$correction_receipts" = 1
 printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$attendance" "$reviews" "$followups" > rehearsal-evidence/database-verification.txt
 printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
+printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%s\ncorrection_receipts=%s\n' "$instructor_shifts" "$open_shifts" "$clock_receipts" "$correction_receipts" >> rehearsal-evidence/database-verification.txt
 docker logs "$ODOO" > rehearsal-evidence/odoo-http.log 2>&1
 printf 'PASS: browser, server gateway and Odoo database agree. Synthetic data only.\n' > rehearsal-evidence/rehearsal-result.txt

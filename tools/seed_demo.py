@@ -18,6 +18,8 @@ if env["dojo.kiosk.config"].sudo().search_count([("integration_tenant_ref", "=",
     raise RuntimeError("Demo already exists. Start a separate disposable database.")
 base = env(context=dict(env.context, tracking_disable=True, mail_create_nosubscribe=True))
 company = base.company
+# Synthetic rehearsal explicitly exercises reviewed, not auto-approved HR shifts.
+company.attendance_validation = "manual_validation"
 keys = {name: secrets.token_urlsafe(48) for name in ("DOJANG_COOKIE_SECRET", "DOJANG_KIOSK_GATEWAY_KEY", "DOJANG_STAFF_GATEWAY_KEY", "DOJANG_KIOSK_PAIR_KEY", "DOJANG_STAFF_PAIR_KEY")}
 program = base["dojo.program"].create({"name": "Demo program", "company_id": company.id})
 members = base["dojo.member"]
@@ -33,7 +35,8 @@ pricelist = base["product.pricelist"].create({"name": "Demo pricelist", "currenc
 for member in members:
     base["sale.subscription"].create({"partner_id": member.partner_id.id, "company_id": company.id, "template_id": plan.template_id.id, "pricelist_id": pricelist.id, "stage_id": stage.id, "member_id": member.id, "plan_id": plan.id})
     base["dojo.class.enrollment"].create({"session_id": session.id, "member_id": member.id, "status": "registered", "attendance_state": "pending"})
-kiosk = base["dojo.kiosk.config"].create({"name": "Demo kiosk", "pin_code": str(secrets.randbelow(900000)+100000), "company_id": company.id, "integration_enabled": True, "integration_companion_followup_enabled": True, "integration_tenant_ref": "dojang-demo-school", "integration_key_hash": hashlib.sha256(keys["DOJANG_KIOSK_GATEWAY_KEY"].encode()).hexdigest(), "integration_staff_key_hash": hashlib.sha256(keys["DOJANG_STAFF_GATEWAY_KEY"].encode()).hexdigest(), "integration_member_ids": [(6,0,members.ids)], "integration_session_ids": [(6,0,[session.id])]})
+instructor_pin = str(secrets.randbelow(900000)+100000)
+kiosk = base["dojo.kiosk.config"].create({"name": "Demo kiosk", "pin_code": instructor_pin, "company_id": company.id, "integration_enabled": True, "integration_companion_followup_enabled": True, "integration_tenant_ref": "dojang-demo-school", "integration_key_hash": hashlib.sha256(keys["DOJANG_KIOSK_GATEWAY_KEY"].encode()).hexdigest(), "integration_staff_key_hash": hashlib.sha256(keys["DOJANG_STAFF_GATEWAY_KEY"].encode()).hexdigest(), "integration_member_ids": [(6,0,members.ids)], "integration_session_ids": [(6,0,[session.id])]})
 values = {"DOJANG_INTEGRATION_MODE": "odoo-test", "NEXT_PUBLIC_DEMO_MODE": "false", "DOJANG_PUBLIC_ORIGIN": "http://localhost:3000", "DOJANG_ODOO_URL": "http://127.0.0.1:8069", "DOJANG_KIOSK_TOKEN": kiosk.kiosk_token, **keys}
 hub_fixture = {}
 if "dojo.hub.site" in base:
@@ -45,12 +48,18 @@ if "dojo.hub.site" in base:
     user = base["res.users"].with_context(no_reset_password=True).create({"name": "Demo Hub Manager", "login": "hub-manager@example.invalid", "password": password,
         "company_id": company.id, "company_ids": [(6, 0, [company.id])], "group_ids": [(6, 0, [base.ref("base.group_portal").id])]})
     base["dojo.hub.grant"].create({"site_id": site.id, "user_id": user.id, "role": "manager"})
+    instructor = base["dojo.instructor.profile"].create({"name": "Demo Instructor", "user_id": user.id,
+        "partner_id": user.partner_id.id, "company_id": company.id})
+    session.instructor_profile_id = instructor
+    prior_shift = base["hr.attendance"].create({"employee_id": instructor.employee_id.id,
+        "check_in": now-timedelta(hours=5), "check_out": now-timedelta(hours=3), "out_mode": "auto_check_out"})
     guardian = base["res.partner"].create({"name": "Synthetic Verified Guardian", "company_id": company.id})
     base["dojo.hub.guardian"].create({"site_id": site.id, "partner_id": guardian.id, "member_ids": [(6, 0, [members[2].id])],
         "channel": "sms", "contact_ref": "42", "verification_ref": "synthetic-fixture-only", "allow_reply": True})
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
-    hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id)}
+    hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
+        "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id)}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

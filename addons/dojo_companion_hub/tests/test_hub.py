@@ -62,6 +62,142 @@ class TestCompanionHub(TransactionCase):
         self.addCleanup(self.env_patch.stop)
         self.counter = 0
 
+    def instructor_profile(self, role="instructor"):
+        user = self.users[role]
+        return self.env["dojo.instructor.profile"].create({"name": "Synthetic Instructor", "user_id": user.id,
+            "partner_id": user.partner_id.id, "company_id": self.company.id})
+
+    def report_range(self):
+        day = str(self.session.start_datetime.date())
+        return {"fromDate": day, "toDate": day}
+
+    def test_operations_report_is_native_read_only_and_company_scoped(self):
+        profile = self.instructor_profile()
+        self.session.instructor_profile_id = profile
+        self.env["dojo.attendance.log"].create({"session_id": self.session.id, "member_id": self.member.id, "status": "late"})
+        before = self.env["dojo.hub.receipt"].search_count([])
+        foreign = self.env["res.company"].create({"name": "Other reporting school"})
+        template = self.env["dojo.class.template"].create({"name": "Private foreign class", "company_id": foreign.id})
+        self.env["dojo.class.session"].create({"template_id": template.id,"company_id": foreign.id,"state": "open",
+            "start_datetime": self.session.start_datetime,"end_datetime": self.session.end_datetime})
+        result = self.act("operations_report", self.report_range())
+        self.assertNotIn("error", result)
+        self.assertEqual(result["sessions"], 1)
+        self.assertEqual(result["attendance"]["attended"], 1)
+        self.assertEqual(result["attendance"]["daily"][0]["counts"], {"late": 1})
+        self.assertEqual(result["workload"][0]["sessions"], 1)
+        self.assertNotIn("Private foreign", json.dumps(result))
+        self.assertEqual(self.env["dojo.hub.receipt"].search_count([]), before)
+
+    def test_operations_report_rejects_unprivileged_or_unbounded_requests(self):
+        for role in ("instructor", "guardian"):
+            self.assertEqual(self.act("operations_report", self.report_range(), role=role)["error"]["status"], 403)
+        for payload in ({"fromDate": "2026-01-01", "toDate": "2026-03-01"}, {"fromDate": "bad", "toDate": None}):
+            self.assertEqual(self.act("operations_report", payload)["error"]["code"], "INVALID_REPORT_RANGE")
+        self.assertEqual(self.act("operations_report", {**self.report_range(), "companyId": "9"})["error"]["code"], "INVALID_COMMAND")
+        with self.assertRaises(HubProblem):
+            self.env["dojo.hub.service"]._report_rows("dojo.member", [("id", "=", self.member.id)], limit=0)
+
+    def test_roster_is_registered_scoped_and_never_infers_absence(self):
+        result = self.act("session_roster", {"sessionId": str(self.session.id)}, role="instructor")
+        self.assertEqual(result["members"][0]["attendance"], "pending")
+        self.assertEqual(set(result["members"][0]), {"id", "name", "rank", "attendance"})
+        self.env["dojo.attendance.log"].create({"session_id": self.session.id, "member_id": self.member.id, "status": "late"})
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)}, role="instructor")["members"][0]["attendance"], "late")
+        self.grants["instructor"].session_ids = [(5, 0, 0)]
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)}, role="instructor")["error"]["code"], "SESSION_UNAVAILABLE")
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)}, role="guardian")["error"]["status"], 403)
+        self.enrollment.status = "cancelled"
+        self.assertEqual(self.act("session_roster", {"sessionId": str(self.session.id)})["members"], [])
+
+    def test_report_uses_school_day_instead_of_utc_day(self):
+        self.company.partner_id.tz = "America/Chicago"
+        self.session.write({"start_datetime": "2026-10-13 00:30:00", "end_datetime": "2026-10-13 01:30:00"})
+        result = self.act("operations_report", {"fromDate": "2026-10-12", "toDate": "2026-10-12"})
+        self.assertEqual(result["sessions"], 1)
+        self.assertEqual(self.act("operations_report", {"fromDate": "2026-10-13", "toDate": "2026-10-13"})["sessions"], 0)
+
+    def test_instructor_clock_is_native_scoped_and_idempotent(self):
+        self.company.attendance_validation = "no_validation"
+        profile = self.instructor_profile()
+        p = {"direction": "in", "currentShiftId": None, "pin": "321654"}
+        result = self.act("instructor_clock", p, role="instructor", key="clock-in-repeated-0001")
+        self.assertEqual(result["state"], "clocked_in")
+        shift = self.env["hr.attendance"].browse(int(result["shift"]["id"]))
+        self.assertEqual(shift.employee_id, profile.employee_id)
+        self.assertFalse(shift.check_out)
+        self.assertEqual(shift.state, "validated")
+        self.assertTrue(self.act("instructor_clock", p, role="instructor", key="clock-in-repeated-0001")["replayed"])
+        self.assertEqual(self.act("instructor_clock", p, role="instructor")["error"]["code"], "ALREADY_CLOCKED_IN")
+        data = self.act("instructor_context", role="instructor")
+        self.assertEqual(data["current"]["id"], str(shift.id))
+        out = {"direction": "out", "currentShiftId": str(shift.id), "pin": "321654"}
+        self.assertEqual(self.act("instructor_clock", out, role="instructor", key="clock-out-repeated-001")["state"], "clocked_out")
+        self.assertTrue(self.act("instructor_clock", out, role="instructor", key="clock-out-repeated-001")["replayed"])
+        self.assertIsNone(self.act("instructor_context", role="instructor")["current"])
+        self.assertEqual(self.env["hr.attendance"].search_count([("employee_id", "=", profile.employee_id.id)]), 1)
+        receipts = self.env["dojo.hub.receipt"].search([("operation", "=", "instructor_clock")])
+        self.assertNotIn("321654", "".join(receipts.mapped("response_json")))
+
+    def test_clock_pin_failures_persist_and_lock(self):
+        self.instructor_profile()
+        p = {"direction": "in", "currentShiftId": None, "pin": "000000"}
+        for _ in range(5):
+            result = self.act("instructor_clock", p, role="instructor")
+            self.assertIn(result["error"]["code"], ("PIN_INCORRECT", "PIN_LOCKED"))
+        self.assertEqual(self.act("instructor_clock", {**p, "pin": "321654"}, role="instructor")["error"]["code"], "PIN_LOCKED")
+        self.assertFalse(self.env["dojo.hub.receipt"].search_count([("operation", "=", "instructor_clock")]))
+
+    def test_staff_identity_cannot_be_selected_with_shared_pin(self):
+        self.instructor_profile()
+        p = {"direction": "in", "currentShiftId": None, "pin": "321654"}
+        self.assertEqual(self.act("instructor_clock", p)["error"]["code"], "INSTRUCTOR_PROFILE_REQUIRED")
+        self.assertEqual(self.act("instructor_clock", {**p, "userId": str(self.users["manager"].id)}, role="instructor")["error"]["code"], "INVALID_COMMAND")
+        self.assertEqual(self.act("instructor_context", role="guardian")["error"]["status"], 403)
+
+    def closed_shift(self):
+        self.company.attendance_validation = "manual_validation"
+        profile = self.instructor_profile()
+        now = fields.Datetime.now()
+        shift = self.env["hr.attendance"].create({"employee_id": profile.employee_id.id,
+            "check_in": now-timedelta(hours=4), "check_out": now-timedelta(hours=2), "out_mode": "auto_check_out"})
+        p = {"shiftId": str(shift.id), "expectedVersion": session_version(shift),
+            "checkIn": (now-timedelta(hours=5)).isoformat()+"Z", "checkOut": (now-timedelta(hours=2)).isoformat()+"Z", "reason": "Reviewed synthetic missed clock-out"}
+        return shift, p
+
+    def test_manager_timesheet_correction_is_reviewed_and_replayed(self):
+        shift, p = self.closed_shift()
+        self.assertTrue(self.act("instructor_context")["shifts"][0]["needsReview"])
+        result = self.act("correct_timesheet", p, key="timesheet-correct-001")
+        self.assertNotIn("error", result)
+        self.assertEqual(result["state"], "timesheet_corrected")
+        self.assertEqual(result["shift"]["hours"], 3)
+        self.assertEqual(result["reason"], p["reason"])
+        self.assertTrue(self.act("correct_timesheet", p, key="timesheet-correct-001")["replayed"])
+        self.assertFalse(self.act("instructor_context")["shifts"][0]["needsReview"])
+        self.assertEqual(shift.out_mode, "manual")
+
+    def test_timesheet_scope_role_version_and_time_guards(self):
+        shift, p = self.closed_shift()
+        self.assertEqual(self.act("correct_timesheet", p, role="instructor")["error"]["status"], 403)
+        self.assertEqual(self.act("correct_timesheet", {**p, "expectedVersion": -1})["error"]["code"], "VERSION_CONFLICT")
+        self.assertEqual(self.act("correct_timesheet", {**p, "checkOut": p["checkIn"]})["error"]["code"], "INVALID_SHIFT_TIMES")
+        self.assertEqual(self.act("correct_timesheet", {**p, "checkIn": p["checkIn"][:-1]})["error"]["code"], "INVALID_COMMAND")
+        shift.state = "validated"
+        self.assertEqual(self.act("correct_timesheet", {**p, "expectedVersion": session_version(shift)})["error"]["code"], "TIMESHEET_REVIEW_REQUIRED")
+
+    def test_timesheets_do_not_expose_another_instructor_or_company(self):
+        shift, p = self.closed_shift()
+        manager_profile = self.instructor_profile("manager")
+        row = self.env["hr.attendance"].create({"employee_id": manager_profile.employee_id.id})
+        data = self.act("instructor_context", role="instructor")
+        self.assertEqual([s["id"] for s in data["shifts"]], [str(shift.id)])
+        other = self.env["res.company"].create({"name": "Other timesheet school"})
+        foreign = self.env["dojo.hub.site"].create({"name": "Other shift site", "company_id": other.id,
+            "kiosk_config_id": self.env["dojo.kiosk.config"].create({"name": "Other", "company_id": other.id, "pin_code": "123456"}).id, "workspace_ref": "foreign-shift"})
+        self.assertEqual(self.act("correct_timesheet", p, site=foreign)["error"]["status"], 403)
+        self.assertNotIn(str(row.id), [s["id"] for s in data["shifts"]])
+
     def act(self, operation, payload=None, role="manager", key=None, site=None):
         self.counter += 1
         return self.env["dojo.hub.service"].with_user(self.users[role])._dispatch(str((site or self.site).id), operation,
