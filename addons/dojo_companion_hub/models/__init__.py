@@ -13,3 +13,10 @@ from . import intake_receipt
 from . import actions
 from . import member_admin
 from . import attendance_admin
+from . import trial
+from . import promotions
+from . import guardian_pin
+from . import communications
+from . import refunds
+from . import signing
+from . import onboarding
