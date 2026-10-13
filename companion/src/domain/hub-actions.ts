@@ -10,6 +10,14 @@ export type ActionFeedback = {
 
 const messages: Record<string, string> = {
   TRIAL_STUDENT_REVIEW_REQUIRED: 'Only a student in lead or trial status can take a trial. This student already has a membership status.',
+  REFUND_NOT_SETTLED: 'Only a paid invoice can be refunded here.',
+  REFUND_ALREADY_OPEN: 'This invoice already has a refund in progress or completed.',
+  REFUND_ALREADY_CREDITED: 'This invoice already has a credit note in Odoo. Review it in accounting.',
+  REFUND_REVIEW_CHANGED: 'The invoice changed. Review the refund again.',
+  REFUND_NOT_PENDING: 'This refund is no longer awaiting approval.',
+  REFUND_PAYMENT_NOT_ALLOWED: 'A refund payment can only be recorded for an approved desk-payment refund.',
+  REFUND_JOURNAL_REQUIRED: 'No cash or bank journal is available to record the refund.',
+  REFUND_UNAVAILABLE: 'That refund is not available.',
   CONSENT_UNCHANGED: 'That consent decision is already recorded.',
   CONTACT_UNAVAILABLE: 'That contact is not the student or a household guardian.',
   CONTACT_ADDRESS_REQUIRED: 'This contact has no address for that channel in Odoo.',
@@ -128,7 +136,7 @@ export function replacementBlockReason(original: {startsAt: string; future: bool
 
 /** Do not turn an acknowledged write into a failure when its follow-up read fails. */
 export async function runHubAction(
-  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
+  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; creditNote?: string; payment?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
   refresh: () => Promise<void>,
   onAcknowledged: (feedback: ActionFeedback) => void,
 ): Promise<ActionFeedback> {
@@ -153,6 +161,10 @@ export async function runHubAction(
       result.state==='trial_no_show' ? 'No-show saved in Odoo. No automatic follow-up was scheduled.' :
       result.state==='trial_converted' ? `Converted in Odoo: ${result.plan} membership ${result.membershipState==='active'?'started today':`ready to start on ${result.startDate}`}. No payment, portal invitation or message.` :
       result.state==='attendance_recorded' ? `Attendance saved in Odoo: ${result.before} → ${result.after}.${result.reversal?' The original check-in record and receipt are kept; no class credit was refunded.':''}` :
+      result.state==='refund_requested' ? 'Refund request saved for owner approval. No credit note was posted and no money was returned.' :
+      result.state==='refund_approved' ? `Refund approved: credit note ${result.creditNote} posted in Odoo. Money has not been returned yet.` :
+      result.state==='refund_payment_recorded' ? `Refund payment ${result.payment} recorded by staff in Odoo.` :
+      result.state==='refund_cancelled' ? 'Refund request cancelled. No accounting entry was created.' :
       result.state==='consent_recorded' ? 'Consent saved in Odoo with its source and evidence. No message was sent.' :
       result.state==='broadcast_awaiting_approval' ? `Broadcast saved for approval with ${result.recipients ?? 0} recipients. Nothing is queued or sent yet.` :
       result.state==='broadcast_approved' ? `Broadcast approved: ${result.queued ?? 0} messages queued${result.provider==='not_configured'?'. No provider is connected, so nothing is sent':' for the provider. They count as sent only when the provider confirms'}.` :

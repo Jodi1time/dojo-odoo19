@@ -113,6 +113,22 @@ if "dojo.hub.site" in base:
     base["dojo.class.enrollment"].create({"session_id": guardian_session.id, "member_id": guardian_child.id, "status": "registered", "attendance_state": "pending"})
     kiosk.write({"integration_session_ids": [(4, guardian_session.id)], "integration_member_ids": [(4, guardian_child.id)]})
     values["NEXT_PUBLIC_DOJANG_GUARDIAN_CHECKIN"] = "true"
+    owner_password = secrets.token_urlsafe(48)
+    owner = base["res.users"].with_context(no_reset_password=True).create({"name": "Demo Hub Owner", "login": "hub-owner@example.invalid",
+        "password": owner_password, "company_id": company.id, "company_ids": [(6, 0, [company.id])],
+        "group_ids": [(6, 0, [base.ref("base.group_portal").id])]})
+    base["dojo.hub.grant"].create({"site_id": site.id, "user_id": owner.id, "role": "owner"})
+    refund_partner = base["res.partner"].create({"name": "Refund Student", "company_id": company.id})
+    refund_member = base["dojo.member"].create({"partner_id": refund_partner.id, "company_id": company.id, "membership_state": "active"})
+    refund_subscription = base["sale.subscription"].create({"partner_id": refund_partner.id, "company_id": company.id, "template_id": plan.template_id.id,
+        "pricelist_id": pricelist.id, "stage_id": stage.id, "member_id": refund_member.id, "plan_id": plan.id})
+    sales = base["account.journal"].search([("type", "=", "sale"), ("company_id", "=", company.id)], limit=1)
+    cash = base["account.journal"].search([("type", "in", ["cash", "bank"]), ("company_id", "=", company.id)], order="type", limit=1)
+    refund_invoice = base["account.move"].create({"move_type": "out_invoice", "partner_id": refund_partner.id, "company_id": company.id,
+        "journal_id": sales.id, "invoice_date": fields.Date.today(), "subscription_id": refund_subscription.id,
+        "invoice_line_ids": [(0, 0, {"name": "Synthetic tuition", "quantity": 1, "price_unit": 120, "tax_ids": [(5, 0, 0)]})]})
+    refund_invoice.action_post()
+    base["account.payment.register"].with_context(active_model="account.move", active_ids=refund_invoice.ids).create({"journal_id": cash.id})._create_payments()
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
     hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
@@ -120,7 +136,8 @@ if "dojo.hub.site" in base:
         "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id),
         "attendanceSessionId": str(review_session.id), "trialLeadId": str(trial_lead.id), "trialMemberId": str(trial_member.id),
         "trialSessionId": str(trial_session.id), "planId": str(plan.id), "testingMemberIds": [str(m.id) for m in testing_members],
-        "guardianChildId": str(guardian_child.id), "guardianId": str(guardian_parent.id), "guardianSessionId": str(guardian_session.id)}
+        "guardianChildId": str(guardian_child.id), "guardianId": str(guardian_parent.id), "guardianSessionId": str(guardian_session.id),
+        "hubOwnerLogin": owner.login, "hubOwnerPassword": owner_password, "refundMemberId": str(refund_member.id), "refundInvoice": refund_invoice.name}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
