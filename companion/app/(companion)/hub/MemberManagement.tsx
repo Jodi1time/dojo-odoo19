@@ -167,6 +167,69 @@ function GuardianKioskForm({ data, disabled, review }: { data: Details; disabled
   </div>;
 }
 
+type LedgerPayment = { id: string; amount: number; date: string; journal: string; evidence: string; provider: string | null; providerReference: string | null; transactionState: string | null };
+type LedgerRefund = { id: string; amount: number; currency: string; method: string; state: string; creditNote: string | null; requestedBy: string; approvedBy: string | null; refundPayment: string | null; version: number };
+type LedgerInvoice = { id: string; number: string; date: string | null; total: number; remaining: number; currency: string; paymentState: string; settled: boolean; settlementEvidence: string[]; payments: LedgerPayment[]; refunds: LedgerRefund[]; refundable: boolean };
+const REFUND_STATES: Record<string, string> = { awaiting_approval: "Awaiting owner approval", awaiting_refund_payment: "Credit note posted · return the money at the desk, then record it",
+  awaiting_provider_refund: "Credit note posted · waiting for the payment provider to confirm the refund", refunded_by_provider: "Refunded · confirmed by the payment provider",
+  refunded: "Refunded · refund payment recorded by staff", cancelled: "Cancelled" };
+
+function RefundsForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
+  const [ledger, setLedger] = useState<{ invoices: LedgerInvoice[]; canApprove: boolean } | null>(null);
+  const [error, setError] = useState("");
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/hub", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operation: "billing_ledger", payload: { memberId: data.member.id }, requestKey: null }) })
+      .then(async response => { const value = await response.json(); if (!response.ok) throw Error(value.error?.code || "CONNECTION_UNAVAILABLE");
+        if (!cancelled) { setLedger(value); setError(""); } })
+      .catch(problem => { if (!cancelled) setError(explainHubError(problem.message)); });
+    return () => { cancelled = true; };
+  }, [data.member.id]);
+  async function prepareRefund(invoice: LedgerInvoice) {
+    const reason = (reasons[invoice.id] || "").trim();
+    try {
+      const response = await fetch("/api/hub", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ operation: "refund_preview", payload: { memberId: data.member.id, invoiceId: invoice.id }, requestKey: null }) });
+      const value = await response.json();
+      if (!response.ok) throw Error(value.error?.code || "CONNECTION_UNAVAILABLE");
+      review({ operation: "request_refund", payload: { memberId: data.member.id, invoiceId: invoice.id, reason, reviewToken: value.reviewToken },
+        description: `Request a full refund of ${money(value.amount, value.currency)} for ${value.number}. ${value.effects.join(" ")} Reason: ${reason}.` });
+    } catch (problem) { setError(explainHubError((problem as Error).message)); }
+  }
+  if (error) return <p role="alert">{error}</p>;
+  if (!ledger) return <p role="status">Loading settlement records…</p>;
+  if (!ledger.invoices.length) return <p>No posted invoices linked to this member.</p>;
+  return <div className={styles.fields}>
+    <p>Paid means Odoo has reconciled a payment. Online payments show the provider’s reference; desk payments show who recorded them. Refunds need an owner’s approval.</p>
+    {ledger.invoices.map(invoice => <div key={invoice.id} className={styles.auditEntry} role="group" aria-label={`Settlement for ${invoice.number}`}>
+      <strong>{invoice.number} · {money(invoice.total, invoice.currency)} · {invoice.paymentState.replaceAll("_", " ")}</strong>
+      {invoice.payments.map(payment => <p key={payment.id}>{payment.date} · {money(payment.amount, invoice.currency)} · {payment.journal} · {payment.evidence === "provider_receipt" ? `provider ${payment.provider} ref ${payment.providerReference}` : "recorded by staff"}</p>)}
+      {!invoice.settled && <p>Not settled. Nothing here marks an invoice paid; payment must come from the provider or a recorded payment in Odoo.</p>}
+      {invoice.refunds.map(refund => <div key={refund.id} className={styles.row} role="group" aria-label={`Refund ${refund.id} for ${invoice.number}`}>
+        <p>Refund {money(refund.amount, refund.currency)} · {REFUND_STATES[refund.state] || refund.state}{refund.creditNote ? ` · credit note ${refund.creditNote}` : ""} · requested by {refund.requestedBy}{refund.approvedBy ? ` · approved by ${refund.approvedBy}` : ""}</p>
+        {["awaiting_approval", "awaiting_refund_payment"].includes(refund.state) && <>
+          <label>Reason<input aria-label={`Reason for refund ${refund.id}`} value={reasons[`r${refund.id}`] || ""} maxLength={500} disabled={disabled} onChange={event => setReasons(r => ({ ...r, [`r${refund.id}`]: event.target.value }))} /></label>
+          {refund.state === "awaiting_approval" && ledger.canApprove && <button disabled={disabled || !(reasons[`r${refund.id}`] || "").trim()} onClick={() => review({ operation: "approve_refund",
+            payload: { refundId: refund.id, expectedVersion: refund.version, reason: (reasons[`r${refund.id}`] || "").trim() },
+            description: `Approve the refund of ${money(refund.amount, refund.currency)} for ${invoice.number}. A full credit note is posted in Odoo now. Money is returned only when ${refund.method === "provider" ? "the payment provider confirms the refund" : "staff record the refund payment"}.` })}>Review refund approval</button>}
+          {refund.state === "awaiting_approval" && <button disabled={disabled || !(reasons[`r${refund.id}`] || "").trim()} onClick={() => review({ operation: "cancel_refund",
+            payload: { refundId: refund.id, expectedVersion: refund.version, reason: (reasons[`r${refund.id}`] || "").trim() },
+            description: `Cancel the refund request for ${invoice.number}. No accounting entry is created.` })}>Review refund cancellation</button>}
+          {refund.state === "awaiting_refund_payment" && <button disabled={disabled || !(reasons[`r${refund.id}`] || "").trim()} onClick={() => review({ operation: "record_refund_payment",
+            payload: { refundId: refund.id, expectedVersion: refund.version, reason: (reasons[`r${refund.id}`] || "").trim() },
+            description: `Record that ${money(refund.amount, refund.currency)} was returned to the customer for ${invoice.number}, in the same journal as the original desk payment.` })}>Review refund payment</button>}
+        </>}
+      </div>)}
+      {invoice.refundable && <div className={styles.row}>
+        <label>Reason<input aria-label={`Reason for refunding ${invoice.number}`} value={reasons[invoice.id] || ""} maxLength={500} disabled={disabled} onChange={event => setReasons(r => ({ ...r, [invoice.id]: event.target.value }))} /></label>
+        <button disabled={disabled || !(reasons[invoice.id] || "").trim()} onClick={() => void prepareRefund(invoice)}>Review refund request</button>
+      </div>}
+    </div>)}
+  </div>;
+}
+
 function RankForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
   const [rankId, setRank] = useState("");
   const rank = data.ranks.find(item => item.id === rankId);
@@ -199,6 +262,7 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
   const [familyOpen, setFamilyOpen] = useState(section === "family");
   const [archiveOpen, setArchiveOpen] = useState(section === "archive");
   const [kioskOpen, setKioskOpen] = useState(section === "kiosk");
+  const [refundsOpen, setRefundsOpen] = useState(section === "refunds");
   const [kioskKey, setKioskKey] = useState(0);
   const reviewRef = useRef<HTMLDivElement>(null);
   const submitRef = useRef(false);
@@ -317,6 +381,9 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
         </div>) : <p>No present or late attendance records found.</p>}
         <small>Most recent 30 attendance records within your access.</small>
       </details>
+      {data.canEdit && <details className={styles.booking} open={refundsOpen} onToggle={event => setRefundsOpen(event.currentTarget.open)}><summary>Settlement and refunds</summary>
+        {refundsOpen && <RefundsForm key={kioskKey} data={data} disabled={disabled || !!review} review={prepare} />}
+      </details>}
       {data.canEdit && <details className={styles.booking} open={kioskOpen} onToggle={event => setKioskOpen(event.currentTarget.open)}><summary>Guardian kiosk access</summary>
         {kioskOpen && <GuardianKioskForm key={kioskKey} data={data} disabled={disabled || !!review} review={prepare} />}
       </details>}
