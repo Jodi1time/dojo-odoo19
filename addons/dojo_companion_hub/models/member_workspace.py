@@ -18,8 +18,15 @@ class HubMemberWorkspace(models.AbstractModel):
             relatives = self._members(site, grant).filtered(lambda m: household and m.partner_id.parent_id == household)
             bindings = self.env["dojo.hub.guardian"].sudo().search([
                 ("site_id", "=", site.id), ("member_ids", "in", [member.id]), ("active", "=", True)])
+            # Native household relationship only. It is not a verified messaging
+            # channel, consent, signing, payment or portal authority.
+            primary = household.primary_guardian_id
+            relationship = (household.child_ids | primary).filtered(lambda p: p.active and p.is_guardian and not p.is_minor
+                and not p.is_household and p.company_id in (self.env["res.company"], site.company_id)) if household else household
+            relationship = relationship.sorted(lambda p: (p != primary, (p.name or "").casefold(), p.id))[:20]
             family = {"household": household.name or None,
                 "members": [{"id": str(m.id), "name": m.name} for m in relatives],
+                "householdGuardians": [{"id": str(p.id), "name": p.name, "primary": p == primary} for p in relationship],
                 "guardians": [{"id": str(b.id), "name": b.partner_id.name, "channel": b.channel, "allowReply": b.allow_reply} for b in bindings]}
             contacts = member.emergency_contact_ids.filtered(lambda c: c.company_id == site.company_id)
             safety = {"allergies": member.allergies or None, "medicalNotes": member.medical_notes or None,

@@ -1,5 +1,45 @@
 # Integrated Dojang verification and handoff
 
+## Reviewed student intake increment (PR29) — 12 October 2026
+
+This increment completes reviewed student/guardian/household **profile intake**. It is not membership sale, trial booking, onboarding or production rollout.
+
+- Branch `feat/reviewed-student-intake`, [draft PR29](https://github.com/Jodi1time/dojo-odoo19/pull/29), based on `integration/monday-release` at the merged PR28 commit `3f32432fcf3abb60294542b604a1b9f07fe27300`.
+- Application commit tested: `846ed11f1af65d834ed6bbcab3a8e2e4a1e94929`. Intake commits: `8ab2f9e`, `a10c434`, `5f6fc6f`, `846ed11`.
+- Connected run [38335011606](https://github.com/Jodi1time/dojo-odoo19/actions/runs/38335011606) **passed** at that commit: native install/tests, frontend contracts, lint, production Next build, all preserved browser rehearsals plus intake, and SQL assertions.
+- Earlier runs that are **not** acceptance evidence: `38331291955` (`a10c434`) failed; `38333758855` (`5f6fc6f`) failed. CI logs and artifacts could not be downloaded from the working environment, so each cause was established by reproducing the same stage locally with the pinned Odoo runtime:
+  - `a10c434`: `test_existing_guardian_change_invalidates_review` errored. Odoo 20 stamps `write_date` with the transaction time and ignores a supplied value, so the test never produced a stale guardian. The test now simulates another transaction's committed edit and also asserts no records were written.
+  - `5f6fc6f`: the browser readback asserted the birth date inside a collapsed section. The member summary line now shows the stored birth date.
+
+### What staff can do
+
+1. Open **New student** from Members or the Hub (owner/manager only, individual Odoo sign-in, current school only).
+2. Enter an adult (one contact method required) or a child with a new guardian or an explicitly selected existing household. Review lists every missing or invalid field by name; nothing is written.
+3. If the same school already has the student (same normalized name and birth date, archived included) or the guardian contact, review stops and links the exact existing profile or offers only the matching selectable household. Unrelated or archived contacts are not disclosed as choices.
+4. Confirm the reviewed summary. Odoo creates native `res.partner`/`dojo.member` records in lead state, and for a child the household with its primary guardian, in one transaction with a persisted receipt.
+5. Open the created student. Member management shows the stored birth date and the **Household and guardians** Member360 section, which lists native household guardians separately from verified messaging channels.
+
+A lost response is retried with the original key and replays the stored receipt. If the browser has lost that key (reload), the review finds the committed profile and links to it instead of creating a second one. A guardian or household edited after review returns a version conflict.
+
+### Evidence
+
+| Layer | Result at `846ed11f1af65d834ed6bbcab3a8e2e4a1e94929` | Boundary |
+| --- | --- | --- |
+| Native Odoo | 129 tests, zero failures/errors (112 preserved + 17 intake) | Synthetic database; Hub/Kiosk and installed dependencies only |
+| Frontend contracts/state | 115 gateway/domain (including 8 intake) + 4 navigation + 4 member-context | Contract/state tests, not exhaustive component rendering |
+| Tooling | 40 tests (including 8 intake validator) | — |
+| Lint | 0 errors, the same 8 pre-existing warnings | Warnings recorded, not called clean |
+| Browser | Intake: 6 checks — field-by-field validation, adult lost-response replay, Member360 birth-date/lead readback, child lost response plus reload reconciliation with household guardian readback, guardian-contact match linking, phone layout. All preserved PR26–PR28 browser suites rerun | Synthetic records; fault injection for dropped responses |
+| Database | `intake_receipts=3`, `intake_members=3`, `intake_identity_keys=3`, `intake_households=1` (primary guardian linked to its household), `intake_household_children=2`, `intake_side_effects=0` (subscriptions, enrollments, users, channel bindings) | Not the production school database |
+
+A Docker-free local run on the same commit and pinned Odoo (`d40b7c8c`) also passed 129 native tests, 76 browser checks across the seven rehearsal suites and the same SQL values. It used Python 3.13, local Postgres 16 and a webpack build with a stand-in font because Google Fonts is unreachable there; CI (Python 3.12 Docker, Turbopack) is the evidence of record.
+
+### Still outside this increment
+
+Membership or plan sale, trial reservation and conversion, waiver/document signing, photo upload, portal invitation and any outbound message remain separate reviewed workflows. Editing an existing household or guardian, converting an existing adult student into a guardian, and resolving archived or unlinked matching contacts still require administrator review in Odoo. Nothing in this increment is staged or deployed.
+
+The PR28 report below is unchanged and remains the baseline for preserved features.
+
 ## Scope and release identity
 
 This is a tested implementation increment, **not completion of Paul's total directive**. The original application, VNext design, all four purchased source packages, Justin's React and migration branches, and PRs 25–27 were inspected before this increment. See [source/API reconciliation](SOURCE_AND_API_RECONCILIATION.md) and the [full feature acceptance register](FEATURE_STATUS.md).

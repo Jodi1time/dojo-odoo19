@@ -218,6 +218,7 @@ class HubService(models.AbstractModel):
         return {"member": {"id": str(member.id), "name": member.name,
                 "version": session_version(member), "partnerVersion": session_version(member.partner_id),
                 "phone": (member.phone or "") if manage else None, "email": (member.email or "") if manage else None,
+                "dateOfBirth": str(member.date_of_birth) if manage and member.date_of_birth else None,
                 "state": member.membership_state, "rank": member.current_rank_id.name or "Unassigned", "stripes": member.current_stripe_count},
             "canEdit": manage, "canEditContact": manage and self._contact_editable(site, member), "billing": billing,
             "ranks": [{"id": str(r.id), "name": r.name, "maxStripes": r.max_stripes} for r in ranks],
