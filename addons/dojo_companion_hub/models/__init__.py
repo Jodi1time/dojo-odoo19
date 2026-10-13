@@ -16,3 +16,4 @@ from . import attendance_admin
 from . import trial
 from . import promotions
 from . import guardian_pin
+from . import communications
