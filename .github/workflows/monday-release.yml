@@ -51,7 +51,7 @@ jobs:
             --db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_ci_release \
             --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons \
             -i dojo_companion_hub --without-demo=all --stop-after-init --max-cron-threads=0 \
-            --test-enable --test-tags=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle > release-evidence/native.log 2>&1
+            --test-enable --test-tags=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting > release-evidence/native.log 2>&1
           status=$?
           set -e
           echo "$status" > release-evidence/native-exit-code.txt
@@ -59,7 +59,7 @@ jobs:
           python - <<'PY'
           import ast, pathlib, re
           sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),
-                   ('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle')]
+                   ('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting')]
           names=[]
           for source,klass in sources:
               tree=ast.parse(pathlib.Path(source).read_text())
