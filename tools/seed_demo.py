@@ -68,11 +68,18 @@ if "dojo.hub.site" in base:
             "company_id": company.id, "membership_state": "active"})
     base["dojo.class.enrollment"].with_context(skip_subscription_check=True).create({"session_id": course_sessions[0].id,
         "member_id": admin_members[2].id, "status": "registered", "attendance_state": "pending"})
+    review_class = base["dojo.class.template"].create({"name": "Attendance review class", "company_id": company.id,
+        "program_id": program.id, "auto_enroll_members": False, "course_member_ids": [(6, 0, members.ids)]})
+    review_session = base["dojo.class.session"].create({"template_id": review_class.id, "company_id": company.id,
+        "start_datetime": now - timedelta(hours=26), "end_datetime": now - timedelta(hours=25), "state": "open", "capacity": 10})
+    for member in members:
+        base["dojo.class.enrollment"].create({"session_id": review_session.id, "member_id": member.id, "status": "registered", "attendance_state": "pending"})
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
     hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
         "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id), "courseTemplateId": str(course.id),
-        "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id)}
+        "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id),
+        "attendanceSessionId": str(review_session.id)}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
