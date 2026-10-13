@@ -35,3 +35,17 @@ class KioskV2Controller(http.Controller):
     @http.route("/kiosk/v2/staff/members", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
     def members(self, token=None, **kw):
         return self._call("members", token, {})
+
+    @http.route("/kiosk/v2/guardian/verify", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def guardian_verify(self, token=None, phone=None, pin=None, sessionId=None, **kw):
+        if kw:
+            from ..models.dojo_kiosk_v2 import problem
+            return problem("INVALID_COMMAND")
+        return self._call("guardian_verify", token, {"phone": phone, "pin": pin, "sessionId": sessionId})
+
+    @http.route("/kiosk/v2/guardian/check-ins", type="jsonrpc", auth="public", methods=["POST"], csrf=False)
+    def guardian_check_in(self, token=None, guardianToken=None, command=None, **kw):
+        if kw:
+            from ..models.dojo_kiosk_v2 import problem
+            return problem("INVALID_COMMAND")
+        return self._call("guardian_checkin", token, {"guardianToken": guardianToken, "command": command})

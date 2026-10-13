@@ -124,6 +124,49 @@ function ArchiveForm({ data, disabled, review }: { data: Details; disabled: bool
   </div>;
 }
 
+type KioskAccess = { version: number; students: string[]; guardians: { id: string; name: string; hasPhone: boolean; hasPin: boolean; setAt: string | null; setBy: string | null; locked: boolean }[] };
+
+function GuardianKioskForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
+  const [access, setAccess] = useState<KioskAccess | null>(null);
+  const [error, setError] = useState("");
+  const [pins, setPins] = useState<Record<string, string>>({});
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/hub", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operation: "guardian_kiosk_access", payload: { memberId: data.member.id }, requestKey: null }) })
+      .then(async response => { const value = await response.json(); if (!response.ok) throw Error(value.error?.code || "CONNECTION_UNAVAILABLE");
+        if (!cancelled) { setAccess(value); setError(""); } })
+      .catch(problem => { if (!cancelled) setError(explainHubError(problem.message)); });
+    return () => { cancelled = true; };
+  }, [data.member.id, data.member.version]);
+  if (error) return <p role="alert">{error}</p>;
+  if (!access) return <p role="status">Loading kiosk access…</p>;
+  if (!access.guardians.length) return <p>No household guardian is linked to this student in Odoo.</p>;
+  return <div className={styles.fields}>
+    <p>A parent can check in their own children at the kiosk with their phone number and a 6-digit PIN. Set the PIN with the parent at the desk; it is stored only as a secure hash and never sent.</p>
+    {access.students.length > 0 && <p>Children in this household: {access.students.join(", ")}</p>}
+    {access.guardians.map(g => <div key={g.id} className={styles.auditEntry} role="group" aria-label={`Kiosk access for ${g.name}`}>
+      <strong>{g.name}</strong>
+      <p>{g.hasPin ? `PIN set${g.setAt ? ` ${when(g.setAt)}` : ""}${g.setBy ? ` by ${g.setBy}` : ""}` : "No kiosk PIN"}{g.locked ? " · locked after failed attempts" : ""}{!g.hasPhone ? " · no phone number in Odoo" : ""}</p>
+      {g.hasPhone && <>
+        <label>New 6-digit PIN<input aria-label={`New kiosk PIN for ${g.name}`} type="password" inputMode="numeric" autoComplete="new-password" maxLength={6}
+          value={pins[g.id] || ""} disabled={disabled} onChange={event => setPins(p => ({ ...p, [g.id]: event.target.value.replace(/[^0-9]/g, "") }))} /></label>
+        <label>Reason<input aria-label={`Reason for kiosk PIN for ${g.name}`} value={reasons[g.id] || ""} maxLength={500} disabled={disabled}
+          onChange={event => setReasons(r => ({ ...r, [g.id]: event.target.value }))} /></label>
+        <div className={styles.row}>
+          <button disabled={disabled || (pins[g.id] || "").length !== 6 || !(reasons[g.id] || "").trim()} onClick={() => review({ operation: "set_guardian_kiosk_pin",
+            payload: { memberId: data.member.id, guardianId: g.id, pin: pins[g.id], reason: (reasons[g.id] || "").trim() },
+            description: `${g.hasPin ? "Replace" : "Set"} the kiosk check-in PIN for ${g.name}. Failed-attempt locks are cleared. The PIN is stored as a secure hash and is not shown again. Reason: ${(reasons[g.id] || "").trim()}.` })}>Review kiosk PIN</button>
+          {g.hasPin && <button disabled={disabled || !(reasons[g.id] || "").trim()} onClick={() => review({ operation: "revoke_guardian_kiosk_pin",
+            payload: { memberId: data.member.id, guardianId: g.id, reason: (reasons[g.id] || "").trim() },
+            description: `Turn off kiosk check-in for ${g.name}. Any open kiosk family list is closed. Reason: ${(reasons[g.id] || "").trim()}.` })}>Review turning off kiosk PIN</button>}
+        </div>
+      </>}
+    </div>)}
+  </div>;
+}
+
 function RankForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
   const [rankId, setRank] = useState("");
   const rank = data.ranks.find(item => item.id === rankId);
@@ -155,6 +198,8 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
   const [replacement, setReplacement] = useState("");
   const [familyOpen, setFamilyOpen] = useState(section === "family");
   const [archiveOpen, setArchiveOpen] = useState(section === "archive");
+  const [kioskOpen, setKioskOpen] = useState(section === "kiosk");
+  const [kioskKey, setKioskKey] = useState(0);
   const reviewRef = useRef<HTMLDivElement>(null);
   const submitRef = useRef(false);
   const disabled = busy || locked || loading;
@@ -188,7 +233,7 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
         return;
       }
       const result = await act(review.operation, review.payload);
-      if (result?.kind === "success") refresh();
+      if (result?.kind === "success") { refresh(); setKioskKey(k => k + 1); }
       else if (result?.kind === "error") setReview(null);
     } finally { submitRef.current = false; }
   }
@@ -272,6 +317,9 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
         </div>) : <p>No present or late attendance records found.</p>}
         <small>Most recent 30 attendance records within your access.</small>
       </details>
+      {data.canEdit && <details className={styles.booking} open={kioskOpen} onToggle={event => setKioskOpen(event.currentTarget.open)}><summary>Guardian kiosk access</summary>
+        {kioskOpen && <GuardianKioskForm key={kioskKey} data={data} disabled={disabled || !!review} review={prepare} />}
+      </details>}
       {data.canEdit && archive && <details className={styles.booking} open={archiveOpen} onToggle={event => setArchiveOpen(event.currentTarget.open)}><summary>Archive student</summary>
         {archiveOpen && <ArchiveForm data={data} disabled={disabled || !!review} review={prepare} />}
       </details>}

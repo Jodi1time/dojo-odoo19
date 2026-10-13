@@ -10,6 +10,10 @@ export type ActionFeedback = {
 
 const messages: Record<string, string> = {
   TRIAL_STUDENT_REVIEW_REQUIRED: 'Only a student in lead or trial status can take a trial. This student already has a membership status.',
+  GUARDIAN_NOT_IN_HOUSEHOLD: 'That parent is not a guardian in this student’s household in Odoo.',
+  GUARDIAN_PHONE_REQUIRED: 'Add the parent’s phone number in Odoo before setting a kiosk PIN.',
+  GUARDIAN_PIN_TOO_SIMPLE: 'Choose a PIN that is not a repeated digit or a simple sequence.',
+  GUARDIAN_PIN_NOT_SET: 'This parent has no active kiosk PIN.',
   TEST_UNAVAILABLE: 'That belt test is not available in this school.',
   TEST_NOT_EDITABLE: 'This belt test is completed or cancelled and can no longer be changed here.',
   ROSTER_DUPLICATE: 'A student is already on this testing roster.',
@@ -138,6 +142,8 @@ export async function runHubAction(
       result.state==='trial_no_show' ? 'No-show saved in Odoo. No automatic follow-up was scheduled.' :
       result.state==='trial_converted' ? `Converted in Odoo: ${result.plan} membership ${result.membershipState==='active'?'started today':`ready to start on ${result.startDate}`}. No payment, portal invitation or message.` :
       result.state==='attendance_recorded' ? `Attendance saved in Odoo: ${result.before} → ${result.after}.${result.reversal?' The original check-in record and receipt are kept; no class credit was refunded.':''}` :
+      result.state==='guardian_pin_set' ? 'Kiosk PIN saved in Odoo as a secure hash. It was not sent anywhere; give it to the parent in person.' :
+      result.state==='guardian_pin_revoked' ? 'Kiosk PIN turned off in Odoo. The parent can no longer check in at the kiosk with it.' :
       result.state==='testing_roster_saved' ? `Testing roster saved in Odoo with ${result.count ?? 0} students. No rank, invoice or message was created.` :
       result.state==='test_results_saved' ? `Test results saved in Odoo (${Array.isArray(result.changes)?result.changes.length:0} changed). No belt was awarded yet.` :
       result.state==='promotions_awarded' ? `Promotions saved in Odoo: ${Array.isArray(result.promotions)?result.promotions.length:0} belt awards. No message or invoice.` :

@@ -98,13 +98,29 @@ if "dojo.hub.site" in base:
         for member in testing_members:
             base["dojo.attendance.log"].with_context(dojo_hub_staff_recorded=True).create({"session_id": practice_session.id,
                 "member_id": member.id, "status": "present", "checkin_datetime": practice_session.start_datetime})
+    guardian_template = base["dojo.class.template"].create({"name": "Guardian class", "company_id": company.id,
+        "program_id": program.id, "auto_enroll_members": False})
+    guardian_session = base["dojo.class.session"].create({"template_id": guardian_template.id, "company_id": company.id,
+        "start_datetime": now + timedelta(minutes=20), "end_datetime": now + timedelta(minutes=80), "state": "open", "capacity": 10})
+    family = base["res.partner"].create({"name": "Family Rehearsal", "is_household": True, "company_id": company.id})
+    guardian_parent = base["res.partner"].create({"name": "Guardian Rehearsal Parent", "parent_id": family.id, "is_guardian": True,
+        "company_id": company.id, "phone": "512-555-0177"})
+    family.primary_guardian_id = guardian_parent
+    guardian_child = base["dojo.member"].create({"partner_id": base["res.partner"].create({"name": "Mia Rehearsal", "parent_id": family.id,
+        "company_id": company.id}).id, "company_id": company.id, "membership_state": "active"})
+    base["sale.subscription"].create({"partner_id": guardian_parent.id, "company_id": company.id, "template_id": plan.template_id.id,
+        "pricelist_id": pricelist.id, "stage_id": stage.id, "member_id": guardian_child.id, "plan_id": plan.id})
+    base["dojo.class.enrollment"].create({"session_id": guardian_session.id, "member_id": guardian_child.id, "status": "registered", "attendance_state": "pending"})
+    kiosk.write({"integration_session_ids": [(4, guardian_session.id)], "integration_member_ids": [(4, guardian_child.id)]})
+    values["NEXT_PUBLIC_DOJANG_GUARDIAN_CHECKIN"] = "true"
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
     hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
         "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id), "courseTemplateId": str(course.id),
         "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id),
         "attendanceSessionId": str(review_session.id), "trialLeadId": str(trial_lead.id), "trialMemberId": str(trial_member.id),
-        "trialSessionId": str(trial_session.id), "planId": str(plan.id), "testingMemberIds": [str(m.id) for m in testing_members]}
+        "trialSessionId": str(trial_session.id), "planId": str(plan.id), "testingMemberIds": [str(m.id) for m in testing_members],
+        "guardianChildId": str(guardian_child.id), "guardianId": str(guardian_parent.id), "guardianSessionId": str(guardian_session.id)}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
