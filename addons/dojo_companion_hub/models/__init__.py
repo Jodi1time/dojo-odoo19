@@ -9,3 +9,4 @@ from . import billing
 from . import ai_settings
 
 from . import intake
+from . import intake_receipt

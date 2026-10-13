@@ -177,3 +177,15 @@ class TestStudentIntake(TransactionCase):
         p = self.intake()
         p["student"]["dateOfBirth"] = str(fields.Date.today() + timedelta(days=1))
         self.assertFalse(self.act("intake_preview", {"intake": p})["valid"])
+
+    def test_database_constraint_rolls_back_different_key_duplicate(self):
+        p = self.command()
+        first = self.act("create_student", p)
+        self.assertEqual(first["state"], "student_created")
+        before = self.counts()
+        # Force the preflight to miss an existing identity, as a stale snapshot
+        # could. The actual database constraint must still roll back all writes.
+        with patch.object(type(self.env["dojo.hub.service"]), "_intake_check_duplicates", return_value=None):
+            result = self.act("create_student", p, key="student-intake-request-racing")
+        self.assertIn(result["error"]["code"], ("BUSINESS_RULE_REVIEW_REQUIRED", "CONCURRENT_RETRY"))
+        self.assertEqual(self.counts(), before)
