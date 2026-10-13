@@ -176,3 +176,20 @@ class TestAttendanceAdministration(TransactionCase):
         self.assertEqual(result["creditHold"], {"before": "pending", "after": "confirmed"}, result)
         reversed_ = self.mark("paid", "absent", reason="Mistake")
         self.assertEqual(reversed_["creditHold"], {"before": "confirmed", "after": "confirmed"})
+
+    def test_staff_recorded_attendance_sends_no_checkin_message(self):
+        if "notification_sent" not in self.env["dojo.attendance.log"]._fields:
+            self.skipTest("Communications addon not installed")
+        self.members["paid"].partner_id.email = "attendance-paid@example.invalid"
+        self.members["second"].partner_id.email = "attendance-second@example.invalid"
+        Mail = self.env["mail.mail"].sudo()
+        before = Mail.search_count([])
+        self.mark("paid", "present")
+        log = self.log("paid")
+        self.assertFalse(log.notification_sent)
+        self.assertEqual(Mail.search_count([]), before)
+        self.assertFalse(Mail.search([("model", "=", "dojo.attendance.log"), ("res_id", "=", log.id)]))
+        self.assertFalse(self.env["sms.sms"].sudo().search([("partner_id", "=", self.members["paid"].partner_id.id)]))
+        kiosk = self.env["dojo.attendance.log"].sudo().create({"session_id": self.sessions["old"].id, "member_id": self.members["second"].id,
+            "enrollment_id": self.enrollments[("second", "old")].id, "status": "present", "checkin_datetime": self.sessions["old"].start_datetime})
+        self.assertTrue(kiosk.notification_sent)

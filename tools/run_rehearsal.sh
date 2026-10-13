@@ -136,7 +136,9 @@ photo_attachments=$(Q "SELECT count(*) FROM ir_attachment a JOIN res_partner p O
 review_logs=$(Q "SELECT string_agg(p.name || ':' || l.status, ',' ORDER BY p.name) FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Attendance review class';")
 attendance_receipts=$(Q "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'mark_attendance';")
 reversal_notes=$(Q "SELECT count(*) FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Demo Student' AND l.note LIKE '%Signed in by mistake%';")
+review_messages=$(Q "SELECT (SELECT count(*) FROM dojo_attendance_log l JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Attendance review class' AND l.notification_sent) + (SELECT count(*) FROM mail_mail mm JOIN mail_message msg ON msg.id = mm.mail_message_id JOIN dojo_attendance_log l ON msg.model = 'dojo.attendance.log' AND msg.res_id = l.id JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Attendance review class');")
 test "$review_logs" = "Demo Student:absent,Recovery Student:present"
+test "$review_messages" = 0
 test "$attendance_receipts" = 4
 test "$reversal_notes" = 1
 test "$course_receipts" = 2
@@ -165,7 +167,7 @@ test "$correction_receipts" = 1
 printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$attendance" "$reviews" "$followups" > rehearsal-evidence/database-verification.txt
 printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
 printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%s\ncorrection_receipts=%s\n' "$instructor_shifts" "$open_shifts" "$clock_receipts" "$correction_receipts" >> rehearsal-evidence/database-verification.txt
-printf 'review_logs=%s\nattendance_receipts=%s\nreversal_notes=%s\n' "$review_logs" "$attendance_receipts" "$reversal_notes" >> rehearsal-evidence/database-verification.txt
+printf 'review_logs=%s\nattendance_receipts=%s\nreversal_notes=%s\nreview_checkin_messages=%s\n' "$review_logs" "$attendance_receipts" "$reversal_notes" "$review_messages" >> rehearsal-evidence/database-verification.txt
 printf 'course_receipts=%s\ncourse_roster=%s\ncourse_bookings=%s\narchive_receipts=%s\narchive_restored=%s\nphoto_receipts=%s\nphoto_attachments=%s\n' "$course_receipts" "$course_roster" "$course_bookings" "$archive_receipts" "$archive_restored" "$photo_receipts" "$photo_attachments" >> rehearsal-evidence/database-verification.txt
 printf 'intake_receipts=%s\nintake_members=%s\nintake_identity_keys=%s\nintake_households=%s\nintake_household_children=%s\nintake_side_effects=%s\n' "$intake_receipts" "$intake_members" "$intake_identity_keys" "$intake_households" "$intake_household_children" "$intake_side_effects" >> rehearsal-evidence/database-verification.txt
 docker logs "$ODOO" > rehearsal-evidence/odoo-http.log 2>&1

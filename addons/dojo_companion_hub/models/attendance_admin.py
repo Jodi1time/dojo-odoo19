@@ -10,6 +10,15 @@ ATTENDED = ("present", "late")
 WINDOW_DAYS = 31
 
 
+class HubStaffRecordedAttendance(models.Model):
+    _inherit = "dojo.attendance.log"
+
+    def _send_checkin_notification(self, log):
+        if self.env.context.get("dojo_hub_staff_recorded"):
+            return None
+        return super()._send_checkin_notification(log)
+
+
 class HubAttendanceAdmin(models.AbstractModel):
     _inherit = "dojo.hub.service"
 
@@ -134,7 +143,7 @@ class HubAttendanceAdmin(models.AbstractModel):
             if becomes_attended and hasattr(Log, "_confirm_hold"):
                 Log._confirm_hold(enrollment)
         else:
-            log = Log.create({"session_id": session.id, "member_id": member.id, "enrollment_id": enrollment.id,
+            log = Log.with_context(dojo_hub_staff_recorded=True).create({"session_id": session.id, "member_id": member.id, "enrollment_id": enrollment.id,
                 "status": after, "checkin_datetime": min(now, session.start_datetime), "note": stamp})
         if enrollment:
             enrollment.write({"attendance_state": "present" if after in ATTENDED else after})
