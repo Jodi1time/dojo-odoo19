@@ -37,7 +37,7 @@ docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
 INSTALL=dojo_companion_hub
-TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration
 if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
   MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
@@ -51,7 +51,7 @@ import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration')]
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
 for source,klass in sources:
@@ -108,7 +108,8 @@ fi
 (cd companion && node tests/rehearsal/instructor.cjs) 2>&1 | tee rehearsal-evidence/instructor-browser.log
 (cd companion && node tests/rehearsal/intake.cjs) 2>&1 | tee rehearsal-evidence/intake-browser.log
 (cd companion && node tests/rehearsal/member-admin.cjs) 2>&1 | tee rehearsal-evidence/member-admin-browser.log
-attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_attendance_log;')
+(cd companion && node tests/rehearsal/attendance-admin.cjs) 2>&1 | tee rehearsal-evidence/attendance-admin-browser.log
+attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_attendance_log l JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Demo session';")
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
 followups=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_companion_followup WHERE state = 'approved';")
 hub_messages=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_hub_message WHERE state = 'resolved' AND summary IS NOT NULL;")
@@ -132,6 +133,14 @@ archive_receipts=$(Q "SELECT count(*) FROM dojo_hub_receipt WHERE operation IN (
 archive_restored=$(Q "SELECT count(*) FROM dojo_member m JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Archive Student' AND m.active;")
 photo_receipts=$(Q "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'update_member_photo';")
 photo_attachments=$(Q "SELECT count(*) FROM ir_attachment a JOIN res_partner p ON p.id = a.res_id WHERE a.res_model = 'res.partner' AND a.res_field = 'image_1920' AND p.name = 'Course Student A';")
+review_logs=$(Q "SELECT string_agg(p.name || ':' || l.status, ',' ORDER BY p.name) FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Attendance review class';")
+attendance_receipts=$(Q "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'mark_attendance';")
+reversal_notes=$(Q "SELECT count(*) FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Demo Student' AND l.note LIKE '%Signed in by mistake%';")
+review_messages=$(Q "SELECT (SELECT count(*) FROM dojo_attendance_log l JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Attendance review class' AND l.notification_sent) + (SELECT count(*) FROM mail_mail mm JOIN mail_message msg ON msg.id = mm.mail_message_id JOIN dojo_attendance_log l ON msg.model = 'dojo.attendance.log' AND msg.res_id = l.id JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Attendance review class');")
+test "$review_logs" = "Demo Student:absent,Recovery Student:present"
+test "$review_messages" = 0
+test "$attendance_receipts" = 4
+test "$reversal_notes" = 1
 test "$course_receipts" = 2
 test "$course_roster" = 1
 test "$course_bookings" = 2
@@ -158,6 +167,7 @@ test "$correction_receipts" = 1
 printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$attendance" "$reviews" "$followups" > rehearsal-evidence/database-verification.txt
 printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
 printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%s\ncorrection_receipts=%s\n' "$instructor_shifts" "$open_shifts" "$clock_receipts" "$correction_receipts" >> rehearsal-evidence/database-verification.txt
+printf 'review_logs=%s\nattendance_receipts=%s\nreversal_notes=%s\nreview_checkin_messages=%s\n' "$review_logs" "$attendance_receipts" "$reversal_notes" "$review_messages" >> rehearsal-evidence/database-verification.txt
 printf 'course_receipts=%s\ncourse_roster=%s\ncourse_bookings=%s\narchive_receipts=%s\narchive_restored=%s\nphoto_receipts=%s\nphoto_attachments=%s\n' "$course_receipts" "$course_roster" "$course_bookings" "$archive_receipts" "$archive_restored" "$photo_receipts" "$photo_attachments" >> rehearsal-evidence/database-verification.txt
 printf 'intake_receipts=%s\nintake_members=%s\nintake_identity_keys=%s\nintake_households=%s\nintake_household_children=%s\nintake_side_effects=%s\n' "$intake_receipts" "$intake_members" "$intake_identity_keys" "$intake_households" "$intake_household_children" "$intake_side_effects" >> rehearsal-evidence/database-verification.txt
 docker logs "$ODOO" > rehearsal-evidence/odoo-http.log 2>&1
