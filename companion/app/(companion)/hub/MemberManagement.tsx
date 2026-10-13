@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Select from "@/components/primitives/select/Select";
@@ -230,6 +230,53 @@ function RefundsForm({ data, disabled, review }: { data: Details; disabled: bool
   </div>;
 }
 
+type WaiverContext = { title: string; text: string; contentVersion: string; minor: boolean; state: string; signedBy: string | null; signedAt: string | null;
+  pdfStored: boolean; signers: { partnerId: string; name: string; relationship: string }[]; witnessedBy: string | null; version: number };
+
+function WaiverForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
+  const [waiver, setWaiver] = useState<WaiverContext | null>(null);
+  const [error, setError] = useState("");
+  const [signer, setSigner] = useState(""), [name, setName] = useState(""), [agreed, setAgreed] = useState(false), [inked, setInked] = useState(false);
+  const canvas = useRef<HTMLCanvasElement>(null), drawing = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/hub", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operation: "waiver_context", payload: { memberId: data.member.id }, requestKey: null }) })
+      .then(async response => { const value = await response.json(); if (!response.ok) throw Error(value.error?.code || "CONNECTION_UNAVAILABLE");
+        if (!cancelled) { setWaiver(value); setError(""); } })
+      .catch(problem => { if (!cancelled) setError(explainHubError(problem.message)); });
+    return () => { cancelled = true; };
+  }, [data.member.id, data.member.version]);
+  const point = (event: ReactPointerEvent<HTMLCanvasElement>) => { const box = event.currentTarget.getBoundingClientRect();
+    return [(event.clientX - box.left) * event.currentTarget.width / box.width, (event.clientY - box.top) * event.currentTarget.height / box.height]; };
+  const start = (event: ReactPointerEvent<HTMLCanvasElement>) => { const ctx = event.currentTarget.getContext("2d"); if (!ctx || disabled) return;
+    drawing.current = true; const [x, y] = point(event); ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#111"; ctx.beginPath(); ctx.moveTo(x, y); };
+  const move = (event: ReactPointerEvent<HTMLCanvasElement>) => { if (!drawing.current) return; const ctx = event.currentTarget.getContext("2d"); if (!ctx) return;
+    const [x, y] = point(event); ctx.lineTo(x, y); ctx.stroke(); setInked(true); };
+  const clear = () => { const c = canvas.current; c?.getContext("2d")?.clearRect(0, 0, c.width, c.height); setInked(false); };
+  if (error) return <p role="alert">{error}</p>;
+  if (!waiver) return <p role="status">Loading waiver…</p>;
+  if (waiver.state === "signed") return <p>Signed by {waiver.signedBy}{waiver.signedAt ? ` · ${when(waiver.signedAt)}` : ""}{waiver.witnessedBy ? ` · witnessed by ${waiver.witnessedBy}` : ""}{waiver.pdfStored ? " · signed PDF stored in Odoo" : ""}.</p>;
+  const chosen = waiver.signers.find(s => s.partnerId === signer);
+  return <div className={styles.fields}>
+    <h4>{waiver.title}</h4>
+    <div style={{ whiteSpace: "pre-wrap", maxHeight: "16rem", overflowY: "auto" }}>{waiver.text}</div>
+    {!waiver.signers.length ? <p role="alert">{waiver.minor ? "A household guardian must be linked in Odoo before a minor’s waiver can be signed." : "No eligible signer."}</p> : <>
+      <label>Signer<select aria-label="Waiver signer" value={signer} disabled={disabled} onChange={event => { setSigner(event.target.value); setName(waiver.signers.find(s => s.partnerId === event.target.value)?.name || ""); }}>
+        <option value="">Choose who is signing</option>{waiver.signers.map(s => <option key={s.partnerId} value={s.partnerId}>{s.name} ({s.relationship === "self" ? "student" : "guardian"})</option>)}</select></label>
+      <label>Full name as signed<input aria-label="Name as signed" value={name} maxLength={120} disabled={disabled} onChange={event => setName(event.target.value)} /></label>
+      <canvas ref={canvas} aria-label="Signature pad" width={600} height={180} style={{ width: "100%", maxWidth: 600, height: "auto", aspectRatio: "600 / 180", border: "1px solid currentColor", touchAction: "none", background: "#fff" }}
+        onPointerDown={start} onPointerMove={move} onPointerUp={() => { drawing.current = false; }} onPointerLeave={() => { drawing.current = false; }} />
+      <div className={styles.row}><button type="button" disabled={disabled} onClick={clear}>Clear signature</button></div>
+      <label><input type="checkbox" aria-label="Signer read and agrees" checked={agreed} disabled={disabled} onChange={event => setAgreed(event.target.checked)} />The signer read this waiver on this screen and agrees to it. I am witnessing the signature in person.</label>
+      <button disabled={disabled || !chosen || !name.trim() || !agreed || !inked} onClick={() => chosen && canvas.current && review({ operation: "sign_waiver",
+        payload: { memberId: data.member.id, expectedVersion: waiver.version, signerPartnerId: chosen.partnerId, signedByName: name.trim(), contentVersion: waiver.contentVersion,
+          agreed: true, signature: canvas.current.toDataURL("image/png") },
+        description: `Save the waiver for ${data.member.name}, signed by ${name.trim()} (${chosen.relationship === "self" ? "student" : "household guardian"}) and witnessed by you. Odoo stores the signature and a signed PDF on the student record.` })}>Review signature</button>
+    </>}
+  </div>;
+}
+
 function RankForm({ data, disabled, review }: { data: Details; disabled: boolean; review: (v: Review) => void }) {
   const [rankId, setRank] = useState("");
   const rank = data.ranks.find(item => item.id === rankId);
@@ -263,6 +310,7 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
   const [archiveOpen, setArchiveOpen] = useState(section === "archive");
   const [kioskOpen, setKioskOpen] = useState(section === "kiosk");
   const [refundsOpen, setRefundsOpen] = useState(section === "refunds");
+  const [waiverOpen, setWaiverOpen] = useState(section === "waiver");
   const [kioskKey, setKioskKey] = useState(0);
   const reviewRef = useRef<HTMLDivElement>(null);
   const submitRef = useRef(false);
@@ -381,6 +429,9 @@ export default function MemberManagement({ memberId, section, sessions, now, bus
         </div>) : <p>No present or late attendance records found.</p>}
         <small>Most recent 30 attendance records within your access.</small>
       </details>
+      {data.canEdit && <details className={styles.booking} open={waiverOpen} onToggle={event => setWaiverOpen(event.currentTarget.open)}><summary>Waiver signing</summary>
+        {waiverOpen && <WaiverForm key={kioskKey} data={data} disabled={disabled || !!review} review={prepare} />}
+      </details>}
       {data.canEdit && <details className={styles.booking} open={refundsOpen} onToggle={event => setRefundsOpen(event.currentTarget.open)}><summary>Settlement and refunds</summary>
         {refundsOpen && <RefundsForm key={kioskKey} data={data} disabled={disabled || !!review} review={prepare} />}
       </details>}

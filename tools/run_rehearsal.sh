@@ -45,7 +45,7 @@ docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
 INSTALL=dojo_companion_hub
-TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning
 if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
   MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
@@ -59,7 +59,7 @@ import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls')]
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
 for source,klass in sources:
@@ -121,6 +121,7 @@ fi
 (cd companion && node tests/rehearsal/guardian.cjs) 2>&1 | tee rehearsal-evidence/guardian-browser.log
 (cd companion && node tests/rehearsal/comms.cjs) 2>&1 | tee rehearsal-evidence/comms-browser.log
 (cd companion && node tests/rehearsal/refunds.cjs) 2>&1 | tee rehearsal-evidence/refunds-browser.log
+(cd companion && node tests/rehearsal/signing.cjs) 2>&1 | tee rehearsal-evidence/signing-browser.log
 (cd companion && node tests/rehearsal/testing.cjs) 2>&1 | tee rehearsal-evidence/testing-browser.log
 (cd companion && node tests/rehearsal/trial.cjs complete) 2>&1 | tee rehearsal-evidence/trial-complete-browser.log
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_attendance_log l JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Demo session';")
@@ -170,6 +171,10 @@ comms_broadcast=$(Q "SELECT b.state || ':' || count(r.id) FILTER (WHERE r.state 
 comms_outbound=$(Q "SELECT (SELECT count(*) FROM sms_sms WHERE body LIKE '%Belt testing day reminder%') + (SELECT count(*) FROM mail_mail WHERE body_html LIKE '%Belt testing day reminder%') + (SELECT count(*) FROM dojo_hub_delivery WHERE body LIKE '%Belt testing day reminder%');")
 refund_flow=$(Q "SELECT r.state || ':' || c.state || ':' || c.payment_state || ':' || (r.requested_by <> r.approved_by)::int FROM dojo_hub_refund r JOIN account_move c ON c.id = r.credit_note_id JOIN dojo_member m ON m.id = r.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Refund Student';")
 refund_receipts=$(Q "SELECT string_agg(operation, ',' ORDER BY id) FROM dojo_hub_receipt WHERE operation IN ('request_refund', 'approve_refund', 'record_refund_payment', 'cancel_refund');")
+waiver_signed=$(Q "SELECT m.waiver_state || ':' || m.waiver_signed_by || ':' || count(s.id) || ':' || (s.relationship) || ':' || length(s.content_sha256) FROM dojo_member m JOIN res_partner p ON p.id = m.partner_id JOIN dojo_hub_signature s ON s.member_id = m.id WHERE p.name = 'Mia Rehearsal' GROUP BY m.waiver_state, m.waiver_signed_by, s.relationship, s.content_sha256;")
+waiver_receipt=$(Q "SELECT count(*) FROM dojo_hub_receipt WHERE operation = 'sign_waiver' AND response_json NOT LIKE '%base64%';")
+test "$waiver_signed" = "signed:Guardian Rehearsal Parent:1:guardian:64"
+test "$waiver_receipt" = 1
 test "$refund_flow" = "refunded:posted:paid:1"
 test "$refund_receipts" = "request_refund,approve_refund,record_refund_payment"
 test "$comms_consent" = 1
@@ -220,6 +225,7 @@ printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$atten
 printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
 printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%s\ncorrection_receipts=%s\n' "$instructor_shifts" "$open_shifts" "$clock_receipts" "$correction_receipts" >> rehearsal-evidence/database-verification.txt
 printf 'review_logs=%s\nattendance_receipts=%s\nreversal_notes=%s\nreview_checkin_messages=%s\n' "$review_logs" "$attendance_receipts" "$reversal_notes" "$review_messages" >> rehearsal-evidence/database-verification.txt
+printf 'waiver_signed=%s\nwaiver_receipt=%s\n' "$waiver_signed" "$waiver_receipt" >> rehearsal-evidence/database-verification.txt
 printf 'refund_flow=%s\nrefund_receipts=%s\n' "$refund_flow" "$refund_receipts" >> rehearsal-evidence/database-verification.txt
 printf 'comms_consent=%s\ncomms_broadcast=%s\ncomms_outbound=%s\n' "$comms_consent" "$comms_broadcast" "$comms_outbound" >> rehearsal-evidence/database-verification.txt
 printf 'guardian_logs=%s\nguardian_receipts=%s\nguardian_pin_hashed=%s\nguardian_pin_receipts=%s\nguardian_attempts=%s\n' "$guardian_logs" "$guardian_receipts" "$guardian_pin" "$guardian_pin_receipts" "$guardian_attempts" >> rehearsal-evidence/database-verification.txt

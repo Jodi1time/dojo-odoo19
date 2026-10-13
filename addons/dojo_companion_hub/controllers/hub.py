@@ -14,7 +14,7 @@ class HubController(http.Controller):
 
     @http.route("/companion/hub/photo", type="jsonrpc", auth="user", methods=["POST"], max_content_length=524288)
     def photo(self, siteId=None, operation=None, payload=None, requestKey=None, **kw):
-        if kw or operation != "update_member_photo" or (request.httprequest.content_length or 0) > 524288:
+        if kw or operation not in ("update_member_photo", "sign_waiver") or (request.httprequest.content_length or 0) > 524288:
             return {"error": {"code": "INVALID_COMMAND", "status": 400}}
         return request.env["dojo.hub.service"]._dispatch(siteId, operation, payload, requestKey)
 

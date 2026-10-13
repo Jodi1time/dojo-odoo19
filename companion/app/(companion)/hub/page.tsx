@@ -28,7 +28,7 @@ type Context={principal:{name:string;role:string};members:{id:string;name:string
 type Action=(operation:string,payload:Record<string,unknown>,messageId?:string)=>Promise<ActionFeedback|undefined>;
 
 async function call(body:Record<string,unknown>){
-  const response=await fetch(body.operation==='update_member_photo'?'/api/hub/photo':'/api/hub',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+  const response=await fetch(['update_member_photo','sign_waiver'].includes(String(body.operation))?'/api/hub/photo':'/api/hub',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
   const value=await response.json();
   if(!response.ok)throw Error(value.error?.code || 'CONNECTION_UNAVAILABLE');
   return value;
