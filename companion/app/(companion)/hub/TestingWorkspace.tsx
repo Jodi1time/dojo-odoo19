@@ -96,7 +96,7 @@ export default function TestingWorkspace({busy,locked,feedback,clearFeedback,ret
     </div>
     {roster&&roster.test.id===testId&&<div className={styles.card} aria-label="Testing roster" role="region">
       <h2>{roster.test.name}</h2><p>{roster.school} · {roster.test.date} · {roster.test.state}{roster.test.program?` · ${roster.test.program}`:''}</p>
-      {roster.rows.map(row=><div key={row.registrationId} className={styles.auditEntry} role="group" aria-label={`Result for ${row.name}`}>
+      {roster.rows.map(row=><div key={row.registrationId} className={styles.auditEntry} role="group" aria-label={`Testing row for ${row.name}`}>
         <strong>{row.name}</strong><p>{row.currentRank||'No belt'} → {row.targetRank}{row.promotionId?' · promoted':''}</p>
         <div className={styles.row}>
           <label>Result<select aria-label={`Result for ${row.name}`} value={results[row.registrationId]||row.result} disabled={blocked||!editable||!!row.promotionId} onChange={e=>setResults(r=>({...r,[row.registrationId]:e.target.value}))}>{RESULTS.map(r=><option key={r} value={r}>{r}</option>)}</select></label>
