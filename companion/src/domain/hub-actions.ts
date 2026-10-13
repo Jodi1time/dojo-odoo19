@@ -10,6 +10,17 @@ export type ActionFeedback = {
 
 const messages: Record<string, string> = {
   TRIAL_STUDENT_REVIEW_REQUIRED: 'Only a student in lead or trial status can take a trial. This student already has a membership status.',
+  CONSENT_UNCHANGED: 'That consent decision is already recorded.',
+  CONTACT_UNAVAILABLE: 'That contact is not the student or a household guardian.',
+  CONTACT_ADDRESS_REQUIRED: 'This contact has no address for that channel in Odoo.',
+  BROADCAST_REVIEW_CHANGED: 'The audience or consent changed. Preview the broadcast again.',
+  BROADCAST_NO_RECIPIENTS: 'No consented recipients remain for this broadcast.',
+  BROADCAST_NOT_PENDING: 'This broadcast is no longer awaiting approval.',
+  BROADCAST_NOT_CANCELLABLE: 'This broadcast can no longer be cancelled.',
+  BROADCAST_UNAVAILABLE: 'That broadcast is not available.',
+  AUDIENCE_TOO_LARGE: 'This audience has more than 500 students. Choose a smaller audience.',
+  AUTOMATION_UNAVAILABLE: 'That automation is not managed here.',
+  AUTOMATION_UNCHANGED: 'That automation is already in that state.',
   GUARDIAN_NOT_IN_HOUSEHOLD: 'That parent is not a guardian in this student’s household in Odoo.',
   GUARDIAN_PHONE_REQUIRED: 'Add the parent’s phone number in Odoo before setting a kiosk PIN.',
   GUARDIAN_PIN_TOO_SIMPLE: 'Choose a PIN that is not a repeated digit or a simple sequence.',
@@ -117,7 +128,7 @@ export function replacementBlockReason(original: {startsAt: string; future: bool
 
 /** Do not turn an acknowledged write into a failure when its follow-up read fails. */
 export async function runHubAction(
-  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
+  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
   refresh: () => Promise<void>,
   onAcknowledged: (feedback: ActionFeedback) => void,
 ): Promise<ActionFeedback> {
@@ -142,6 +153,12 @@ export async function runHubAction(
       result.state==='trial_no_show' ? 'No-show saved in Odoo. No automatic follow-up was scheduled.' :
       result.state==='trial_converted' ? `Converted in Odoo: ${result.plan} membership ${result.membershipState==='active'?'started today':`ready to start on ${result.startDate}`}. No payment, portal invitation or message.` :
       result.state==='attendance_recorded' ? `Attendance saved in Odoo: ${result.before} → ${result.after}.${result.reversal?' The original check-in record and receipt are kept; no class credit was refunded.':''}` :
+      result.state==='consent_recorded' ? 'Consent saved in Odoo with its source and evidence. No message was sent.' :
+      result.state==='broadcast_awaiting_approval' ? `Broadcast saved for approval with ${result.recipients ?? 0} recipients. Nothing is queued or sent yet.` :
+      result.state==='broadcast_approved' ? `Broadcast approved: ${result.queued ?? 0} messages queued${result.provider==='not_configured'?'. No provider is connected, so nothing is sent':' for the provider. They count as sent only when the provider confirms'}.` :
+      result.state==='broadcast_cancelled' ? 'Broadcast cancelled. Nothing was sent.' :
+      result.state==='automation_paused' ? 'Automation paused in Odoo. It will not run until resumed.' :
+      result.state==='automation_resumed' ? 'Automation resumed in Odoo.' :
       result.state==='guardian_pin_set' ? 'Kiosk PIN saved in Odoo as a secure hash. It was not sent anywhere; give it to the parent in person.' :
       result.state==='guardian_pin_revoked' ? 'Kiosk PIN turned off in Odoo. The parent can no longer check in at the kiosk with it.' :
       result.state==='testing_roster_saved' ? `Testing roster saved in Odoo with ${result.count ?? 0} students. No rank, invoice or message was created.` :
