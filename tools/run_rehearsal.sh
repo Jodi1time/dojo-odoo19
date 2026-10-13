@@ -10,6 +10,7 @@ report_failure(){
   case "$command" in test\ *) command="$(eval "echo $command" 2>/dev/null || echo "$2")";; esac
   echo "::error title=Rehearsal step::line $1: ${command:0:240}"
   grep -h -E "rehearsal failed at|FAIL: Test|ERROR: Test|AssertionError|tests when loading" rehearsal-evidence/*.log 2>/dev/null | cut -c1-300 | head -6 | sed 's/^/::error title=Rehearsal detail::/' || true
+  if [ "${TWILIO:-0}" = 1 ]; then docker logs "$PROXY" 2>&1 | tail -4 | cut -c1-200 | sed 's/^/::error title=Egress proxy::/' || true; fi
 }
 trap 'report_failure "$LINENO" "$BASH_COMMAND"' ERR
 RUN="${GITHUB_RUN_ID:-local-$(date +%s)}"

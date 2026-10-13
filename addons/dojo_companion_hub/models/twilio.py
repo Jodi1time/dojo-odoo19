@@ -97,8 +97,8 @@ class HubTwilioDispatch(models.AbstractModel):
 
     def _twilio_send(self, credentials, recipient_id, number, body):
         if not self._twilio_mark(recipient_id, "dispatching", "dispatch_started", expected="queued"):
-            return "skipped", None
-        state, reference, reason = "uncertain", None, "provider_result_requires_reconciliation"
+            return "skipped", None, None
+        state, reference, reason, detail = "uncertain", None, "provider_result_requires_reconciliation", None
         try:
             response = requests.post(TWILIO_URL % credentials[0], auth=credentials,
                 data={"To": number, "From": TWILIO_TEST_FROM, "Body": body}, timeout=(5, 15), allow_redirects=False)
@@ -107,10 +107,12 @@ class HubTwilioDispatch(models.AbstractModel):
                 state, reference, reason = "accepted", payload["sid"], "accepted_test_credentials_not_delivered"
             elif 400 <= response.status_code < 500 and isinstance(payload, dict):
                 state, reason = "failed", "twilio_%s" % int(payload.get("code") or response.status_code)
-        except (requests.RequestException, ValueError, TypeError):
-            pass
+            else:
+                detail = "http_%s" % response.status_code
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            detail = type(exc).__name__
         self._twilio_mark(recipient_id, state, reason, provider_ref=reference, expected="dispatching")
-        return state, reference
+        return state, reference, reason if state != "uncertain" else "%s:%s" % (reason, detail)
 
     def _dispatch_broadcast(self, site, grant, p):
         exact(p, "broadcastId expectedVersion reason")
@@ -131,7 +133,7 @@ class HubTwilioDispatch(models.AbstractModel):
         if not queued:
             raise HubProblem("BROADCAST_NOTHING_QUEUED")
         counts = {"accepted": 0, "failed": 0, "uncertain": 0, "excluded": 0, "skipped": 0}
-        references = []
+        references, problems = [], {}
         for recipient in queued:
             partner = recipient.partner_id
             number = e164(recipient.address)
@@ -139,12 +141,14 @@ class HubTwilioDispatch(models.AbstractModel):
                 if self._twilio_mark(recipient.id, "excluded", "consent_or_contact_changed" if number else "invalid_number", expected="queued"):
                     counts["excluded"] += 1
                 continue
-            state, reference = self._twilio_send(credentials, recipient.id, number, row.body)
+            state, reference, outcome = self._twilio_send(credentials, recipient.id, number, row.body)
             counts[state] += 1
+            if state in ("failed", "uncertain"):
+                problems[outcome] = problems.get(outcome, 0) + 1
             if reference:
                 references.append(reference)
         row.write({"note": "\n".join(filter(None, [row.note, "%s %s sent through Twilio test credentials: %s" % (
             iso(fields.Datetime.now()), self.env.user.name, reason)]))})
         return {"broadcastId": str(row.id), "state": "broadcast_dispatched", "provider": "twilio_test", **counts,
-            "providerReferences": len(references), "realMessagesSent": False, "deliveryConfirmed": False, "messageSent": False,
+            "providerReferences": len(references), "problems": problems, "realMessagesSent": False, "deliveryConfirmed": False, "messageSent": False,
             "version": self._version(row)}
