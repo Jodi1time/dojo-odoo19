@@ -56,10 +56,23 @@ if "dojo.hub.site" in base:
     guardian = base["res.partner"].create({"name": "Synthetic Verified Guardian", "company_id": company.id})
     base["dojo.hub.guardian"].create({"site_id": site.id, "partner_id": guardian.id, "member_ids": [(6, 0, [members[2].id])],
         "channel": "sms", "contact_ref": "42", "verification_ref": "synthetic-fixture-only", "allow_reply": True})
+    course = base["dojo.class.template"].create({"name": "Rehearsal course", "company_id": company.id, "program_id": program.id,
+        "auto_enroll_members": True})
+    course_sessions = base["dojo.class.session"]
+    for days in (3, 5):
+        course_sessions |= base["dojo.class.session"].create({"template_id": course.id, "company_id": company.id,
+            "start_datetime": now + timedelta(days=days), "end_datetime": now + timedelta(days=days, hours=1), "state": "open", "capacity": 10})
+    admin_members = base["dojo.member"]
+    for name in ("Course Student A", "Course Student B", "Archive Student"):
+        admin_members |= base["dojo.member"].create({"partner_id": base["res.partner"].create({"name": name, "company_id": company.id}).id,
+            "company_id": company.id, "membership_state": "active"})
+    base["dojo.class.enrollment"].with_context(skip_subscription_check=True).create({"session_id": course_sessions[0].id,
+        "member_id": admin_members[2].id, "status": "registered", "attendance_state": "pending"})
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
     hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
-        "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id)}
+        "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id), "courseTemplateId": str(course.id),
+        "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id)}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

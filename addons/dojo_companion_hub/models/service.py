@@ -1,4 +1,5 @@
 """Fixed, authenticated actions. No caller-supplied ORM methods or authority."""
+import base64
 import hashlib
 import json
 import secrets
@@ -23,6 +24,15 @@ def text(value, maximum=1500):
     if not isinstance(value, str) or not 1 <= len(value.strip()) <= maximum:
         raise HubProblem("INVALID_COMMAND", 400)
     return value.strip()
+
+
+def photo_type(raw):
+    for signature, kind in ((b"\xff\xd8\xff", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", "image/png")):
+        if raw.startswith(signature):
+            return kind
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def fingerprint(value):
@@ -176,6 +186,14 @@ class HubService(models.AbstractModel):
                 and not self.env["dojo.member"].sudo().with_context(active_test=False).search_count([
                     ("partner_id", "=", member.partner_id.id), ("id", "!=", member.id)]))
 
+    def _photo_uri(self, member):
+        image = member.image_128
+        if not image:
+            return None
+        content = image.content if hasattr(image, "content") else base64.b64decode(image)
+        kind = photo_type(content)
+        return "data:%s;base64,%s" % (kind, base64.b64encode(content).decode()) if kind else None
+
     def _member_details(self, site, grant, p):
         """Read one scoped member, never a household/name-based fallback."""
         self._role(grant)
@@ -219,10 +237,13 @@ class HubService(models.AbstractModel):
                 "version": session_version(member), "partnerVersion": session_version(member.partner_id),
                 "phone": (member.phone or "") if manage else None, "email": (member.email or "") if manage else None,
                 "dateOfBirth": str(member.date_of_birth) if manage and member.date_of_birth else None,
+                "photo": self._photo_uri(member),
                 "state": member.membership_state, "rank": member.current_rank_id.name or "Unassigned", "stripes": member.current_stripe_count},
             "canEdit": manage, "canEditContact": manage and self._contact_editable(site, member), "billing": billing,
             "ranks": [{"id": str(r.id), "name": r.name, "maxStripes": r.max_stripes} for r in ranks],
             "rankHistory": [{"id": str(r.id), "rank": r.rank_id.name, "stripes": r.stripe_count, "date": str(r.date_awarded)} for r in history],
+            "courses": [{"id": str(t.id), "name": t.name} for t in self.env["dojo.class.template"].sudo().search([
+                ("company_id", "=", site.company_id.id), ("active", "=", True), ("course_member_ids", "in", [member.id])], limit=50)] if manage else [],
             "bookings": [{"id": str(b.id), "sessionId": str(b.session_id.id), "title": b.session_id.template_id.name,
                 "startsAt": iso(b.session_id.start_datetime), "attendanceState": b.attendance_state,
                 "replaceable": b.session_id.state == "open" and b.session_id.start_datetime > fields.Datetime.now() and b.attendance_state == "pending"} for b in bookings],
