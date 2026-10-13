@@ -27,6 +27,10 @@ const messages: Record<string, string> = {
   CONSENT_UNCHANGED: 'That consent decision is already recorded.',
   CONTACT_UNAVAILABLE: 'That contact is not the student or a household guardian.',
   CONTACT_ADDRESS_REQUIRED: 'This contact has no address for that channel in Odoo.',
+  BROADCAST_NOT_APPROVED: 'Approve the broadcast before sending it.',
+  BROADCAST_CHANNEL_NOT_CONNECTED: 'Only SMS can be sent through the connected provider.',
+  BROADCAST_NOT_DUE: 'This broadcast is scheduled after quiet hours and cannot be sent yet.',
+  BROADCAST_NOTHING_QUEUED: 'Nothing is queued for this broadcast. Messages are never resent automatically.',
   BROADCAST_REVIEW_CHANGED: 'The audience or consent changed. Preview the broadcast again.',
   BROADCAST_NO_RECIPIENTS: 'No consented recipients remain for this broadcast.',
   BROADCAST_NOT_PENDING: 'This broadcast is no longer awaiting approval.',
@@ -142,7 +146,7 @@ export function replacementBlockReason(original: {startsAt: string; future: bool
 
 /** Do not turn an acknowledged write into a failure when its follow-up read fails. */
 export async function runHubAction(
-  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; signedBy?: string; pdfStored?: boolean; creditNote?: string; payment?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
+  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; testId?: string; accepted?: number; failed?: number; uncertain?: number; excluded?: number; signedBy?: string; pdfStored?: boolean; creditNote?: string; payment?: string; recipients?: number; queued?: number; provider?: string; count?: number; changes?: unknown[]; promotions?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
   refresh: () => Promise<void>,
   onAcknowledged: (feedback: ActionFeedback) => void,
 ): Promise<ActionFeedback> {
@@ -174,7 +178,8 @@ export async function runHubAction(
       result.state==='refund_cancelled' ? 'Refund request cancelled. No accounting entry was created.' :
       result.state==='consent_recorded' ? 'Consent saved in Odoo with its source and evidence. No message was sent.' :
       result.state==='broadcast_awaiting_approval' ? `Broadcast saved for approval with ${result.recipients ?? 0} recipients. Nothing is queued or sent yet.` :
-      result.state==='broadcast_approved' ? `Broadcast approved: ${result.queued ?? 0} messages queued${result.provider==='not_configured'?'. No provider is connected, so nothing is sent':' for the provider. They count as sent only when the provider confirms'}.` :
+      result.state==='broadcast_approved' ? `Broadcast approved: ${result.queued ?? 0} messages queued${result.provider==='not_configured'?'. No provider is connected, so nothing is sent':result.provider==='twilio_test'?'. Use Review sending to send them through Twilio test credentials':' for the provider. They count as sent only when the provider confirms'}.` :
+      result.state==='broadcast_dispatched' ? `Twilio accepted ${result.accepted ?? 0} of the messages with a receipt (test credentials: no text was delivered)${result.failed?`; ${result.failed} rejected`:''}${result.uncertain?`; ${result.uncertain} need reconciliation and will not be resent automatically`:''}${result.excluded?`; ${result.excluded} excluded after rechecking consent or number`:''}.` :
       result.state==='broadcast_cancelled' ? 'Broadcast cancelled. Nothing was sent.' :
       result.state==='automation_paused' ? 'Automation paused in Odoo. It will not run until resumed.' :
       result.state==='automation_resumed' ? 'Automation resumed in Odoo.' :

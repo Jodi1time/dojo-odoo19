@@ -16,6 +16,15 @@ RUN="${GITHUB_RUN_ID:-local-$(date +%s)}"
 NET="dojang-rehearsal-$RUN"
 DB="$NET-db"
 ODOO="$NET-odoo"
+PROXY="$NET-proxy"
+TWILIO=0
+if [ -n "${TWILIO_TEST_ACCOUNT_SID:-}" ] && [ -n "${TWILIO_TEST_AUTH_TOKEN:-}" ]; then
+  TWILIO=1
+  echo "::add-mask::$TWILIO_TEST_ACCOUNT_SID"
+  echo "::add-mask::$TWILIO_TEST_AUTH_TOKEN"
+fi
+TWILIO_ODOO=()
+TWILIO_SEED=()
 PRIVATE="$(mktemp -d)"
 NEXT_PID=""
 RELAY_PID=""
@@ -26,8 +35,9 @@ cleanup() {
   docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} ports={{json .NetworkSettings.Ports}}' "$ODOO" > rehearsal-evidence/odoo-container-state.txt 2>&1 || true
   if [ -n "$NEXT_PID" ]; then kill "$NEXT_PID" 2>/dev/null || true; fi
   if [ -n "$RELAY_PID" ]; then kill "$RELAY_PID" 2>/dev/null || true; fi
-  docker rm -f "$ODOO" "$DB" >/dev/null 2>&1 || true
-  docker network rm "$NET" >/dev/null 2>&1 || true
+  docker logs "$PROXY" > rehearsal-evidence/egress-proxy.log 2>&1 || true
+  docker rm -f "$ODOO" "$DB" "$PROXY" >/dev/null 2>&1 || true
+  docker network rm "$NET" "$NET-egress" >/dev/null 2>&1 || true
   rm -rf "$PRIVATE"
   if [ "$CREATED_ENV" = 1 ]; then rm -f "$ROOT/companion/.env.local"; fi
 }
@@ -39,13 +49,21 @@ echo "::add-mask::$PASSWORD"
 docker build -t dojang-rehearsal . > rehearsal-evidence/docker-build.log 2>&1
 docker pull postgres:16 > rehearsal-evidence/postgres-image.log 2>&1
 docker network create --internal "$NET" >/dev/null
+if [ "$TWILIO" = 1 ]; then
+  # Odoo stays on the internal network; its only way out is this proxy, which allows api.twilio.com:443 and nothing else.
+  docker network create "$NET-egress" >/dev/null
+  docker run -d --name "$PROXY" --network "$NET-egress" -v "$ROOT/tools/egress_proxy.cjs:/proxy.cjs:ro" node:22-alpine node /proxy.cjs >/dev/null
+  docker network connect "$NET" "$PROXY"
+  TWILIO_ODOO=(-e TWILIO_TEST_ACCOUNT_SID -e TWILIO_TEST_AUTH_TOKEN -e "HTTPS_PROXY=http://$PROXY:3128" -e "https_proxy=http://$PROXY:3128")
+  TWILIO_SEED=(-e DOJANG_TWILIO_TEST=1)
+fi
 docker run -d --name "$DB" --network "$NET" -e POSTGRES_USER=odoo -e POSTGRES_PASSWORD="$PASSWORD" -e POSTGRES_DB=postgres postgres:16 >/dev/null
 for attempt in $(seq 1 60); do if docker exec "$DB" pg_isready -U odoo >/dev/null 2>&1; then break; fi; sleep 2; done
 docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
 INSTALL=dojo_companion_hub
-TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning,/dojo_companion_hub:TestOnboardingChecklists
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning,/dojo_companion_hub:TestOnboardingChecklists,/dojo_companion_hub:TestTwilioTestSending
 if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
   MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
@@ -59,7 +77,7 @@ import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning'),('addons/dojo_companion_hub/tests/test_onboarding.py','TestOnboardingChecklists')]
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning'),('addons/dojo_companion_hub/tests/test_onboarding.py','TestOnboardingChecklists'),('addons/dojo_companion_hub/tests/test_twilio.py','TestTwilioTestSending')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
 for source,klass in sources:
@@ -67,7 +85,7 @@ for source,klass in sources:
 if not totals or any(int(f) or int(e) for f,e,n in totals) or any(name not in log for name in expected) or max(int(n) for f,e,n in totals)<len(expected):
     raise SystemExit('Native regression gate failed or tests did not run')
 PY
-docker run --rm -i "${MOUNTS[@]}" -e DOJANG_ENV_OUTPUT=/private/frontend.env -e DOJANG_FIXTURE_OUTPUT=/private/fixture.json dojang-rehearsal shell "${COMMON[@]}" --no-http < tools/seed_demo.py > rehearsal-evidence/seed.log 2>&1
+docker run --rm -i "${MOUNTS[@]}" "${TWILIO_SEED[@]}" -e DOJANG_ENV_OUTPUT=/private/frontend.env -e DOJANG_FIXTURE_OUTPUT=/private/fixture.json dojang-rehearsal shell "${COMMON[@]}" --no-http < tools/seed_demo.py > rehearsal-evidence/seed.log 2>&1
 cp "$PRIVATE/frontend.env" companion/.env.local
 CREATED_ENV=1
 set -a
@@ -75,7 +93,7 @@ source "$PRIVATE/frontend.env"
 set +a
 while IFS='=' read -r key value; do case "$key" in *KEY*|*TOKEN*|*SECRET*) echo "::add-mask::$value";; esac; done < "$PRIVATE/frontend.env"
 export DOJANG_FIXTURE_OUTPUT="$PRIVATE/fixture.json"
-docker run -d --name "$ODOO" "${MOUNTS[@]}" --env-file "$PRIVATE/frontend.env" -p 127.0.0.1:8069:8069 dojang-rehearsal "${COMMON[@]}" --http-interface=0.0.0.0 --no-database-list --db-filter='^dojang_demo_rehearsal$' >/dev/null
+docker run -d --name "$ODOO" "${MOUNTS[@]}" "${TWILIO_ODOO[@]}" --env-file "$PRIVATE/frontend.env" -p 127.0.0.1:8069:8069 dojang-rehearsal "${COMMON[@]}" --http-interface=0.0.0.0 --no-database-list --db-filter='^dojang_demo_rehearsal$' >/dev/null
 # Distinguish a failed Odoo process from a missing host port mapping on an internal network.
 for attempt in $(seq 1 60); do
   if [ "$(docker inspect --format '{{.State.Running}}' "$ODOO")" != true ]; then echo 'Odoo exited during startup; see odoo-http.log.' >&2; exit 1; fi
@@ -94,7 +112,14 @@ if ! curl --silent --fail --max-time 3 http://127.0.0.1:8069/web/login >/dev/nul
 fi
 for attempt in $(seq 1 20); do if curl --silent --fail --max-time 2 http://127.0.0.1:8069/web/login >/dev/null; then break; fi; sleep 1; done
 curl --silent --fail --max-time 5 http://127.0.0.1:8069/web/login >/dev/null
+# Twilio test credentials belong to the Odoo container only. The frontend build, server and browser never receive them.
+export -n TWILIO_TEST_ACCOUNT_SID TWILIO_TEST_AUTH_TOKEN 2>/dev/null || true
 (cd companion && npm run build) > rehearsal-evidence/connected-build.log 2>&1
+frontend_secret_hits=0
+for secret in "${TWILIO_TEST_ACCOUNT_SID:-}" "${TWILIO_TEST_AUTH_TOKEN:-}"; do
+  if [ -n "$secret" ] && grep -rqF "$secret" companion/.next companion/.env.local 2>/dev/null; then frontend_secret_hits=$((frontend_secret_hits+1)); fi
+done
+test "$frontend_secret_hits" = 0
 (cd companion && npm run start -- --hostname 127.0.0.1) > rehearsal-evidence/next-server.log 2>&1 &
 NEXT_PID=$!
 for attempt in $(seq 1 90); do if curl --silent --fail http://localhost:3000/integration/pair >/dev/null; then break; fi; sleep 1; done
@@ -178,6 +203,16 @@ test "$waiver_signed" = "signed:Guardian Rehearsal Parent:1:guardian:64"
 test "$waiver_receipt" = 1
 test "$refund_flow" = "refunded:posted:paid:1"
 test "$refund_receipts" = "request_refund,approve_refund,record_refund_payment"
+comms_twilio=$(Q "SELECT coalesce(string_agg(r.state || ':' || (coalesce(r.provider_ref, '') LIKE 'SM%')::int, ',' ORDER BY r.id), 'none') FROM dojo_hub_broadcast_recipient r JOIN dojo_hub_broadcast b ON b.id = r.broadcast_id WHERE b.name = 'Rehearsal testing day' AND r.state <> 'excluded';")
+if [ "$TWILIO" = 1 ]; then
+  test "$comms_twilio" = "accepted:1"
+  twilio_connects=$(docker logs "$PROXY" 2>&1 | grep -c 'CONNECT api.twilio.com:443 allowed' || true)
+  other_connects=$(docker logs "$PROXY" 2>&1 | grep ' allowed$' | grep -vc 'CONNECT api.twilio.com:443 allowed' || true)
+  test "$twilio_connects" -ge 1
+  test "$other_connects" = 0
+else
+  test "$comms_twilio" = "queued:0"
+fi
 test "$comms_consent" = 1
 test "$comms_broadcast" = "approved:1:0:1"
 test "$comms_outbound" = 0
@@ -228,6 +263,7 @@ printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%
 printf 'review_logs=%s\nattendance_receipts=%s\nreversal_notes=%s\nreview_checkin_messages=%s\n' "$review_logs" "$attendance_receipts" "$reversal_notes" "$review_messages" >> rehearsal-evidence/database-verification.txt
 printf 'waiver_signed=%s\nwaiver_receipt=%s\n' "$waiver_signed" "$waiver_receipt" >> rehearsal-evidence/database-verification.txt
 printf 'refund_flow=%s\nrefund_receipts=%s\n' "$refund_flow" "$refund_receipts" >> rehearsal-evidence/database-verification.txt
+printf 'twilio_test_credentials=%s\ncomms_twilio=%s\ntwilio_secrets_in_frontend=%s\n' "$TWILIO" "$comms_twilio" "$frontend_secret_hits" >> rehearsal-evidence/database-verification.txt
 printf 'comms_consent=%s\ncomms_broadcast=%s\ncomms_outbound=%s\n' "$comms_consent" "$comms_broadcast" "$comms_outbound" >> rehearsal-evidence/database-verification.txt
 printf 'guardian_logs=%s\nguardian_receipts=%s\nguardian_pin_hashed=%s\nguardian_pin_receipts=%s\nguardian_attempts=%s\n' "$guardian_logs" "$guardian_receipts" "$guardian_pin" "$guardian_pin_receipts" "$guardian_attempts" >> rehearsal-evidence/database-verification.txt
 printf 'testing_receipts=%s\ntesting_results=%s\ntesting_awards=%s\ntesting_side_effects=%s\n' "$testing_receipts" "$testing_results" "$testing_awards" "$testing_side_effects" >> rehearsal-evidence/database-verification.txt

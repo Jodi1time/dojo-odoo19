@@ -67,6 +67,21 @@ let stage='login';
   await row.getByText(/approved by Demo Hub Manager/).waitFor();
   await page.screenshot({path:path.join(process.env.DOJANG_EVIDENCE_DIR,'comms-approved.png'),fullPage:true});
   pass('approval rechecks consent and queues without claiming delivery');
+  stage='twilio test sending';
+  if(fixture.twilioTest){
+   await page.getByText(/Twilio is connected with TEST credentials/).waitFor();
+   await row.getByLabel('Reason for Rehearsal testing day',{exact:true}).fill('Send the reminder');
+   await row.getByRole('button',{name:'Review sending'}).click();
+   await review.getByText(/TEST credentials: Twilio returns a receipt for each message but delivers nothing\./).waitFor();
+   await confirm();
+   await result().getByText(/Twilio accepted 1 of the messages with a receipt \(test credentials: no text was delivered\)\./).waitFor();
+   await row.getByText(/1 accepted · .*1 Twilio receipts/).waitFor();
+   assert.equal(await row.getByRole('button',{name:'Review sending'}).count(),0);
+   pass('Twilio test credentials return a real receipt for the approved message, and it cannot be sent twice');
+  } else {
+   assert.equal(await row.getByRole('button',{name:'Review sending'}).count(),0);
+   pass('without provider credentials an approved broadcast cannot be sent');
+  }
   stage='automations';
   const automations=page.getByRole('region',{name:'Automations',exact:true});
   await automations.getByText(/Rule · dojo_crm/).first().waitFor();
