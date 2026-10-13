@@ -355,6 +355,10 @@ class DojoKioskV2Service(models.AbstractModel):
                     return self._v2_roster(config, params.get("sessionId"))
                 if action == "checkin":
                     return self._v2_check_in(config, params.get("command"))
+                if action == "guardian_verify":
+                    return self._guardian_verify(config, params)
+                if action == "guardian_checkin":
+                    return self._guardian_check_in(config, params)
                 if action == "member":
                     return self._v2_member_read(config, params.get("memberId"))
                 if action == "members":
