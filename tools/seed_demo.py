@@ -82,13 +82,29 @@ if "dojo.hub.site" in base:
         "company_id": company.id, "email": "trial-rehearsal-student@example.invalid"}).id, "company_id": company.id, "membership_state": "lead"})
     trial_lead = base["crm.lead"].create({"name": "Trial Rehearsal Enquiry", "company_id": company.id, "type": "opportunity",
         "contact_name": "Trial Rehearsal Parent", "email_from": "trial-rehearsal-parent@example.invalid"})
+    belts = [base["dojo.belt.rank"].create({"name": name, "sequence": sequence, "company_id": company.id, "attendance_threshold": 2,
+        "max_stripes": 4}) for name, sequence in (("White Belt", 10), ("Yellow Belt", 20))]
+    practice = base["dojo.class.template"].create({"name": "Testing practice class", "company_id": company.id,
+        "program_id": program.id, "auto_enroll_members": False})
+    testing_members = base["dojo.member"]
+    for name in ("Testing Student A", "Testing Student B"):
+        testing_members |= base["dojo.member"].create({"partner_id": base["res.partner"].create({"name": name, "company_id": company.id}).id,
+            "company_id": company.id, "membership_state": "active"})
+    for member in testing_members:
+        base["dojo.member.rank"].create({"member_id": member.id, "rank_id": belts[0].id, "date_awarded": fields.Date.today() - timedelta(days=60)})
+    for days in (10, 11):
+        practice_session = base["dojo.class.session"].create({"template_id": practice.id, "company_id": company.id,
+            "start_datetime": now - timedelta(days=days), "end_datetime": now - timedelta(days=days, hours=-1), "state": "open", "capacity": 10})
+        for member in testing_members:
+            base["dojo.attendance.log"].with_context(dojo_hub_staff_recorded=True).create({"session_id": practice_session.id,
+                "member_id": member.id, "status": "present", "checkin_datetime": practice_session.start_datetime})
     values.update({"DOJANG_HUB_ENABLED": "true", "DOJANG_HUB_SITE_ID": str(site.id), "DOJANG_ODOO_DATABASE": env.cr.dbname,
         "DOJANG_HUB_DEMO_WEBHOOK_SECRET": secrets.token_urlsafe(48)})
     hub_fixture = {"hubSiteId": str(site.id), "hubLogin": user.login, "hubPassword": password, "makeupSessionId": str(makeup.id),
         "instructorPin": instructor_pin, "priorShiftId": str(prior_shift.id), "courseTemplateId": str(course.id),
         "courseMemberIds": [str(m.id) for m in admin_members[:2]], "archiveMemberId": str(admin_members[2].id),
         "attendanceSessionId": str(review_session.id), "trialLeadId": str(trial_lead.id), "trialMemberId": str(trial_member.id),
-        "trialSessionId": str(trial_session.id), "planId": str(plan.id)}
+        "trialSessionId": str(trial_session.id), "planId": str(plan.id), "testingMemberIds": [str(m.id) for m in testing_members]}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

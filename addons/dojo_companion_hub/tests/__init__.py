@@ -4,3 +4,4 @@ from . import test_intake
 from . import test_member_admin
 from . import test_attendance_admin
 from . import test_trial
+from . import test_promotions

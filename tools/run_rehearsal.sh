@@ -37,7 +37,7 @@ docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
 INSTALL=dojo_companion_hub
-TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting
 if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
   MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
@@ -51,7 +51,7 @@ import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle')]
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
 for source,klass in sources:
@@ -110,6 +110,7 @@ fi
 (cd companion && node tests/rehearsal/intake.cjs) 2>&1 | tee rehearsal-evidence/intake-browser.log
 (cd companion && node tests/rehearsal/member-admin.cjs) 2>&1 | tee rehearsal-evidence/member-admin-browser.log
 (cd companion && node tests/rehearsal/attendance-admin.cjs) 2>&1 | tee rehearsal-evidence/attendance-admin-browser.log
+(cd companion && node tests/rehearsal/testing.cjs) 2>&1 | tee rehearsal-evidence/testing-browser.log
 (cd companion && node tests/rehearsal/trial.cjs complete) 2>&1 | tee rehearsal-evidence/trial-complete-browser.log
 attendance=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc "SELECT count(*) FROM dojo_attendance_log l JOIN dojo_class_session s ON s.id = l.session_id JOIN dojo_class_template t ON t.id = s.template_id WHERE t.name = 'Demo session';")
 reviews=$(docker exec "$DB" psql -U odoo -d dojang_demo_rehearsal -Atc 'SELECT count(*) FROM dojo_companion_review_receipt;')
@@ -144,6 +145,14 @@ trial_lead=$(Q "SELECT (l.dojo_member_id = t.member_id)::int || ':' || l.trial_a
 trial_membership=$(Q "SELECT count(*) FROM sale_subscription s JOIN dojo_member m ON m.id = s.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Trial Rehearsal Student' AND m.membership_state = 'active';")
 trial_attendance=$(Q "SELECT string_agg(l.status, ',') FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Trial Rehearsal Student';")
 trial_outbound=$(Q "SELECT (SELECT count(*) FROM mail_mail mm JOIN mail_message msg ON msg.id = mm.mail_message_id WHERE mm.email_to ILIKE '%trial-rehearsal-%' OR (msg.model = 'crm.lead' AND msg.res_id IN (SELECT id FROM crm_lead WHERE name = 'Trial Rehearsal Enquiry')) OR (msg.model = 'dojo.attendance.log' AND msg.res_id IN (SELECT l.id FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Trial Rehearsal Student')) OR (msg.model = 'sale.subscription' AND msg.res_id IN (SELECT s.id FROM sale_subscription s JOIN dojo_member m ON m.id = s.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Trial Rehearsal Student'))) + (SELECT count(*) FROM mail_mail_res_partner_rel r JOIN res_partner p ON p.id = r.res_partner_id WHERE p.name LIKE 'Trial Rehearsal %') + (SELECT count(*) FROM sms_sms s JOIN res_partner p ON p.id = s.partner_id WHERE p.name LIKE 'Trial Rehearsal %') + (SELECT count(*) FROM dojo_attendance_log l JOIN dojo_member m ON m.id = l.member_id JOIN res_partner p ON p.id = m.partner_id WHERE p.name = 'Trial Rehearsal Student' AND l.notification_sent) + (SELECT count(*) FROM res_users u JOIN res_partner p ON p.id = u.partner_id WHERE p.name LIKE 'Trial Rehearsal %');")
+testing_receipts=$(Q "SELECT count(*) FROM dojo_hub_receipt WHERE operation IN ('save_testing_roster', 'record_test_results', 'promote_test_results', 'reverse_promotion');")
+testing_results=$(Q "SELECT string_agg(p.name || ':' || r.result, ',' ORDER BY p.name) FROM dojo_belt_test_registration r JOIN dojo_belt_test t ON t.id = r.test_id JOIN dojo_member m ON m.id = r.member_id JOIN res_partner p ON p.id = m.partner_id WHERE t.name = 'Rehearsal belt testing';")
+testing_awards=$(Q "SELECT count(*) FILTER (WHERE h.active) || ':' || count(*) FILTER (WHERE NOT h.active AND h.reversal_reason IS NOT NULL AND h.test_registration_id IS NOT NULL) || ':' || b.name FROM dojo_member_rank h JOIN dojo_member m ON m.id = h.member_id JOIN res_partner p ON p.id = m.partner_id JOIN dojo_belt_rank b ON b.id = m.current_rank_id WHERE p.name = 'Testing Student A' GROUP BY b.name;")
+testing_side_effects=$(Q "SELECT (SELECT count(*) FROM account_move a JOIN res_partner p ON p.id = a.partner_id WHERE p.name LIKE 'Testing Student %') + (SELECT count(*) FROM dojo_belt_test WHERE name LIKE 'Auto: Testing Student%') + (SELECT count(*) FROM mail_mail_res_partner_rel r JOIN res_partner p ON p.id = r.res_partner_id WHERE p.name LIKE 'Testing Student %');")
+test "$testing_receipts" = 4
+test "$testing_results" = "Testing Student A:pass,Testing Student B:fail"
+test "$testing_awards" = "1:1:White Belt"
+test "$testing_side_effects" = 0
 test "$trial_states" = "cancelled,converted"
 test "$trial_lead" = "1:1:0:1"
 test "$trial_membership" = 1
@@ -180,6 +189,7 @@ printf 'attendance_rows=%s\nreview_receipts=%s\napproved_followups=%s\n' "$atten
 printf 'resolved_hub_messages=%s\nfuture_class_bookings=%s\ncheckouts=%s\n' "$hub_messages" "$hub_bookings" "$checkouts" >> rehearsal-evidence/database-verification.txt
 printf 'native_instructor_shifts=%s\nopen_instructor_shifts=%s\nclock_receipts=%s\ncorrection_receipts=%s\n' "$instructor_shifts" "$open_shifts" "$clock_receipts" "$correction_receipts" >> rehearsal-evidence/database-verification.txt
 printf 'review_logs=%s\nattendance_receipts=%s\nreversal_notes=%s\nreview_checkin_messages=%s\n' "$review_logs" "$attendance_receipts" "$reversal_notes" "$review_messages" >> rehearsal-evidence/database-verification.txt
+printf 'testing_receipts=%s\ntesting_results=%s\ntesting_awards=%s\ntesting_side_effects=%s\n' "$testing_receipts" "$testing_results" "$testing_awards" "$testing_side_effects" >> rehearsal-evidence/database-verification.txt
 printf 'trial_states=%s\ntrial_lead=%s\ntrial_membership=%s\ntrial_attendance=%s\ntrial_outbound=%s\n' "$trial_states" "$trial_lead" "$trial_membership" "$trial_attendance" "$trial_outbound" >> rehearsal-evidence/database-verification.txt
 printf 'course_receipts=%s\ncourse_roster=%s\ncourse_bookings=%s\narchive_receipts=%s\narchive_restored=%s\nphoto_receipts=%s\nphoto_attachments=%s\n' "$course_receipts" "$course_roster" "$course_bookings" "$archive_receipts" "$archive_restored" "$photo_receipts" "$photo_attachments" >> rehearsal-evidence/database-verification.txt
 printf 'intake_receipts=%s\nintake_members=%s\nintake_identity_keys=%s\nintake_households=%s\nintake_household_children=%s\nintake_side_effects=%s\n' "$intake_receipts" "$intake_members" "$intake_identity_keys" "$intake_households" "$intake_household_children" "$intake_side_effects" >> rehearsal-evidence/database-verification.txt
