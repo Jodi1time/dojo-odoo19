@@ -8,6 +8,17 @@ export type ActionFeedback = {
 };
 
 const messages: Record<string, string> = {
+  TRIAL_STUDENT_REVIEW_REQUIRED: 'Only a student in lead or trial status can take a trial. This student already has a membership status.',
+  TRIAL_ALREADY_OPEN: 'This lead or student already has an open trial. Cancel or complete it first.',
+  TRIAL_REVIEW_REQUIRED: 'This trial can no longer be changed that way. Refresh to see its current status.',
+  TRIAL_NOT_ATTENDED: 'Only an attended, unconverted trial can be converted to a membership.',
+  TRIAL_UNAVAILABLE: 'That trial is no longer available in this school. Refresh the lead.',
+  PLAN_UNAVAILABLE: 'That membership plan is not available in this school.',
+  INVALID_START_DATE: 'Choose a start date from today up to 60 days ahead.',
+  MEMBERSHIP_ALREADY_OPEN: 'This student already has an active, paused or pending membership. Nothing new was created.',
+  CONVERSION_SETUP_REQUIRED: 'Odoo is missing the subscription stage or price list needed to start this plan. An administrator must configure it.',
+  CONVERSION_REVIEW_CHANGED: 'The trial, student or lead changed after the conversion preview. Preview the conversion again.',
+  ATTENDANCE_REVIEW_REQUIRED: 'Attendance is already recorded for this class. Review it in Attendance review.',
   ATTENDANCE_WINDOW_CLOSED: 'Attendance can be recorded from 15 minutes before a class starts until 31 days after it ends.',
   ATTENDANCE_UNCHANGED: 'That student already has this attendance status. Nothing was changed.',
   NOT_ON_ROSTER: 'This student is not registered for that class. Book them first or review the roster.',
@@ -89,7 +100,7 @@ export function replacementBlockReason(original: {startsAt: string; future: bool
 
 /** Do not turn an acknowledged write into a failure when its follow-up read fails. */
 export async function runHubAction(
-  send: () => Promise<{enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
+  send: () => Promise<{plan?: string; membershipState?: string; startDate?: string; enrollmentId?: unknown; memberId?: string; after?: string; before?: string; reversal?: boolean; memberNumber?: string; cancelledBookingIds?: unknown[]; bookingsCreated?: number; bookingsCancelled?: number; checkoutUrl?: string; invoiceId?: string; invoiceNumber?: string; amount?: number; currency?: string; state?: string}>,
   refresh: () => Promise<void>,
   onAcknowledged: (feedback: ActionFeedback) => void,
 ): Promise<ActionFeedback> {
@@ -108,6 +119,11 @@ export async function runHubAction(
     text: result.checkoutUrl ? 'Secure invoice checkout is ready. Payment has not been submitted.' :
       result.state==='ai_enabled' ? 'Live AI drafting passed the connection check and is enabled for this school.' :
       result.state==='student_created' ? `Student profile created in Odoo. Member number: ${result.memberNumber}. No membership, trial booking, portal access or message was created.` :
+      result.state==='trial_reserved' ? 'Trial reserved in Odoo. The class registration is saved; the CRM stage was not changed and no message was sent.' :
+      result.state==='trial_cancelled' ? 'Trial cancelled in Odoo. The class registration was cancelled and no message was sent.' :
+      result.state==='trial_attended' ? 'Trial attendance saved in Odoo. The CRM stage was not changed and no offer was sent.' :
+      result.state==='trial_no_show' ? 'No-show saved in Odoo. No automatic follow-up was scheduled.' :
+      result.state==='trial_converted' ? `Converted in Odoo: ${result.plan} membership ${result.membershipState==='active'?'started today':`ready to start on ${result.startDate}`}. No payment, portal invitation or message.` :
       result.state==='attendance_recorded' ? `Attendance saved in Odoo: ${result.before} → ${result.after}.${result.reversal?' The original check-in record and receipt are kept; no class credit was refunded.':''}` :
       result.state==='archived' ? `Student archived in Odoo. ${Array.isArray(result.cancelledBookingIds)?result.cancelledBookingIds.length:0} future bookings were cancelled; attendance history is kept. Restore from Archived students.` :
       result.state==='restored' ? 'Student restored in Odoo. Previously cancelled bookings were not re-created.' :

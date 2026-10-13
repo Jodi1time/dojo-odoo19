@@ -13,3 +13,4 @@ from . import intake_receipt
 from . import actions
 from . import member_admin
 from . import attendance_admin
+from . import trial
