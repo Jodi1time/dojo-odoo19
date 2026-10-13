@@ -72,7 +72,6 @@
 .o_nav_entry.o_active,
 .o_menu_entry_action.o_active,
 .o_menu_entry.active {
-  border-left: 3px solid var(--dojo-primary) !important;
   color: var(--dojo-primary) !important;
   background: var(--dojo-primary-light) !important;
 }
@@ -87,7 +86,6 @@
 .muk_web_sidebar .sidebar_menu .sidebar_item.active,
 .muk_web_sidebar .sidebar_menu .sidebar_item.active > a {
   color: var(--dojo-primary) !important;
-  border-left: 3px solid var(--dojo-primary);
   background: var(--dojo-primary-light) !important;
 }
 

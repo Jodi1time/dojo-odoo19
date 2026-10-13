@@ -105,7 +105,6 @@
 .dojo-auto-rule-card {
     border-radius: var(--radius-md, 0.5rem);
     border: 1px solid var(--border, var(--bs-border-color));
-    border-left: 4px solid var(--bs-secondary);
     background: var(--surface, var(--bs-body-bg));
     box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
     overflow: hidden;
@@ -267,9 +266,6 @@
     }
 
     // Left-border by step type via :has() (Chrome 105+, FF 121+, Safari 15.4+)
-    .o_automation_kanban_card:has(.fa-envelope) { border-left: 3px solid var(--info,    var(--bs-info)); }
-    .o_automation_kanban_card:has(.fa-clock-o)  { border-left: 3px solid var(--success, var(--bs-success)); }
-    .o_automation_kanban_card:has(.fa-cogs)     { border-left: 3px solid var(--warning, var(--bs-warning)); }
 
     .o_automation_kanban_card:has(.fa-envelope) .o_automation_kanban_header_icon:hover { background: var(--info,    var(--bs-info)); }
     .o_automation_kanban_card:has(.fa-clock-o)  .o_automation_kanban_header_icon:hover { background: var(--success, var(--bs-success)); }

@@ -1,19 +1,5 @@
 /* Hub sections inside the shared staff layout. */
 .root {
-  --canvas: #08080a;
-  --panel: #101014;
-  --raised: #17171d;
-  --interactive: #1e1e26;
-  --line: #2a2a35;
-  --text: #f6f6f8;
-  --text-secondary: #a8a8b8;
-  --muted: #717184;
-  --success: #26c76f;
-  --warning: #f6a63b;
-  --radius-control: 10px;
-  --agent: #8a7cf6; /* focus ring on the shared Select */
-  --text-sm: 0.875rem;
-
   min-height: 100%;
   width: 100%;
   max-width: 1240px;
@@ -21,7 +7,7 @@
   box-sizing: border-box;
   background: transparent;
   color: var(--text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -84,7 +70,7 @@
   margin: 16px 0;
   padding: 20px 24px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
   background: var(--panel);
 }
 
@@ -139,6 +125,16 @@
 .root textarea {
   min-height: 120px;
   resize: vertical;
+  border-radius: var(--radius-card);
+}
+
+.root input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.root select {
+  border-radius: var(--radius-pill);
+}
+
+.root input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  padding-inline: 16px;
 }
 
 /* Closed dropdown: our chevron instead of the browser's arrow */
@@ -159,20 +155,26 @@
 
 /* Buttons */
 .root button {
-  padding: 10px 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--raised);
+  min-height: var(--touch-height);
+  padding: 0 var(--button-inset);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-pill);
+  background: var(--glass-fill);
   color: var(--text);
   font: inherit;
+  font-size: var(--text-base);
   font-weight: 600;
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
 .root button:hover:not(:disabled) {
-  background: var(--interactive);
-  border-color: var(--text-secondary);
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-edge-strong);
+}
+
+.root button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .root button:disabled {
@@ -194,7 +196,6 @@
 .quote {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  border-left: 3px solid var(--line);
   padding-left: 16px;
   color: var(--text);
 }
@@ -313,14 +314,14 @@
   height: 40px;
   margin-top: 4px;
   padding: 0 18px;
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--canvas);
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--text);
 }
 
 .card:has(input[type="password"]) button:hover:not(:disabled) {
-  background: var(--text-secondary);
-  border-color: var(--text-secondary);
+  background: var(--brand-bright);
+  border-color: var(--brand-bright);
 }
 
 /* Book or change a class */
@@ -341,7 +342,6 @@
 }
 
 .bookingHelp {
-  border-left: 3px solid var(--warning);
   padding: 8px 12px;
   background: color-mix(in srgb, var(--warning) 8%, transparent);
   font-size: 0.875rem;
@@ -458,3 +458,13 @@
 .score small { font-size:14px; color:var(--text-secondary); }
 .score p { max-width:540px; font-size:12px; color:var(--text-secondary); }
 @media(max-width:700px){ .crmPulse{grid-template-columns:repeat(2,minmax(0,1fr));} .pipelineBoard,.pipelineList{grid-template-columns:minmax(0,1fr);} .score{align-items:flex-start;gap:16px;} .crmPulse > div,.crmPulse > button{padding:16px;} }
+
+@media (prefers-reduced-motion: reduce) {
+  .root button {
+    transition: none;
+  }
+
+  .root button:active:not(:disabled) {
+    transform: none;
+  }
+}
