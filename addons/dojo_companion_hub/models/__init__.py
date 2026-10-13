@@ -7,3 +7,5 @@ from . import crm
 from . import member_workspace
 from . import billing
 from . import ai_settings
+
+from . import intake
