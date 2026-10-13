@@ -42,7 +42,7 @@ WhatsMax and Roster source describe commercial Envato licensing. This inspection
 
 ## Verification boundary
 
-Before modifications: 101 gateway/domain tests, 4 UI behavior tests, 4 member-context tests, TypeScript, and 32 tooling tests passed. After-change local checks pass; lint has the same 8 pre-existing warnings and no errors. Native Odoo and connected browser checks are required before this candidate is promoted.
+Before modifications: 101 gateway/domain tests, 4 UI behavior tests, 4 member-context tests, TypeScript, and 32 tooling tests passed. Final code `d4a5b937` passed connected rehearsal `38324815345`: 112 native Odoo tests, 107 gateway/domain tests, 4 UI behavior tests, 4 member-context tests, 32 tooling tests, Next build, real browser round trips and native SQL assertions. Lint has the same 8 pre-existing warnings and no errors. See `IMPLEMENTATION_TEST_REPORT.md` for precise evidence and remaining boundaries; a passing synthetic rehearsal is not production promotion.
 
 Run `bash tools/run_rehearsal.sh` with the pinned Odoo checkout and Docker, or use the connected browser rehearsal CI. `DOJANG_INTERACTIVE_DEMO=1` runs the same real synthetic Odoo/Next stack for human walkthrough. Operator credentials stay in the private fixture, never screenshots or source.
 
