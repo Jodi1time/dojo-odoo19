@@ -45,8 +45,8 @@
         gap: 8px;
         h2 {
           font-family: var(--font-display);
-          font-weight: 600;
-          font-size: clamp(24px, 2.8vw, 32px);
+          font-weight: 400;
+          font-size: clamp(30px, 3vw, 40px);
           letter-spacing: -0.03em;
         }
         p {
@@ -111,7 +111,7 @@
         min-height: 44px;
         border-radius: var(--radius-pill);
         color: var(--text);
-        background-color: var(--panel);
+        background-color: var(--glass-fill);
         cursor: pointer;
         transition:
           transform 160ms var(--ease-out),
@@ -126,7 +126,7 @@
       }
 
       .checkInBtn {
-        background-color: var(--brand);
+        background-color: var(--glass-fill);
       }
     }
   }

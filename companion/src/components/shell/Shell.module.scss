@@ -1,12 +1,12 @@
 @use "../../../styles/glass";
 
 .adaptiveShell {
-  // 1Club-inspired operator hierarchy, scoped so public kiosk styling stays intact.
-  --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --text: #f3f3f3;
+  // Operator density from 1Club; retain Dojang's editorial type and warm white.
+  --text: #f4f0e9;
   --text-secondary: #b4b4b4;
   --muted: #a0a0a0;
-  --workspace-background: linear-gradient(145deg, #121212, #090909 70%);
+  --workspace-background: radial-gradient(ellipse at 75% 0%, #1b1b1b, #0b0b0b 65%);
+  --brand-soft: rgba(255, 255, 255, 0.055);
   --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   position: relative;
   display: grid;
@@ -21,7 +21,7 @@
 .railSlot {
   min-height: 0;
   border-right: 1px solid var(--line);
-  background: rgba(8, 7, 9, 0.2);
+  background: rgba(11, 11, 11, 0.65);
 }
 .workspaceSlot {
   position: relative;
@@ -46,9 +46,9 @@
   justify-content: space-between;
   gap: 16px;
   min-height: 64px;
-  padding: 12px 32px;
+  padding: 12px 36px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .headerLocation {
   display: flex;
@@ -127,7 +127,8 @@
     &[aria-current="page"],
     &[aria-expanded="true"] {
       color: var(--text);
-      background: var(--brand-soft);
+      background: var(--glass-fill);
+      box-shadow: inset 0 0 0 1px var(--glass-edge);
       svg {
         color: var(--brand-bright);
       }

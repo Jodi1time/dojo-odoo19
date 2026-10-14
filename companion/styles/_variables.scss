@@ -12,8 +12,8 @@
 
   // Text
   --text: #f4f0e9;
-  --text-secondary: #b8afb5;
-  --muted: #a59ba2;
+  --text-secondary: #b6b3af;
+  --muted: #a3a09c;
   --font-display:
     "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -59,8 +59,8 @@
 
   // Soft colored light behind the glass, so the frosting has something to blur.
   // Brand red, kept faint so they read as atmosphere, not actions.
-  --glow-brand: rgba(189, 31, 55, 0.16);
-  --glow-agent: rgba(154, 46, 65, 0.09);
+  --glow-brand: rgba(255, 255, 255, 0.04);
+  --glow-agent: rgba(255, 255, 255, 0.02);
 
   // Layout (not from the doc)
   --companion-width: 325px;
