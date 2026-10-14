@@ -11,7 +11,7 @@
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  padding: 32px 40px;
+  padding: 32px;
 }
 
 .root * {
@@ -35,8 +35,8 @@
 .header h1 {
   margin: 2px 0;
   font-family: var(--font-display, Georgia, serif);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 400;
+  font-size: clamp(26px, 2.8vw, 34px);
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -435,7 +435,7 @@
 .viewToggle { display:flex; gap:6px; margin-bottom:18px; }
 .viewToggle button[aria-pressed="true"] { border-color:var(--text-secondary); background:var(--interactive); }
 .pipelineBoard { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; align-items:start; }
-.pipelineLane { min-width:0; border:1px solid var(--line); border-radius:16px; padding:12px; background:rgba(14,14,18,.72); }
+.pipelineLane { min-width:0; border:1px solid var(--line); border-radius:16px; padding:12px; background:rgba(14,14,14,.72); }
 .pipelineLane > header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 6px 12px; }
 .pipelineLane > header h3 { margin:0; font-size:14px; }
 .pipelineLane > header span { font-size:12px; color:var(--text-secondary); }
