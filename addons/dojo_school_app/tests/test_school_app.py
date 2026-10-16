@@ -201,6 +201,69 @@ class TestSchoolAppService(SchoolFixture, TransactionCase):
         self.assertEqual(self.app().display_instructor_verify(self.kiosk, "246810", profile.id)["instructor"]["name"], "Sarah Park")
 
 
+    def test_timesheets_show_own_shifts_to_instructors_and_all_to_admins(self):
+        other = self.make_user("coach-two", ["base.group_user", "dojo_core.group_dojo_instructor"])
+        second = self.env["dojo.instructor.profile"].create({"name": "Sarah Park", "user_id": other.id,
+                                                             "partner_id": other.partner_id.id, "company_id": self.company.id})
+        self.company.attendance_validation = "manual_validation"
+        now = fields.Datetime.now()
+        mine = self.env["hr.attendance"].create({"employee_id": self.profile.employee_id.id,
+                                                 "check_in": now - timedelta(hours=3), "check_out": now - timedelta(hours=1)})
+        self.env["hr.attendance"].create({"employee_id": second.employee_id.id,
+                                          "check_in": now - timedelta(hours=5), "check_out": now - timedelta(hours=4)})
+        own = self.app().timesheets(self.ctx(self.instructor))
+        self.assertEqual([row["instructor"] for row in own["shifts"]], ["Master Kim"])
+        self.assertFalse(own["can_correct"])
+        everyone = self.app().timesheets(self.ctx(self.admin))
+        self.assertEqual(sorted(row["instructor"] for row in everyone["shifts"]), ["Master Kim", "Sarah Park"])
+        self.problem("NOT_ALLOWED", lambda: self.app().correct_timesheet(self.ctx(self.instructor), {"id": mine.id, "reason": "x"}))
+        self.problem("NOT_ALLOWED", lambda: self.app().timesheets(self.ctx(self.front_desk)))
+        fixed_out = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        corrected = self.app().correct_timesheet(self.ctx(self.admin), {"id": mine.id, "check_out": fixed_out, "reason": "Forgot to clock out"})
+        self.assertEqual(corrected["reason"], "Forgot to clock out")
+        self.assertAlmostEqual(mine.worked_hours, 2.5, places=1)
+        self.assertIn("Forgot to clock out", self.profile.employee_id.message_ids[0].body)
+        self.problem("INVALID", lambda: self.app().correct_timesheet(self.ctx(self.admin), {"id": mine.id, "reason": ""}))
+
+    def test_reports_count_real_attendance(self):
+        self.today_session.instructor_profile_id = self.profile
+        admin = self.ctx(self.admin)
+        self.app().checkin_mark(admin, self.today_session.id, self.maya.id)
+        self.app().checkin_mark(admin, self.today_session.id, self.jordan.id, "late")
+        report = self.app().attendance_report(admin)
+        self.assertEqual(report["totals"], {"sessions": 1, "attended": 2, "students": 2})
+        self.assertEqual(report["by_class"][0], {"name": "Kids Taekwondo", "sessions": 1, "attended": 2, "average": 2.0})
+        self.assertEqual(report["by_instructor"][0]["name"], "Master Kim")
+        self.assertEqual(sum(row["attended"] for row in report["peak_times"]), 2)
+        self.assertEqual(len(report["daily"]), 30)
+        workload = self.app().instructor_workload(admin)
+        kim = next(row for row in workload["instructors"] if row["name"] == "Master Kim")
+        self.assertEqual((kim["classes"], kim["students_taught"]), (1, 2))
+        self.problem("NOT_ALLOWED", lambda: self.app().attendance_report(self.ctx(self.front_desk)))
+        self.problem("INVALID", lambda: self.app().attendance_report(admin, "2026-02-01", "2026-01-01"))
+
+    def test_promotions_follow_belt_order_and_undo_only_the_latest(self):
+        self.yellow.attendance_threshold = 1
+        admin = self.ctx(self.admin)
+        self.app().checkin_mark(admin, self.today_session.id, self.jordan.id)
+        rows = {row["student_id"]: row for row in self.app().promotion_eligibility(admin)["students"]}
+        self.assertEqual((rows[self.jordan.id]["status"], rows[self.jordan.id]["next_belt"]), ("eligible", "Yellow"))
+        self.assertEqual(rows[self.maya.id]["status"], "top_rank")
+        result = self.app().promote(admin, {"student_ids": [self.jordan.id, self.maya.id]})
+        self.assertEqual([(row["name"], row["from"], row["to"]) for row in result["promoted"]], [("Jordan Lee", "White", "Yellow")])
+        self.assertEqual(result["skipped"], [{"student_id": self.maya.id, "name": "Maya Chen", "reason": "TOP_RANK"}])
+        self.assertEqual(self.jordan.current_rank_id, self.yellow)
+        history = self.app().promotion_history(admin, student_id=self.jordan.id)["history"]
+        self.assertEqual([(row["belt"], row["can_undo"]) for row in history], [("Yellow", True), ("White", False)])
+        self.problem("UNDO_NOT_LATEST", lambda: self.app().promotion_undo(admin, {"id": history[1]["id"]}))
+        undone = self.app().promotion_undo(admin, {"id": history[0]["id"], "reason": "Promoted by mistake"})
+        self.assertEqual((undone["from"], undone["to"]), ("Yellow", "White"))
+        self.assertEqual(self.jordan.current_rank_id, self.white)
+        self.assertTrue(self.app().promotion_history(admin, student_id=self.jordan.id)["history"][0]["undone"])
+        self.problem("NOT_ALLOWED", lambda: self.app().promote(self.ctx(self.front_desk), {"student_id": self.jordan.id}))
+        self.problem("INVALID", lambda: self.app().promote(admin, {"student_ids": [self.jordan.id, self.maya.id], "rank_id": self.yellow.id}))
+
+
 @tagged("post_install", "-at_install")
 class TestSchoolAppHttp(SchoolFixture, HttpCase):
 
@@ -278,3 +341,19 @@ class TestSchoolAppHttp(SchoolFixture, HttpCase):
         self.authenticate("school-parent@example.invalid", "Synthetic-parent-pass1")
         landing = self.url_open("/dojang", allow_redirects=False)
         self.assertIn("/my", landing.headers["Location"])
+
+    def test_timesheet_correction_and_promotion_routes(self):
+        self.company.attendance_validation = "manual_validation"
+        now = fields.Datetime.now()
+        shift = self.env["hr.attendance"].create({"employee_id": self.profile.employee_id.id,
+                                                  "check_in": now - timedelta(hours=2), "check_out": now - timedelta(hours=1)})
+        self.authenticate("school-admin@example.invalid", "Synthetic-admin-pass1")
+        response = self.url_open("/api/admin/instructor-timesheets", data=json.dumps({"id": shift.id, "reason": "Checked"}),
+                                 headers={"Content-Type": "application/json"}, method="PATCH")
+        self.assertEqual(response.status_code, 200)
+        status, body = self.call("/api/admin/instructor-timesheets?from=" + str((now - timedelta(hours=2)).date()))
+        self.assertEqual((status, len(body["shifts"])), (200, 1))
+        status, body = self.call("/api/admin/promotions/promote", {"student_id": self.jordan.id})
+        self.assertEqual((status, body["promoted"][0]["to"]), (200, "Yellow"))
+        status, body = self.call("/api/admin/reports/promotion-eligibility")
+        self.assertEqual(status, 200)

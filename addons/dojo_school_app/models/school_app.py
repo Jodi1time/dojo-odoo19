@@ -28,6 +28,11 @@ ALLOWED = {
     "checkin.read": STAFF,
     "checkin.write": STAFF,
     "attendance.read": STAFF,
+    "timesheets.read": ("admin", "instructor"),
+    "timesheets.write": ("admin",),
+    "reports": ("admin",),
+    "promotions.read": ("admin",),
+    "promotions.write": ("admin",),
 }
 MEMBERSHIP_STATES = ("lead", "trial", "active", "paused", "cancelled")
 CURRENT = ("active", "trial")
@@ -54,6 +59,7 @@ MESSAGES = {
     "TIMESHEET_REVIEW": "This shift needs an admin to review it.",
     "UNDO_WINDOW": "Only an admin can undo a check-in from another day.",
     "UNDO_NEEDS_REVIEW": "This check-in has a kiosk receipt. Correct it in attendance review.",
+    "UNDO_NOT_LATEST": "Only a student's most recent promotion can be undone.",
 }
 
 
@@ -724,3 +730,259 @@ class DojoSchoolApp(models.AbstractModel):
             shift = current
         shift.invalidate_recordset()
         return self._shift(config.company_id, profile, shift)
+
+    def _range(self, company, start, end, days):
+        last = self._day(company, end) if end else self._today(company)
+        first = self._day(company, start) if start else last - timedelta(days=days - 1)
+        if first > last or (last - first).days > 366:
+            raise SchoolAppProblem("INVALID")
+        return first, last, self._bounds(company, first)[0], self._bounds(company, last)[1]
+
+    def _profiles(self, ctx, own=False):
+        domain = [("company_id", "=", ctx.company.id), ("active", "=", True), ("employee_id", "!=", False)]
+        if own or ctx.role == "instructor":
+            domain.append(("user_id", "=", ctx.user.id))
+        return self.env["dojo.instructor.profile"].sudo().search(domain, order="name asc, id asc")
+
+    def _shift_row(self, company, shift, names):
+        return {
+            "id": shift.id,
+            "instructor_id": names[shift.employee_id.id][0],
+            "instructor": names[shift.employee_id.id][1],
+            "check_in": self._iso(company, shift.check_in),
+            "check_out": self._iso(company, shift.check_out) if shift.check_out else None,
+            "hours": round(shift.worked_hours or 0, 2),
+            "needs_review": shift.out_mode in ("auto_check_out", "technical"),
+            "correctable": bool(shift.check_out) and shift.state == "draft" and not shift.source_attendance_id,
+        }
+
+    def timesheets(self, ctx, start=None, end=None):
+        self._allow(ctx, "timesheets.read")
+        first, last, lo, hi = self._range(ctx.company, start, end, 14)
+        profiles = self._profiles(ctx)
+        names = {profile.employee_id.id: (profile.id, profile.name or "") for profile in profiles}
+        Attendance = self.env["hr.attendance"].sudo()
+        shifts = Attendance.search([("employee_id", "in", profiles.employee_id.ids), ("check_in", ">=", lo),
+                                    ("check_in", "<", hi)], order="check_in desc, id desc", limit=1000)
+        open_shifts = set(Attendance.search([("employee_id", "in", profiles.employee_id.ids), ("check_out", "=", False)]).employee_id.ids)
+        return {
+            "from": first.isoformat(), "to": last.isoformat(), "can_correct": ctx.role == "admin",
+            "instructors": [{"id": profile.id, "name": profile.name or "", "clocked_in": profile.employee_id.id in open_shifts}
+                            for profile in profiles],
+            "shifts": [self._shift_row(ctx.company, shift, names) for shift in shifts],
+        }
+
+    def _moment(self, company, value):
+        if not isinstance(value, str):
+            raise SchoolAppProblem("INVALID")
+        try:
+            moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            raise SchoolAppProblem("INVALID")
+        if moment.tzinfo is None:
+            moment = self._tz(company).localize(moment)
+        return moment.astimezone(pytz.utc).replace(tzinfo=None)
+
+    def correct_timesheet(self, ctx, data):
+        self._allow(ctx, "timesheets.write")
+        if not isinstance(data, dict):
+            raise SchoolAppProblem("INVALID")
+        reason = self._text(data.get("reason"), 500)
+        if not reason:
+            raise SchoolAppProblem("INVALID")
+        profiles = self._profiles(ctx)
+        shift = self.env["hr.attendance"].sudo().with_company(ctx.company).search([
+            ("id", "=", self._id(data.get("id") or data.get("shift_id"))),
+            ("employee_id", "in", profiles.employee_id.ids), ("source_attendance_id", "=", False)], limit=1)
+        if not shift:
+            raise SchoolAppProblem("NOT_FOUND", 404)
+        self._lock("school-app:employee:%s" % shift.employee_id.id)
+        if not shift.check_out or shift.state != "draft":
+            raise SchoolAppProblem("TIMESHEET_REVIEW", 409)
+        check_in = self._moment(ctx.company, data.get("check_in")) if data.get("check_in") else shift.check_in
+        check_out = self._moment(ctx.company, data.get("check_out")) if data.get("check_out") else shift.check_out
+        if not check_in < check_out <= fields.Datetime.now() or check_out - check_in > timedelta(hours=24):
+            raise SchoolAppProblem("INVALID")
+        before = (self._iso(ctx.company, shift.check_in), self._iso(ctx.company, shift.check_out))
+        shift.with_context(tracking_disable=True).write({"check_in": check_in, "check_out": check_out, "out_mode": "manual"})
+        shift.invalidate_recordset()
+        after = (self._iso(ctx.company, shift.check_in), self._iso(ctx.company, shift.check_out))
+        shift.employee_id.message_post(
+            body=Markup("Shift corrected by %s: %s – %s became %s – %s. Reason: %s") % (
+                escape(ctx.user.name), before[0], before[1], after[0], after[1], escape(reason)),
+            subtype_xmlid="mail.mt_note", author_id=ctx.user.partner_id.id)
+        names = {profile.employee_id.id: (profile.id, profile.name or "") for profile in profiles}
+        return {"shift": self._shift_row(ctx.company, shift, names),
+                "before": {"check_in": before[0], "check_out": before[1]}, "reason": reason}
+
+    def attendance_report(self, ctx, start=None, end=None):
+        self._allow(ctx, "reports")
+        company = ctx.company
+        first, last, lo, hi = self._range(company, start, end, 30)
+        sessions = self.env["dojo.class.session"].sudo().search(self._session_domain(ctx) + [
+            ("state", "in", ("open", "done")), ("start_datetime", ">=", lo), ("start_datetime", "<", hi)])
+        logs = self.env["dojo.attendance.log"].sudo().search([("session_id", "in", sessions.ids), ("status", "in", ATTENDED)])
+        attended = Counter(log.session_id.id for log in logs)
+        daily = Counter(self._local(company, log.checkin_datetime).date().isoformat() for log in logs)
+        classes, instructors, peaks = {}, {}, Counter()
+        for session in sessions:
+            count = attended.get(session.id, 0)
+            for bucket, key in ((classes, session.template_id.name or session.name or "Class"),
+                                (instructors, session.instructor_profile_id.name or "Unassigned")):
+                row = bucket.setdefault(key, {"name": key, "sessions": 0, "attended": 0})
+                row["sessions"] += 1
+                row["attended"] += count
+            local = self._local(company, session.start_datetime)
+            peaks[(local.strftime("%A"), local.hour)] += count
+        for bucket in (classes, instructors):
+            for row in bucket.values():
+                row["average"] = round(row["attended"] / row["sessions"], 1) if row["sessions"] else 0
+        day = first
+        days = []
+        while day <= last:
+            days.append({"date": day.isoformat(), "attended": daily.get(day.isoformat(), 0)})
+            day += timedelta(days=1)
+        return {
+            "from": first.isoformat(), "to": last.isoformat(),
+            "totals": {"sessions": len(sessions), "attended": len(logs), "students": len(logs.member_id)},
+            "daily": days,
+            "by_class": sorted(classes.values(), key=lambda row: (-row["attended"], row["name"])),
+            "by_instructor": sorted(instructors.values(), key=lambda row: (-row["attended"], row["name"])),
+            "peak_times": [{"weekday": weekday, "hour": hour, "attended": count}
+                           for (weekday, hour), count in peaks.most_common(10) if count],
+        }
+
+    def instructor_workload(self, ctx, start=None, end=None):
+        self._allow(ctx, "reports")
+        company = ctx.company
+        first, last, lo, hi = self._range(company, start, end, 30)
+        profiles = self._profiles(ctx)
+        sessions = self.env["dojo.class.session"].sudo().search(self._session_domain(ctx) + [
+            ("state", "in", ("open", "done")), ("start_datetime", ">=", lo), ("start_datetime", "<", hi),
+            ("instructor_profile_id", "in", profiles.ids)])
+        logs = self.env["dojo.attendance.log"].sudo().search([("session_id", "in", sessions.ids), ("status", "in", ATTENDED)])
+        shifts = self.env["hr.attendance"].sudo().search([("employee_id", "in", profiles.employee_id.ids),
+                                                          ("check_in", ">=", lo), ("check_in", "<", hi)])
+        rows = []
+        for profile in profiles:
+            taught = sessions.filtered(lambda session: session.instructor_profile_id == profile)
+            rows.append({
+                "id": profile.id,
+                "name": profile.name or "",
+                "classes": len(taught),
+                "scheduled_hours": round(sum((s.end_datetime - s.start_datetime).total_seconds() for s in taught) / 3600, 2),
+                "clocked_hours": round(sum(shifts.filtered(lambda shift: shift.employee_id == profile.employee_id).mapped("worked_hours")), 2),
+                "students_taught": len(logs.filtered(lambda log: log.session_id in taught).member_id),
+            })
+        rows.sort(key=lambda row: (-row["classes"], row["name"]))
+        return {"from": first.isoformat(), "to": last.isoformat(), "instructors": rows}
+
+    def _ranks(self, company):
+        return self.env["dojo.belt.rank"].sudo().search([("company_id", "in", [False, company.id]), ("active", "=", True)],
+                                                        order="sequence asc, id asc", limit=200)
+
+    def promotion_eligibility(self, ctx, query=None):
+        self._allow(ctx, "promotions.read")
+        domain = self._member_domain(ctx) + [("membership_state", "in", CURRENT)]
+        query = self._text(query, 80)
+        if query:
+            domain.append(("name", "ilike", query))
+        members = self.env["dojo.member"].sudo().with_company(ctx.company).search(domain, order="name asc, id asc", limit=1000)
+        rows = []
+        for member in members:
+            next_rank = member._get_next_belt_rank()
+            threshold = next_rank.attendance_threshold if next_rank else 0
+            attended = member.attendance_since_last_rank
+            status = "top_rank" if not next_rank else "no_threshold" if not threshold else "eligible" if attended >= threshold else "not_yet"
+            rows.append({"student_id": member.id, "name": member.name or "", "belt": member.current_rank_id.name or "",
+                         "belt_color": member.current_rank_id.color or "",
+                         "next_belt": next_rank.name if next_rank else None, "next_belt_id": next_rank.id if next_rank else None,
+                         "attended": attended, "required": threshold or None, "status": status})
+        order = {"eligible": 0, "not_yet": 1, "no_threshold": 2, "top_rank": 3}
+        rows.sort(key=lambda row: (order[row["status"]], row["name"].lower()))
+        return {"students": rows,
+                "ranks": [{"id": rank.id, "name": rank.name, "color": rank.color or "", "sequence": rank.sequence,
+                           "required": rank.attendance_threshold or None} for rank in self._ranks(ctx.company)]}
+
+    def promote(self, ctx, data):
+        self._allow(ctx, "promotions.write")
+        if not isinstance(data, dict):
+            raise SchoolAppProblem("INVALID")
+        ids = data.get("student_ids") if data.get("student_ids") is not None else [data.get("student_id")]
+        if not isinstance(ids, list) or not 0 < len(ids) <= 200:
+            raise SchoolAppProblem("INVALID")
+        notes = self._text(data.get("notes"), 500)
+        chosen = None
+        if data.get("rank_id"):
+            if len(ids) != 1:
+                raise SchoolAppProblem("INVALID")
+            chosen = self._ranks(ctx.company).filtered(lambda rank: rank.id == self._id(data["rank_id"]))
+            if not chosen:
+                raise SchoolAppProblem("INVALID")
+        awarded_by = self.env["dojo.instructor.profile"].sudo().search([
+            ("user_id", "=", ctx.user.id), ("company_id", "=", ctx.company.id)], limit=1)
+        promoted, skipped = [], []
+        for value in ids:
+            member = self._member(ctx, value)
+            self._lock("school-app:member:%s" % member.id)
+            before = member.current_rank_id
+            rank = chosen or member._get_next_belt_rank()
+            if not rank:
+                skipped.append({"student_id": member.id, "name": member.name or "", "reason": "TOP_RANK"})
+                continue
+            if before and rank.sequence <= before.sequence:
+                skipped.append({"student_id": member.id, "name": member.name or "", "reason": "NOT_HIGHER"})
+                continue
+            row = self.env["dojo.member.rank"].sudo().create({
+                "member_id": member.id, "rank_id": rank.id, "date_awarded": self._today(ctx.company),
+                "awarded_by": awarded_by.id or False, "notes": notes or "Promoted in the school app by %s" % ctx.user.name,
+                "company_id": ctx.company.id})
+            member.invalidate_recordset()
+            member.with_context(mail_create_nosubscribe=True).message_post(
+                body=Markup("Promoted from %s to %s by %s.") % (escape(before.name or "no belt"), escape(rank.name), escape(ctx.user.name)),
+                subtype_xmlid="mail.mt_note", author_id=ctx.user.partner_id.id)
+            promoted.append({"student_id": member.id, "name": member.name or "", "from": before.name or None,
+                             "to": rank.name, "history_id": row.id})
+        return {"promoted": promoted, "skipped": skipped}
+
+    def promotion_history(self, ctx, limit=None, student_id=None):
+        self._allow(ctx, "promotions.read")
+        limit = max(1, min(self._id(limit) if limit else 100, 500))
+        domain = [("member_id.company_id", "=", ctx.company.id)]
+        if student_id:
+            domain.append(("member_id", "=", self._member(ctx, student_id, archived=True).id))
+        Rank = self.env["dojo.member.rank"].sudo()
+        rows = Rank.with_context(active_test=False).search(domain, order="date_awarded desc, id desc", limit=limit)
+        latest = {}
+        for row in Rank.search([("member_id", "in", rows.member_id.ids)], order="date_awarded desc, id desc"):
+            latest.setdefault(row.member_id.id, row.id)
+        return {"history": [{
+            "id": row.id, "student_id": row.member_id.id, "name": row.member_id.name or "",
+            "belt": row.rank_id.name or "", "belt_color": row.rank_id.color or "",
+            "date": fields.Date.to_string(row.date_awarded), "notes": row.notes or "",
+            "source": row.test_registration_id.test_id.name if row.test_registration_id else "Individual award",
+            "undone": not row.active, "undone_reason": row.reversal_reason or None,
+            "can_undo": row.active and latest.get(row.member_id.id) == row.id,
+        } for row in rows]}
+
+    def promotion_undo(self, ctx, data):
+        self._allow(ctx, "promotions.write")
+        if not isinstance(data, dict):
+            raise SchoolAppProblem("INVALID")
+        reason = self._text(data.get("reason"), 500) or "Undone in the school app"
+        Rank = self.env["dojo.member.rank"].sudo()
+        row = Rank.search([("id", "=", self._id(data.get("id") or data.get("history_id"))),
+                           ("member_id.company_id", "=", ctx.company.id), ("active", "=", True)], limit=1)
+        if not row:
+            raise SchoolAppProblem("NOT_FOUND", 404)
+        member = self._member(ctx, row.member_id.id)
+        self._lock("school-app:member:%s" % member.id)
+        if Rank.search([("member_id", "=", member.id)], order="date_awarded desc, id desc", limit=1) != row:
+            raise SchoolAppProblem("UNDO_NOT_LATEST", 409)
+        before = member.current_rank_id.name or None
+        row.write({"active": False, "reversed_at": fields.Datetime.now(), "reversed_by": ctx.user.id, "reversal_reason": reason})
+        member.invalidate_recordset()
+        member.with_context(mail_create_nosubscribe=True).message_post(
+            body=Markup("Promotion to %s undone by %s. Reason: %s") % (escape(row.rank_id.name), escape(ctx.user.name), escape(reason)),
+            subtype_xmlid="mail.mt_note", author_id=ctx.user.partner_id.id)
+        return {"undone": True, "student_id": member.id, "from": before, "to": member.current_rank_id.name or None}

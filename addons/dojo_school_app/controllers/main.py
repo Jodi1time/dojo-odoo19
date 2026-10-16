@@ -267,3 +267,35 @@ a{display:inline-block;padding:12px 22px;border-radius:999px;background:#dc2626;
     @http.route("/api/admin/attendance/student", type="http", auth="public", methods=["GET"], csrf=False, sitemap=False)
     def admin_student_attendance(self, student_id=None, limit=None, **kw):
         return self._run(lambda: self._service().student_attendance(self._ctx(), student_id, limit))
+
+    @http.route("/api/admin/instructor-timesheets", type="http", auth="public", methods=["GET"], csrf=False, sitemap=False)
+    def admin_timesheets(self, **kw):
+        return self._run(lambda: self._service().timesheets(self._ctx(), kw.get("from"), kw.get("to")))
+
+    @http.route("/api/admin/instructor-timesheets", type="http", auth="public", methods=["PATCH", "POST"], csrf=False, sitemap=False)
+    def admin_timesheets_correct(self, **kw):
+        return self._run(lambda: self._service().correct_timesheet(self._ctx(), self._body()))
+
+    @http.route("/api/admin/reports/attendance", type="http", auth="public", methods=["GET"], csrf=False, sitemap=False)
+    def admin_report_attendance(self, **kw):
+        return self._run(lambda: self._service().attendance_report(self._ctx(), kw.get("from"), kw.get("to")))
+
+    @http.route("/api/admin/reports/instructor-workload", type="http", auth="public", methods=["GET"], csrf=False, sitemap=False)
+    def admin_report_workload(self, **kw):
+        return self._run(lambda: self._service().instructor_workload(self._ctx(), kw.get("from"), kw.get("to")))
+
+    @http.route("/api/admin/reports/promotion-eligibility", type="http", auth="public", methods=["GET"], csrf=False, sitemap=False)
+    def admin_report_eligibility(self, q=None, **kw):
+        return self._run(lambda: self._service().promotion_eligibility(self._ctx(), q))
+
+    @http.route("/api/admin/promotions/promote", type="http", auth="public", methods=["POST"], csrf=False, sitemap=False)
+    def admin_promote(self, **kw):
+        return self._run(lambda: self._service().promote(self._ctx(), self._body()))
+
+    @http.route("/api/admin/promotions/history", type="http", auth="public", methods=["GET"], csrf=False, sitemap=False)
+    def admin_promotion_history(self, limit=None, student_id=None, **kw):
+        return self._run(lambda: self._service().promotion_history(self._ctx(), limit, student_id))
+
+    @http.route("/api/admin/promotions/undo", type="http", auth="public", methods=["POST"], csrf=False, sitemap=False)
+    def admin_promotion_undo(self, **kw):
+        return self._run(lambda: self._service().promotion_undo(self._ctx(), self._body()))
