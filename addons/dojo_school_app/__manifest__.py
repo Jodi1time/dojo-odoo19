@@ -5,7 +5,7 @@
     "category": "Services",
     "license": "LGPL-3",
     "depends": ["dojo_companion_hub"],
-    "data": ["security/groups.xml"],
+    "data": ["security/groups.xml", "security/ir.access.csv", "data/cron.xml"],
     "installable": True,
     "application": False,
 }

@@ -10,7 +10,8 @@ class SchoolFixture:
         cls.env = cls.env(context=dict(cls.env.context, tracking_disable=True, mail_create_nosubscribe=True))
         cls.company = cls.env.company
         cls.company.partner_id.tz = "UTC"
-        cls.program = cls.env["dojo.program"].create({"name": "Kids Taekwondo", "company_id": cls.company.id})
+        cls.company.email = "school@example.invalid"
+        cls.program = cls.env["dojo.program"].create({"name": "Kids", "company_id": cls.company.id})
         cls.white = cls.env["dojo.belt.rank"].create({"name": "White", "sequence": 1, "color": "#ffffff", "company_id": cls.company.id})
         cls.yellow = cls.env["dojo.belt.rank"].create({"name": "Yellow", "sequence": 2, "color": "#facc15", "company_id": cls.company.id})
         cls.plan = cls.env["dojo.subscription.plan"].create({
@@ -19,16 +20,22 @@ class SchoolFixture:
         cls.stage = cls.env["sale.subscription.stage"].create({"name": "School active", "type": "in_progress", "in_progress": True})
         cls.pricelist = cls.env["product.pricelist"].create({"name": "School price", "currency_id": cls.company.currency_id.id})
         cls.parent_user = cls.make_user("parent", ["base.group_portal", "dojo_core.group_dojo_parent_student"])
-        household = cls.env["res.partner"].create({"name": "Lee Household", "is_household": True,
-                                                    "primary_guardian_id": cls.parent_user.partner_id.id,
-                                                    "company_id": cls.company.id})
-        cls.jordan = cls.make_member("Jordan Lee", "active", parent=household, born=date(2015, 3, 4), rank=cls.white,
-                                subscribed=True, email="jordan@example.invalid")
-        cls.maya = cls.make_member("Maya Chen", "active", born=date(2014, 7, 9), rank=cls.yellow, subscribed=True)
+        cls.parent_user.partner_id.write({"is_guardian": True, "email": "grace@example.invalid", "phone": "555-0100"})
+        cls.household = cls.env["res.partner"].create({"name": "Lee Household", "is_household": True,
+                                                        "primary_guardian_id": cls.parent_user.partner_id.id,
+                                                        "company_id": cls.company.id})
+        cls.parent_user.partner_id.parent_id = cls.household
+        cls.jordan = cls.make_member("Jordan Lee", "active", parent=cls.household, born=date(2015, 3, 4), rank=cls.white,
+                                     subscribed=True)
+        cls.maya = cls.make_member("Maya Chen", "active", born=date(2014, 7, 9), rank=cls.yellow, subscribed=True,
+                                   email="maya@example.invalid")
         cls.devon = cls.make_member("Devon Reed", "paused", rank=cls.white, subscribed=True)
         cls.jordan.write({"allergies": "Synthetic peanut note", "medical_notes": "Synthetic medical note"})
-        cls.template = cls.env["dojo.class.template"].create({"name": "Kids Taekwondo", "company_id": cls.company.id,
+        cls.template = cls.env["dojo.class.template"].create({"name": "PEE WEE", "company_id": cls.company.id,
                                                                "program_id": cls.program.id})
+        cls.template.write({"course_member_ids": [(6, 0, [cls.jordan.id, cls.maya.id, cls.devon.id])]})
+        cls.other_template = cls.env["dojo.class.template"].create({"name": "BLACK BELT", "company_id": cls.company.id,
+                                                                     "program_id": cls.program.id})
         now = fields.Datetime.now()
         cls.today_session = cls.make_session(now, now + timedelta(hours=1))
         cls.later_session = cls.make_session(now + timedelta(days=2), now + timedelta(days=2, hours=1))
@@ -36,6 +43,7 @@ class SchoolFixture:
             cls.env["dojo.class.enrollment"].create({"session_id": cls.today_session.id, "member_id": member.id})
         cls.kiosk = cls.env["dojo.kiosk.config"].create({"name": "Lobby iPad", "pin_code": "321654", "company_id": cls.company.id})
         cls.admin = cls.make_user("admin", ["base.group_user", "dojo_core.group_dojo_admin"])
+        cls.admin.email = "owner@example.invalid"
         cls.front_desk = cls.make_user("frontdesk", ["base.group_user", "dojo_school_app.group_dojo_front_desk"])
         cls.instructor = cls.make_user("instructor", ["base.group_user", "dojo_core.group_dojo_instructor"])
         cls.nobody = cls.make_user("nobody", ["base.group_portal"])
@@ -61,7 +69,7 @@ class SchoolFixture:
 
     @classmethod
     def make_member(cls, name, state, parent=None, born=None, rank=None, subscribed=False, email=False):
-        partner = cls.env["res.partner"].create({"name": name, "company_id": cls.company.id, "email": email,
+        partner = cls.env["res.partner"].create({"name": name, "company_id": cls.company.id, "email": email, "is_student": True,
                                                   "parent_id": parent.id if parent else False})
         member = cls.env["dojo.member"].create({"partner_id": partner.id, "company_id": cls.company.id,
                                                 "membership_state": state, "date_of_birth": born})
