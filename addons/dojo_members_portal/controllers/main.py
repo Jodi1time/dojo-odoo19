@@ -1369,7 +1369,7 @@ class DojoMemberPortal(CustomerPortal):
         if household and household.is_household and household.primary_guardian_id:
             guardian = household.primary_guardian_id
             provider = env['payment.provider'].sudo().search(
-                [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))], limit=1
+                [('code', '=', 'stripe'), ('active', '=', True)], limit=1
             )
             if provider:
                 token = env['payment.token'].sudo().search([
@@ -1511,7 +1511,7 @@ class DojoMemberPortal(CustomerPortal):
                     else effective_partner)
 
         provider = request.env['payment.provider'].sudo().search(
-            [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))],
+            [('code', '=', 'stripe'), ('active', '=', True)],
             limit=1,
         )
         if not provider:
@@ -1600,7 +1600,7 @@ class DojoMemberPortal(CustomerPortal):
 
         # Fall back to looking up the existing token's customer reference
         provider = request.env['payment.provider'].sudo().search(
-            [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))],
+            [('code', '=', 'stripe'), ('active', '=', True)],
             limit=1,
         )
         if not provider:
