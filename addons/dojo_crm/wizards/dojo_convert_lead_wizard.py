@@ -335,7 +335,7 @@ class DojoConvertLeadWizard(models.TransientModel):
 
     def _get_stripe_provider(self):
         return self.env["payment.provider"].sudo().search(
-            [("code", "=", "stripe"), ("state", "in", ("enabled", "test"))],
+            [("code", "=", "stripe"), ("active", "=", True)],
             limit=1,
         )
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_dojo_front_desk" model="res.groups">
+        <field name="name">Dojang Front Desk</field>
+        <field name="implied_ids" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
+    </record>
+</odoo>

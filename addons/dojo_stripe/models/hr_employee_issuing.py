@@ -53,7 +53,7 @@ class HrEmployeeIssuing(models.Model):
                 'Add "stripe" to requirements.txt and rebuild the container.'
             ))
         provider = self.env['payment.provider'].sudo().search(
-            [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))],
+            [('code', '=', 'stripe'), ('active', '=', True)],
             limit=1,
         )
         secret_key = provider.stripe_secret_key if provider else ''
@@ -131,7 +131,7 @@ class HrEmployeeIssuing(models.Model):
             api_key=api_key,
         )
         provider = self.env['payment.provider'].sudo().search(
-            [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))],
+            [('code', '=', 'stripe'), ('active', '=', True)],
             limit=1,
         )
         return {
@@ -170,7 +170,7 @@ class HrEmployeeIssuing(models.Model):
             raise UserError(_('No Stripe Issuing card exists for this employee.'))
 
         provider = self.env['payment.provider'].sudo().search(
-            [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))],
+            [('code', '=', 'stripe'), ('active', '=', True)],
             limit=1,
         )
         return {
