@@ -1,0 +1,4 @@
+**
+!tools/
+!tools/sync_whatsmax_hub.py
+!tools/private_env.py

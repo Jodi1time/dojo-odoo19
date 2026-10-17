@@ -1,0 +1,112 @@
+@use "../../../../../styles/breakpoints" as bp;
+@use "../../../../../styles/glass";
+@use "../../../../../styles/motion";
+
+.memberGrid {
+  display: grid;
+  grid-template-columns: 1fr; // narrow: stacked
+  gap: 1rem;
+  padding: 1.25rem 2rem;
+
+  @include bp.compact {
+    padding: 1rem;
+  }
+
+  @include bp.workspace-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); // side by side
+  }
+
+  article {
+    @include glass.card;
+    @include motion.reveal(60ms);
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem 1.5rem;
+    border-radius: var(--radius-card);
+
+    // Three levels, dimmest to brightest:
+    // section label (muted, uppercase) < row label (secondary) < value (white, bold)
+    .label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 0.6875rem;
+      font-weight: 600;
+    }
+
+    // Label to its content: close, so they read as one group
+    .label + h2,
+    .label + .statList {
+      margin-top: 0.5rem;
+    }
+
+    // Group to group: clearly more space than inside a group
+    .statList + .label {
+      margin-top: 1.5rem;
+    }
+
+    // Card title (e.g. "Verified attendance")
+    h2 {
+      color: var(--text);
+      font-size: var(--text-base);
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+    }
+  }
+}
+
+.statList {
+  list-style: none;
+
+  // Row label (left, secondary grey) and value (right, white and bold)
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.625rem 0;
+    font-size: var(--text-sm);
+    font-weight: 400;
+    color: var(--text-secondary);
+
+    span {
+      color: var(--text);
+      font-weight: 600;
+      text-align: right;
+    }
+  }
+
+  .value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .editBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-circle);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      background: var(--panel);
+    }
+  }
+}
+
+// Dividers between rows, not under the last one
+.rows li + li {
+  border-top: 1px solid var(--line);
+}
+
+.plain li {
+  border-bottom: none;
+}

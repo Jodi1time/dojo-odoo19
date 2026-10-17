@@ -1,0 +1,36 @@
+<odoo>
+  <record id="hub_site_form" model="ir.ui.view">
+    <field name="name">dojo.hub.site.form</field><field name="model">dojo.hub.site</field>
+    <field name="arch" type="xml"><form><sheet><group>
+      <field name="name"/><field name="active"/><field name="company_id"/><field name="kiosk_config_id"/>
+      <field name="workspace_ref"/><field name="provider_origin"/><field name="webhook_secret_env"/>
+      <field name="provider_token_env"/><field name="ai_enabled"/><field name="outbound_enabled"/>
+    </group></sheet></form></field>
+  </record>
+  <record id="hub_grant_form" model="ir.ui.view">
+    <field name="name">dojo.hub.grant.form</field><field name="model">dojo.hub.grant</field>
+    <field name="arch" type="xml"><form><sheet><group>
+      <field name="site_id"/><field name="user_id"/><field name="active"/><field name="role"/>
+      <field name="member_ids" widget="many2many_tags"/><field name="session_ids" widget="many2many_tags"/>
+    </group></sheet></form></field>
+  </record>
+  <record id="hub_guardian_form" model="ir.ui.view">
+    <field name="name">dojo.hub.guardian.form</field><field name="model">dojo.hub.guardian</field>
+    <field name="arch" type="xml"><form><sheet><group>
+      <field name="site_id"/><field name="partner_id"/><field name="member_ids" widget="many2many_tags"/>
+      <field name="channel"/><field name="contact_ref"/><field name="verification_ref"/>
+      <field name="verified_by"/><field name="verified_at"/><field name="allow_reply"/><field name="active"/>
+    </group></sheet></form></field>
+  </record>
+  <record id="hub_site_action" model="ir.actions.act_window"><field name="name">Companion Sites</field><field name="res_model">dojo.hub.site</field><field name="view_mode">list,form</field></record>
+  <record id="hub_grant_action" model="ir.actions.act_window"><field name="name">User Access</field><field name="res_model">dojo.hub.grant</field><field name="view_mode">list,form</field></record>
+  <record id="hub_guardian_action" model="ir.actions.act_window"><field name="name">Verified Guardians</field><field name="res_model">dojo.hub.guardian</field><field name="view_mode">list,form</field></record>
+  <record id="hub_message_action" model="ir.actions.act_window"><field name="name">Inbound Messages</field><field name="res_model">dojo.hub.message</field><field name="view_mode">list,form</field></record>
+  <record id="hub_delivery_action" model="ir.actions.act_window"><field name="name">Delivery Receipts</field><field name="res_model">dojo.hub.delivery</field><field name="view_mode">list,form</field></record>
+  <menuitem id="hub_menu" name="Companion Hub" groups="base.group_system" sequence="95"/>
+  <menuitem id="hub_sites" name="Sites" parent="hub_menu" action="hub_site_action"/>
+  <menuitem id="hub_grants" name="User Access" parent="hub_menu" action="hub_grant_action"/>
+  <menuitem id="hub_guardians" name="Verified Guardians" parent="hub_menu" action="hub_guardian_action"/>
+  <menuitem id="hub_messages" name="Messages" parent="hub_menu" action="hub_message_action"/>
+  <menuitem id="hub_deliveries" name="Deliveries" parent="hub_menu" action="hub_delivery_action"/>
+</odoo>

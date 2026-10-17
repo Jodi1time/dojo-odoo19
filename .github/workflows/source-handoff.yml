@@ -1,0 +1,33 @@
+name: Reproducible source handoff
+on:
+  pull_request:
+    branches: [integration/monday-release]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: source-handoff-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Archive tracked source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir handoff
+          SOURCE="$(git rev-parse HEAD)"
+          git archive --format=tar.gz --prefix=dojang/ --output="handoff/dojang-source.tar.gz" HEAD
+          printf 'source=%s\nThis is source, not deployment or acceptance evidence. No runtime secrets or customer database are included.\n' "$SOURCE" > handoff/SOURCE.txt
+          (cd handoff && sha256sum dojang-source.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dojang-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: handoff/
+          retention-days: 7

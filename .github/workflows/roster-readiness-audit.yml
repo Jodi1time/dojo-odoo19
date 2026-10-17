@@ -1,0 +1,15 @@
+name: Roster readiness audit
+on:
+  push:
+    branches: [integration/live-ai-sync, integration/provider-independent-readiness, integration/roster-readiness-audit, integration/justin-companion-handoff, integration/monday-live-readiness, integration/roster-hub-actions, integration/hub-booking-feedback, integration/durable-booking-receipts]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: roster-readiness-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  connected-rehearsal:
+    uses: ./.github/workflows/browser-rehearsal.yml
+    with:
+      source: ${{ github.sha }}

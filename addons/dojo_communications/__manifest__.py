@@ -14,7 +14,7 @@
         "mass_mailing_sms",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/mail_template_checkin.xml",
         "data/mail_template_reminder.xml",
         "data/ir_cron.xml",

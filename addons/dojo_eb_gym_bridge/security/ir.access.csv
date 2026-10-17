@@ -1,0 +1,2 @@
+id,name,model_id,group_id/id,operation,domain
+gym_link_admin,Gym mapping admin,dojo.gym.link,base.group_system,crud,

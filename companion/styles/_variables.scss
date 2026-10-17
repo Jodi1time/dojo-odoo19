@@ -1,0 +1,67 @@
+:root {
+  // Surfaces
+  --canvas: #0b0b0b;
+  --workspace-background: linear-gradient(155deg, #181818 0%, #0b0b0b 46%, #030303 100%);
+  --panel: #171717;
+  --raised: #242424;
+  --interactive: #2e2e2e;
+  --line: rgba(255, 255, 255, 0.13);
+
+  // Border
+  --dark-border: #2c2c2c;
+
+  // Text
+  --text: #f4f0e9;
+  --text-secondary: #b6b3af;
+  --muted: #a3a09c;
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  // Meaning (red = brand/action, gold = rank, semantic status colors)
+  --brand: #d7192d;
+  --brand-bright: #ff5265;
+  --brand-soft: #2c161a;
+  --mastery: #d7b75c;
+  --agent: #ef5262;
+  --success: #26c76f;
+  --warning: #f6a63b;
+  --danger: #ef4053;
+  --info: #4c8dff;
+
+  // Type scale: every kiosk text uses one of these (headings use the kiosk title tokens)
+  --text-xs: 0.75rem; // 12px uppercase labels, eyebrows, tags
+  --text-sm: 0.875rem; // 14px muted info: durations, field labels, descriptions
+  --text-base: 1rem; // 16px body, buttons, details
+  --text-md: 1.125rem; // 18px subtitles, choices
+  --text-lg: 1.25rem; // 20px names, values, inputs, card titles, messages
+  --text-xl: 1.5rem; // 24px big card labels, class times
+
+  // Sizing
+  --control-height: 40px;
+  --touch-height: 48px;
+  --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-leaf: 18px;
+  --radius-tray: 22px;
+  --radius-circle: 50%;
+  --radius-pill: 999px; // oval buttons and fields
+  --button-inset: 1.25rem; // side padding inside text buttons (PlainButton)
+
+  // Frosted glass surfaces (cards over the soft background glow)
+  --glass-fill: rgba(36, 36, 36, 0.62);
+  --glass-fill-hover: rgba(50, 50, 50, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.12);
+  --glass-edge-strong: rgba(255, 255, 255, 0.2);
+  --glass-blur: 18px;
+  --glass-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  // Soft colored light behind the glass, so the frosting has something to blur.
+  // Brand red, kept faint so they read as atmosphere, not actions.
+  --glow-brand: rgba(255, 255, 255, 0.04);
+  --glow-agent: rgba(255, 255, 255, 0.02);
+
+  // Layout (not from the doc)
+  --companion-width: 325px;
+}

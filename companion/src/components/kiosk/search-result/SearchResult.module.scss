@@ -1,0 +1,48 @@
+@use "../../../../styles/separators";
+.result {
+  all: unset;
+  box-sizing: border-box;
+  @include separators.short-rule;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 84px;
+  padding: 1rem 0;
+  color: var(--text);
+  cursor: pointer;
+  &:hover .initials,
+  &:active .initials {
+    background: var(--brand-soft);
+    color: var(--text);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--brand-bright);
+    outline-offset: 4px;
+    border-radius: 6px;
+  }
+}
+.initials {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--interactive);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: background 160ms ease;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+.arrow {
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  padding: 0.5rem;
+}

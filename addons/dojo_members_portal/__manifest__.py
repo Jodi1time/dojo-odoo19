@@ -23,7 +23,7 @@
     ],
     'data': [
         'security/dojo_portal_security.xml',
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'views/portal_layout.xml',
     ],
     'assets': {

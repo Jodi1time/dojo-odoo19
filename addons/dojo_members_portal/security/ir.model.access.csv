@@ -1,3 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_account_payment_portal,account.payment portal read,account.model_account_payment,base.group_portal,1,0,0,0
-access_account_payment_dojo_parent,account.payment dojo parent read,account.model_account_payment,dojo_core.group_dojo_parent_student,1,0,0,0

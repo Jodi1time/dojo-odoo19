@@ -1249,7 +1249,6 @@ select {
 .k-session-card--done {
     opacity: 0.65;
     border-color: var(--k-success);
-    border-left: 4px solid var(--k-success);
 }
 
 .k-session-card--done:hover {
@@ -4676,12 +4675,16 @@ body.kiosk-theme-light .k-ai-panel__footer {
     min-height: 0;
 }
 
-.k-welcome-logo {
-    width: clamp(280px, 50vw, 560px);
-    height: auto;
-    object-fit: contain;
-    opacity: 0.9;
-    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, .4));
+.k-welcome-wordmark {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    color: var(--k-text);
+}
+
+.k-welcome-wordmark span {
+    color: var(--k-accent);
 }
 
 .k-welcome-title {

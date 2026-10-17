@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_dojo_book_trial_wizard,dojo.book.trial.wizard user,dojo.book.trial.wizard,base.group_user,crud,
+access_dojo_convert_lead_wizard,dojo.convert.lead.wizard user,dojo.convert.lead.wizard,base.group_user,crud,
+access_crm_pipeline_service,crm.pipeline.service user,crm.pipeline.service,base.group_user,crud,
+access_crm_lead_all_dojo_instructor,All Leads (Dojo Instructor),crm.lead,dojo_core.group_dojo_instructor,cru,

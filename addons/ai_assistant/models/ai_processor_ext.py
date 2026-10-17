@@ -17,6 +17,7 @@ import requests
 
 from odoo import api, models
 from odoo.exceptions import UserError
+from . import openai_conversation
 
 _logger = logging.getLogger(__name__)
 
@@ -576,49 +577,20 @@ class AIProcessorIntentExt(models.AbstractModel):
     # ─────────────────────────────────────────────────────────────────────────
 
     def _process_conversational_openai(self, text, system_prompt):
-        """Call OpenAI in normal (non-JSON) mode for a conversational reply."""
-        api_key = self.env["ir.config_parameter"].sudo().get_str("openai.api_key") or \
-                  self.env["ir.config_parameter"].sudo().get_str("elevenlabs_connector.openai_api_key")
-
-        if not api_key:
-            raise UserError("OpenAI API key not configured.")
-
-        url = "https://api.openai.com/v1/chat/completions"
-
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text},
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1000,
-            # No response_format — free-form text output
-        }
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json; charset=utf-8",
-        }
-
+        """Draft wording only, with runtime secrets and bounded provider output."""
         try:
-            json_data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-            response = requests.post(url, headers=headers, data=json_data, timeout=30)
+            config = openai_conversation.configuration(self.env["ir.config_parameter"].sudo().get_str)
+            return self._sanitize_text(openai_conversation.complete(config, text, system_prompt))
+        except openai_conversation.ProviderUnavailable:
+            raise UserError("OpenAI drafting unavailable; check the private provider configuration.") from None
 
-            if response.encoding is None or response.encoding.lower() in ("iso-8859-1", "latin-1"):
-                response.encoding = "utf-8"
-
-            response.raise_for_status()
-            result = json.loads(response.text)
-
-            if "choices" in result and len(result["choices"]) > 0:
-                return self._sanitize_text(result["choices"][0]["message"]["content"])
-            else:
-                raise UserError("Unexpected response format from OpenAI API")
-
-        except requests.exceptions.RequestException as e:
-            _logger.error("OpenAI conversational API request failed: %s", e, exc_info=True)
-            raise UserError(f"OpenAI API error: {e}")
+    def _conversational_openai_configured(self):
+        """Configuration presence only: no inference, no credential in the result."""
+        try:
+            openai_conversation.configuration(self.env["ir.config_parameter"].sudo().get_str)
+            return True
+        except openai_conversation.ProviderUnavailable:
+            return False
 
     def _process_conversational_gemini(self, text, system_prompt):
         """Call Gemini in normal (free-form text) mode for a conversational reply."""

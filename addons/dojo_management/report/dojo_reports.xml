@@ -5,7 +5,6 @@
         <field name="model">dojo.student</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">dojo_management.report_student_template</field>
-        <field name="report_file">dojo_management.report_student_template</field>
         <field name="print_report_name">(object.name or 'Student Report')</field>
     </record>
 
@@ -29,7 +28,6 @@
         <field name="model">dojo.payment</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">dojo_management.report_payment_template</field>
-        <field name="report_file">dojo_management.report_payment_template</field>
         <field name="print_report_name">'Payment Report'</field>
     </record>
 
@@ -53,7 +51,6 @@
         <field name="model">dojo.attendance</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">dojo_management.report_attendance_template</field>
-        <field name="report_file">dojo_management.report_attendance_template</field>
         <field name="print_report_name">'Attendance Report'</field>
     </record>
 
@@ -75,7 +72,6 @@
         <field name="model">dojo.student</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">dojo_management.report_combined_template</field>
-        <field name="report_file">dojo_management.report_combined_template</field>
         <field name="print_report_name">'Student Full Report'</field>
     </record>
 

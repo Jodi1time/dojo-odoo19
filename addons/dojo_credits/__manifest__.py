@@ -10,7 +10,7 @@
         "dojo_subscriptions",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/sequences.xml",
         "views/dojo_credit_transaction_views.xml",
         "views/dojo_subscription_plan_views.xml",

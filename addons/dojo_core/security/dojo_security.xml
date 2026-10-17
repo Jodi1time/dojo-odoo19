@@ -36,145 +36,31 @@
 
     <!-- ═══════════════ Record Rules — Members ═══════════════ -->
 
-    <record id="rule_dojo_member_instructor_company" model="ir.rule">
-        <field name="name">Dojo Member Instructor Company</field>
-        <field name="model_id" ref="model_dojo_member"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_instructor_profile_instructor_company" model="ir.rule">
-        <field name="name">Instructor Profile Company</field>
-        <field name="model_id" ref="model_dojo_instructor_profile"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_member_parent_self_or_household" model="ir.rule">
-        <field name="name">Dojo Member Parent Self or Household</field>
-        <field name="model_id" ref="model_dojo_member"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('partner_id', '=', user.partner_id.id), ('partner_id.parent_id.primary_guardian_id', '=', user.partner_id.id)]</field>
-    </record>
 
-    <record id="rule_dojo_household_parent_owner" model="ir.rule">
-        <field name="name">Dojo Household Partner Parent Owner</field>
-        <field name="model_id" ref="base.model_res_partner"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('id', '=', user.partner_id.id), '|', ('is_household', '=', False), ('primary_guardian_id', '=', user.partner_id.id)]</field>
-    </record>
 
     <!-- ═══════════════ Record Rules — Emergency Contacts ═══════════════ -->
 
-    <record id="rule_dojo_emergency_contact_instructor_company" model="ir.rule">
-        <field name="name">Emergency Contact Instructor Company</field>
-        <field name="model_id" ref="model_dojo_emergency_contact"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_emergency_contact_parent_self_or_household" model="ir.rule">
-        <field name="name">Emergency Contact Parent Self or Household</field>
-        <field name="model_id" ref="model_dojo_emergency_contact"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('member_id.partner_id', '=', user.partner_id.id), ('member_id.partner_id.parent_id.primary_guardian_id', '=', user.partner_id.id)]</field>
-    </record>
 
     <!-- ═══════════════ Record Rules — Classes ═══════════════ -->
 
-    <record id="rule_dojo_class_template_instructor_company" model="ir.rule">
-        <field name="name">Course Instructor Company</field>
-        <field name="model_id" ref="model_dojo_class_template"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_class_session_instructor_company" model="ir.rule">
-        <field name="name">Class Session Instructor Company</field>
-        <field name="model_id" ref="model_dojo_class_session"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_class_enrollment_instructor_company" model="ir.rule">
-        <field name="name">Class Enrollment Instructor Company</field>
-        <field name="model_id" ref="model_dojo_class_enrollment"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_class_template_parent_company" model="ir.rule">
-        <field name="name">Course Parent Company</field>
-        <field name="model_id" ref="model_dojo_class_template"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_class_session_parent_company" model="ir.rule">
-        <field name="name">Class Session Parent Company</field>
-        <field name="model_id" ref="model_dojo_class_session"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_auto_enroll_parent_own" model="ir.rule">
-        <field name="name">Auto-Enroll Preference Own Household</field>
-        <field name="model_id" ref="model_dojo_course_auto_enroll"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('member_id.partner_id', '=', user.partner_id.id), ('member_id.partner_id.parent_id.primary_guardian_id', '=', user.partner_id.id)]</field>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="True"/>
-        <field name="perm_unlink" eval="True"/>
-    </record>
 
-    <record id="rule_dojo_class_enrollment_parent_self_or_household" model="ir.rule">
-        <field name="name">Class Enrollment Parent Self or Household</field>
-        <field name="model_id" ref="model_dojo_class_enrollment"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('member_id.partner_id', '=', user.partner_id.id), ('member_id.partner_id.parent_id.primary_guardian_id', '=', user.partner_id.id)]</field>
-    </record>
 
     <!-- ═══════════════ Record Rules — Attendance ═══════════════ -->
 
-    <record id="rule_dojo_attendance_instructor_company" model="ir.rule">
-        <field name="name">Attendance Instructor Company</field>
-        <field name="model_id" ref="model_dojo_attendance_log"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_instructor'))]"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
-    </record>
 
-    <record id="rule_dojo_attendance_parent_self_or_household" model="ir.rule">
-        <field name="name">Attendance Parent Self or Household</field>
-        <field name="model_id" ref="model_dojo_attendance_log"/>
-        <field name="groups" eval="[(4, ref('dojo_core.group_dojo_parent_student'))]"/>
-        <field name="domain_force">['|', ('member_id.partner_id', '=', user.partner_id.id), ('member_id.partner_id.parent_id.primary_guardian_id', '=', user.partner_id.id)]</field>
-    </record>
 
     <!-- ═══════════════ Record Rules — Belt Progression ═══════════════ -->
 
-    <record id="rule_dojo_belt_rank_company" model="ir.rule">
-        <field name="name">Belt Rank: own company</field>
-        <field name="model_id" ref="model_dojo_belt_rank"/>
-        <field name="domain_force">[('company_id', '=', company_id)]</field>
-    </record>
 
-    <record id="rule_dojo_member_rank_company" model="ir.rule">
-        <field name="name">Member Rank: own company</field>
-        <field name="model_id" ref="model_dojo_member_rank"/>
-        <field name="domain_force">[('company_id', '=', company_id)]</field>
-    </record>
 
-    <record id="rule_dojo_belt_test_company" model="ir.rule">
-        <field name="name">Belt Test: own company</field>
-        <field name="model_id" ref="model_dojo_belt_test"/>
-        <field name="domain_force">[('company_id', '=', company_id)]</field>
-    </record>
 
-    <record id="rule_dojo_belt_test_registration_company" model="ir.rule">
-        <field name="name">Belt Test Registration: own company</field>
-        <field name="model_id" ref="model_dojo_belt_test_registration"/>
-        <field name="domain_force">[('company_id', '=', company_id)]</field>
-    </record>
 
 </odoo>

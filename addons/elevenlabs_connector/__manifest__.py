@@ -54,7 +54,7 @@ Compatibility & deployment
         'python': ['requests'],
     },
     'data': [
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'views/res_config_settings_views.xml',  # Load action first
         'views/voice_conversation_views.xml',   # Then menus that reference the action
         'views/voice_page_templates.xml',

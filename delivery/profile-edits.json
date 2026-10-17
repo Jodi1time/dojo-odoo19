@@ -1,0 +1,25 @@
+{
+  "src/components/people/member-360/Member360View.tsx": [
+    ["  attendance: MemberAttendance;", "  attendance: MemberAttendance;\n  liveTest?: boolean;"],
+    ["({ member, attendance }: Props)", "({ member, attendance, liveTest = false }: Props)"],
+    ["<MemberGrid attendance={attendance} />", "<MemberGrid attendance={attendance} liveMember={liveTest ? member : undefined} />"],
+    ["<Identity member={member}/>", "<Identity member={member} readOnly={liveTest}/>"]
+  ],
+  "src/components/people/member-360/member-grid/MemberGrid.tsx": [
+    ["import type { MemberAttendance }", "import type { Member, MemberAttendance }"],
+    ["  attendance: MemberAttendance;", "  attendance: MemberAttendance;\n  liveMember?: Member;"],
+    ["({ attendance }: Props)", "({ attendance, liveMember }: Props)"],
+    ["const story = [attendanceStory(attendance), ...storyPlaceholders];", "const story = [attendanceStory(attendance), ...(liveMember ? [{ label: \"Current rank\", value: liveMember.rank.name }] : storyPlaceholders)];"],
+    ["const recent = [lastCheckIn(attendance), ...recentPlaceholders];", "const recent = [lastCheckIn(attendance), ...(liveMember ? [] : recentPlaceholders)];"],
+    ["<h2>Active and progressing normally.</h2>", "<h2>{liveMember ? \"Verified attendance\" : \"Active and progressing normally.\"}</h2>"],
+    ["<StatList stats={training} onEdit={() => setOpen(\"edit\")} />", "<StatList stats={liveMember ? [{ label: \"Training details\", value: \"Not connected in this test\" }] : training} onEdit={liveMember ? undefined : () => setOpen(\"edit\")} />"],
+    ["<StatList stats={progression} />", "<StatList stats={liveMember ? [{ label: \"Current rank\", value: liveMember.rank.name }] : progression} />"]
+  ],
+  "src/components/people/member-360/identity/Identity.tsx": [
+    ["  member: Member;", "  member: Member;\n  readOnly?: boolean;"],
+    ["({ member }: Props)", "({ member, readOnly = false }: Props)"],
+    ["<div className={styles.member__avatar}>MC</div>", "<div className={styles.member__avatar}>{readOnly ? member.name.split(\" \").filter(Boolean).map(part => part[0]).slice(0, 2).join(\"\") : \"MC\"}</div>"],
+    ["<p>Children Advanced · {member.householdName}</p>", "<p>{readOnly ? member.memberNumber : <>Children Advanced · {member.householdName}</>}</p>"],
+    ["disabled={btn.label === \"Check in\" && checkedIn}", "disabled={readOnly || (btn.label === \"Check in\" && checkedIn)}\n                title={readOnly ? \"Not connected in this integration test\" : undefined}"]
+  ]
+}

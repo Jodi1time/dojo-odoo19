@@ -1,0 +1,46 @@
+@use "../../../../styles/separators";
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-top: 1rem;
+  padding: 1.5rem 0;
+  &::before {
+    content: "";
+    width: 3rem;
+    height: 2px;
+    background: var(--line);
+    border-radius: 1px;
+  }
+}
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.message {
+  font-size: var(--text-md);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text);
+}
+.detail {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.actions .action {
+  background: var(--glass-fill);
+  border-color: var(--glass-edge);
+  &:hover,
+  &:active {
+    background: var(--glass-fill-hover);
+    border-color: var(--glass-edge-strong);
+  }
+}

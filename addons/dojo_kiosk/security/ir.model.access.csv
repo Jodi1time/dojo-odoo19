@@ -1,4 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dojo_kiosk_config,dojo.kiosk.config user,model_dojo_kiosk_config,base.group_user,1,1,1,1
-access_dojo_kiosk_announcement,dojo.kiosk.announcement user,model_dojo_kiosk_announcement,base.group_user,1,1,1,1
-access_dojo_kiosk_pin_attempt,dojo.kiosk.pin.attempt user,model_dojo_kiosk_pin_attempt,base.group_user,1,0,0,0

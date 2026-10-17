@@ -33,7 +33,7 @@
         'bi_all_digital_sign',
     ],
     'data': [
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'views/dojo_waiver_config_views.xml',
         'views/dojo_member_waiver_views.xml',
         'views/dojo_onboarding_waiver_views.xml',

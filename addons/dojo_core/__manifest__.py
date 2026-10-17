@@ -15,12 +15,17 @@
         'hr',
         'account',
         'project',
+        'crm',
+        'sales_team',
+        'event',
+        'purchase',
+        'mass_mailing',
     ],
     'post_init_hook': 'post_init_hook',
     'data': [
         # Security (load first)
         'security/dojo_security.xml',
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         # Data
         'data/sequences.xml',
         'data/dojo_class_recurrence_cron.xml',

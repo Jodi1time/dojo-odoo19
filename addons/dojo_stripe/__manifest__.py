@@ -28,7 +28,7 @@ Invoicing → Configuration → Payment Providers → Stripe.
         "payment_stripe",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/ir_cron.xml",
         "views/dojo_stripe_views.xml",
     ],

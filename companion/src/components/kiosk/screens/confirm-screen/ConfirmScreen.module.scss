@@ -1,0 +1,31 @@
+@use "../../../../../styles/separators";
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem 0 3rem;
+}
+.topBar {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-height);
+}
+.heading {
+  margin-top: 1rem;
+  font-size: var(--kiosk-title);
+}
+.summary {
+  @include separators.open-details;
+  margin-bottom: 0.75rem;
+}
+.summaryRow {
+  @include separators.detail-row;
+}
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

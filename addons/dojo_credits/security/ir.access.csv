@@ -1,0 +1,3 @@
+id,name,model_id,group_id/id,operation,domain
+access_dojo_credit_transaction,dojo.credit.transaction user,dojo.credit.transaction,base.group_user,crud,
+access_dojo_credit_adjustment_wizard,dojo.credit.adjustment.wizard user,dojo.credit.adjustment.wizard,base.group_user,crud,

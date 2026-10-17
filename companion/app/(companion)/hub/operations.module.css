@@ -1,0 +1,19 @@
+.tableWrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius-card); margin-top:16px; }
+.printable { margin-top:1.5rem; }
+.printable table { width:100%; border-collapse:collapse; text-align:left; }
+.printable th,.printable td { padding:14px 16px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.printable th { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--text-secondary); background:var(--glass-fill); }
+.printable td { font-size:13px; }
+.printable tr:last-child td { border-bottom:0; }
+@media print {
+  .printable th { color:black; background:white; }
+  .printable .tableWrap { border:0; border-radius:0; }
+  @page { margin:12mm; }
+  :global(html):has(.printable) { background:white !important; color:black !important; color-scheme:light; overflow:visible; }
+  :global(body):has(.printable) *:not(:has(.printable)):not(.printable):not(.printable *) { display:none !important; }
+  :global(body):has(.printable), :global(body):has(.printable) *:has(.printable) { display:block !important; position:static !important; height:auto !important; max-height:none !important; overflow:visible !important; width:auto !important; margin:0 !important; padding:0 !important; transform:none !important; background:white !important; color:black !important; }
+  .printable { position:static; margin:0; padding:0; background:white; color:black; overflow:visible; }
+  .printable .tableWrap { overflow:visible; }
+  .printable tr { break-inside:avoid; }
+  .noPrint { display:none; }
+}

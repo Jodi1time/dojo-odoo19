@@ -1,0 +1,7 @@
+id,name,model_id,group_id/id,operation,domain
+access_dojo_kiosk_config,dojo.kiosk.config user,dojo.kiosk.config,base.group_user,crud,
+access_dojo_kiosk_announcement,dojo.kiosk.announcement user,dojo.kiosk.announcement,base.group_user,crud,
+access_dojo_kiosk_pin_attempt,dojo.kiosk.pin.attempt user,dojo.kiosk.pin.attempt,base.group_user,r,
+access_dojo_kiosk_guardian_pin_admin,Guardian kiosk PIN admin,dojo.kiosk.guardian.pin,base.group_system,r,
+access_dojo_kiosk_guardian_attempt_admin,Guardian kiosk attempt admin,dojo.kiosk.guardian.attempt,base.group_system,r,
+access_dojo_kiosk_guardian_session_admin,Guardian kiosk session admin,dojo.kiosk.guardian.session,base.group_system,r,

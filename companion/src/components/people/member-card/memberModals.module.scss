@@ -1,0 +1,113 @@
+@use "../../../../styles/separators";
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+.option {
+  @include separators.short-rule;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  font-size: var(--text-sm);
+}
+.optionText {
+  display: grid;
+  gap: 0.4rem;
+  span {
+    color: var(--text-secondary);
+  }
+}
+.optionValue {
+  color: var(--text-secondary);
+}
+.note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  p + p {
+    margin-top: 0.75rem;
+  }
+}
+.details {
+  display: grid;
+  > div {
+    @include separators.short-rule;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.9rem 0;
+  }
+  dt {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+  dd {
+    font-size: var(--text-sm);
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  button,
+  a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    text-decoration: none;
+    cursor: pointer;
+    &:hover:not(:disabled) {
+      background: var(--raised);
+    }
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}
+.menuSection {
+  ul {
+    display: grid;
+    gap: 0.4rem;
+  }
+  button {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    min-height: 52px;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+}
+.menuLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.menuHint {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-align: right;
+  max-width: 55%;
+}

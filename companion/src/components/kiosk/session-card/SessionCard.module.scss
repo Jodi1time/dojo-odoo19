@@ -1,0 +1,99 @@
+@use "../../../../styles/separators";
+.card {
+  all: unset;
+  box-sizing: border-box;
+  @include separators.short-rule;
+  display: grid;
+  grid-template-columns: 5.75rem minmax(0, 1fr) 2.25rem;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+  min-height: 108px;
+  padding: 1.5rem 0;
+  color: var(--text);
+  cursor: pointer;
+  &:hover .arrow,
+  &:focus-visible .arrow {
+    color: var(--text);
+    background: var(--brand-soft);
+    border-color: var(--brand-bright);
+  }
+  &:active .arrow {
+    transform: scale(0.92);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--brand-bright);
+    outline-offset: 5px;
+    border-radius: 6px;
+  }
+}
+.time {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 1.6rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+.period {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+}
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.title {
+  font-size: var(--text-md);
+  font-weight: 500;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.duration {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.arrow {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms var(--ease-out);
+}
+@container kiosk (width < 540px) {
+  .card {
+    grid-template-columns: 4rem minmax(0, 1fr) 2rem;
+    gap: 0.85rem;
+    padding-block: 1.35rem;
+  }
+  .time {
+    font-size: 1.3rem;
+  }
+  .title {
+    font-size: 1rem;
+  }
+  .duration {
+    font-size: 0.75rem;
+  }
+  .arrow {
+    width: 2rem;
+    height: 2rem;
+  }
+}

@@ -1,0 +1,72 @@
+# Apply in Justin's existing dojang namespace. Replace the image before applying.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: roster-sync-state
+  namespace: dojang
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: roster-whatsmax-sync
+  namespace: dojang
+spec:
+  schedule: "* * * * *"
+  timeZone: Etc/UTC
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 240
+      template:
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: sync
+              image: REPLACE_WITH_SYNC_IMAGE_DIGEST
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: roster-sync
+              env:
+                - name: DOJANG_HUB_SYNC_STATE
+                  value: /state/roster-hub-sync.sqlite
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                  ephemeral-storage: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                  ephemeral-storage: 256Mi
+              volumeMounts:
+                - name: state
+                  mountPath: /state
+          volumes:
+            - name: state
+              persistentVolumeClaim:
+                claimName: roster-sync-state

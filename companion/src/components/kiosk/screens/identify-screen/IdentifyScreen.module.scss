@@ -1,0 +1,113 @@
+@use "../../../../../styles/glass" as glass;
+
+// Width comes from the shell, like every kiosk screen
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+
+// Everything under the class header: same spacing as the screen. It waits
+// until the class card has mostly landed in the header (the 350ms morph in
+// kiosk.scss), then fades up, so the card never slides across it.
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  animation: after-morph 220ms ease-out 260ms both;
+}
+
+@keyframes after-morph {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+// No fade or slide for people who ask for less motion: it's just there
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    animation: none;
+  }
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-height);
+}
+
+.heading {
+  margin-top: 1rem;
+  font-size: var(--kiosk-title);
+}
+
+// One large field, the only thing to do on this screen
+.search {
+  all: unset;
+  box-sizing: border-box; // all: unset resets this to content-box
+  width: 100%;
+  min-height: calc(var(--touch-height) * 1.5);
+  padding: 0 1.75rem;
+  @include glass.flat;
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: var(--text-lg);
+
+  &::placeholder {
+    color: var(--muted);
+  }
+
+  &:focus-visible {
+    border-color: var(--glass-edge-strong);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+.results {
+  // StatusMessage brings its own padding; keep the gap under the field small
+  margin-top: -1.5rem;
+}
+
+.matches {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 1.5rem;
+}
+
+// Phones: a bit smaller still, but never under 16px (iOS zooms into smaller fields)
+@container kiosk (width < 540px) {
+  .search {
+    font-size: var(--text-md);
+  }
+}
+
+.grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 10px;
+  margin-top: 1.5rem;
+}
+
+.tile {
+  position: relative;
+}
+
+.badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--glass-edge-strong);
+  color: var(--text);
+  font-size: var(--text-sm, 0.85rem);
+  pointer-events: none;
+}
