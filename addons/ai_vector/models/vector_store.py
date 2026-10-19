@@ -71,7 +71,8 @@ class AiVectorStore(models.Model):
         cr = self.env.cr
         # Enable pgvector extension (idempotent)
         try:
-            cr.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            with cr.savepoint(flush=False):
+                cr.execute("CREATE EXTENSION IF NOT EXISTS vector")
         except Exception:
             _logger.warning(
                 "Could not create pgvector extension — "

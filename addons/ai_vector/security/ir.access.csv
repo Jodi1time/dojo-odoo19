@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_ai_vector_store_user,ai.vector.store user,ai.vector.store,base.group_user,r,
+access_ai_vector_store_admin,ai.vector.store admin,ai.vector.store,base.group_system,crud,
+access_ai_agent_user,ai.agent user,ai.agent,base.group_user,r,
+access_ai_agent_admin,ai.agent admin,ai.agent,base.group_system,crud,
