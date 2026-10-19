@@ -1,0 +1,8 @@
+id,name,model_id,group_id/id,operation,domain
+school_promotion_batch_admin,School promotion batch admin,dojo.school.promotion.batch,dojo_core.group_dojo_admin,r,
+school_promotion_batch_system,School promotion batch system,dojo.school.promotion.batch,base.group_system,crud,
+school_test_roster_admin,School test roster admin,dojo.school.test.roster,dojo_core.group_dojo_admin,r,
+school_test_roster_system,School test roster system,dojo.school.test.roster,base.group_system,crud,
+school_email_log_admin,School email log admin,dojo.school.email.log,dojo_core.group_dojo_admin,r,
+school_email_log_system,School email log system,dojo.school.email.log,base.group_system,crud,
+school_automation_log_system,School automation log system,dojo.school.automation.log,base.group_system,crud,

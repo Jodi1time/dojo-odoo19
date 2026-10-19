@@ -44,13 +44,13 @@ for attempt in $(seq 1 60); do if docker exec "$DB" pg_isready -U odoo >/dev/nul
 docker exec "$DB" pg_isready -U odoo
 COMMON=(--db_host="$DB" --db_user=odoo --db_password="$PASSWORD" -d dojang_demo_rehearsal --addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons --max-cron-threads=0 --data-dir=/private/data)
 MOUNTS=(--network "$NET" --user "$(id -u):$(id -g)" -v "$ROOT/addons:/mnt/extra-addons:ro" -v "$PRIVATE:/private")
-INSTALL=dojo_companion_hub
-TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning,/dojo_companion_hub:TestOnboardingChecklists
+INSTALL=dojo_companion_hub,dojo_school_app
+TAGS=/dojo_kiosk:TestKioskSessionFirstV2,/dojo_companion_hub:TestCompanionHub,/dojo_companion_hub:TestStudentIntake,/dojo_companion_hub:TestMemberAdministration,/dojo_companion_hub:TestAttendanceAdministration,/dojo_companion_hub:TestTrialLifecycle,/dojo_companion_hub:TestBeltTesting,/dojo_companion_hub:TestGuardianKiosk,/dojo_companion_hub:TestCommunicationsControls,/dojo_companion_hub:TestRefundControls,/dojo_companion_hub:TestWaiverSigning,/dojo_companion_hub:TestOnboardingChecklists,/dojo_school_app:TestSchoolAppService,/dojo_school_app:TestSchoolAppHttp
 if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   test -f "$DOJANG_EB_GYM_ADDONS/eb_gym_management/__manifest__.py"
   MOUNTS+=(-v "$DOJANG_EB_GYM_ADDONS:/mnt/private-addons:ro")
   COMMON+=(--addons-path=/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons,/mnt/private-addons)
-  INSTALL=dojo_eb_gym_bridge
+  INSTALL+=,dojo_eb_gym_bridge
   TAGS+=,/dojo_eb_gym_bridge:TestGymBridge
 fi
 docker run --rm "${MOUNTS[@]}" dojang-rehearsal "${COMMON[@]}" -i "$INSTALL" --without-demo=all --test-enable --test-tags="$TAGS" --stop-after-init > rehearsal-evidence/install.log 2>&1
@@ -59,7 +59,7 @@ import ast,os,pathlib,re
 log=pathlib.Path('rehearsal-evidence/install.log').read_text(errors='replace')
 totals=re.findall(r'(\d+) failed, (\d+) error\(s\) of (\d+) tests',log)
 expected=[]
-sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning'),('addons/dojo_companion_hub/tests/test_onboarding.py','TestOnboardingChecklists')]
+sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning'),('addons/dojo_companion_hub/tests/test_onboarding.py','TestOnboardingChecklists'),('addons/dojo_school_app/tests/test_school_app_service.py','TestSchoolAppService'),('addons/dojo_school_app/tests/test_school_app_http.py','TestSchoolAppHttp')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
 for source,klass in sources:

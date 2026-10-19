@@ -26,7 +26,7 @@ class OnboardingStripeController(http.Controller):
     # ── Helper ────────────────────────────────────────────────────────────
     def _get_stripe_provider(self):
         return request.env['payment.provider'].sudo().search(
-            [('code', '=', 'stripe'), ('state', 'in', ('enabled', 'test'))],
+            [('code', '=', 'stripe'), ('active', '=', True)],
             limit=1,
         )
 
