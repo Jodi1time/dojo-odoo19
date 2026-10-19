@@ -113,6 +113,10 @@ if "dojo.hub.site" in base:
     base["dojo.class.enrollment"].create({"session_id": guardian_session.id, "member_id": guardian_child.id, "status": "registered", "attendance_state": "pending"})
     kiosk.write({"integration_session_ids": [(4, guardian_session.id)], "integration_member_ids": [(4, guardian_child.id)]})
     values["NEXT_PUBLIC_DOJANG_GUARDIAN_CHECKIN"] = "true"
+    twilio_test = os.environ.get("DOJANG_TWILIO_TEST") == "1"
+    if twilio_test:
+        site.write({"twilio_account_sid_env": "TWILIO_TEST_ACCOUNT_SID", "twilio_auth_token_env": "TWILIO_TEST_AUTH_TOKEN",
+            "twilio_from_number": "+15005550006"})
     owner_password = secrets.token_urlsafe(48)
     owner = base["res.users"].with_context(no_reset_password=True).create({"name": "Demo Hub Owner", "login": "hub-owner@example.invalid",
         "password": owner_password, "company_id": company.id, "company_ids": [(6, 0, [company.id])],
@@ -137,7 +141,7 @@ if "dojo.hub.site" in base:
         "attendanceSessionId": str(review_session.id), "trialLeadId": str(trial_lead.id), "trialMemberId": str(trial_member.id),
         "trialSessionId": str(trial_session.id), "planId": str(plan.id), "testingMemberIds": [str(m.id) for m in testing_members],
         "guardianChildId": str(guardian_child.id), "guardianId": str(guardian_parent.id), "guardianSessionId": str(guardian_session.id),
-        "hubOwnerLogin": owner.login, "hubOwnerPassword": owner_password, "refundMemberId": str(refund_member.id), "refundInvoice": refund_invoice.name}
+        "hubOwnerLogin": owner.login, "hubOwnerPassword": owner_password, "refundMemberId": str(refund_member.id), "refundInvoice": refund_invoice.name, "twilioTest": twilio_test}
 for value in values.values():
     if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value): raise RuntimeError("Invalid environment value")
 fd = os.open(str(output), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

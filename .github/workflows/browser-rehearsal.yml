@@ -52,6 +52,8 @@ jobs:
       - name: Rehearse real browser and database round trips
         env:
           GITHUB_SHA: ${{ inputs.source || github.sha }}
+          TWILIO_TEST_ACCOUNT_SID: ${{ secrets.TWILIO_TEST_ACCOUNT_SID }}
+          TWILIO_TEST_AUTH_TOKEN: ${{ secrets.TWILIO_TEST_AUTH_TOKEN }}
         run: bash tools/run_rehearsal.sh
       - name: Preserve sanitized evidence only
         if: always()

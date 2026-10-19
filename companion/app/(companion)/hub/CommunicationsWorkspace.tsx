@@ -6,7 +6,7 @@ import styles from './page.module.css';
 import intakeStyles from './intake.module.css';
 
 type Audience={id:string;label:string};
-type Broadcast={id:string;name:string;channel:string;purpose:string;audience:string;state:string;createdBy:string;approvedBy:string|null;approvedAt:string|null;scheduledAt:string|null;counts:Record<string,number>;version:number;body:string};
+type Broadcast={id:string;name:string;channel:string;purpose:string;audience:string;state:string;createdBy:string;approvedBy:string|null;approvedAt:string|null;scheduledAt:string|null;counts:Record<string,number>;version:number;body:string;providerRefs?:number};
 type Context={audiences:Audience[];provider:string;quietHours:{start:number;end:number;timeZone:string};broadcasts:Broadcast[]};
 type Preview={audience:string;recipientCount:number;excludedCounts:Record<string,number>;sample:{name:string;address:string;students:number}[];excludedSample:{name:string;reason:string}[];quietHoursStart:string|null;provider:string;reviewToken:string};
 type Channel={channel:string;address:string|null;nativeOptOut:boolean;service:string|null;marketing:string|null};
@@ -16,7 +16,7 @@ type Review={operation:string;payload:Record<string,unknown>;lines:string[]};
 type Props={members:{id:string;name:string}[];busy:boolean;locked:boolean;feedback?:ActionFeedback;clearFeedback:()=>void;
   retry?:()=>Promise<ActionFeedback|undefined>;act:(operation:string,payload:Record<string,unknown>)=>Promise<ActionFeedback|undefined>};
 const REASONS:Record<string,string>={no_contact:'No address for this channel',opted_out:'Opted out',no_marketing_consent:'No marketing consent',consent_or_contact_changed:'Consent or contact changed before approval',cancelled:'Cancelled'};
-const PROVIDER:Record<string,string>={not_configured:'No messaging provider is connected. Approved messages stay queued and nothing is sent.',configured_not_exercised:'A provider is configured but not yet proven. Messages count as sent only when the provider confirms.'};
+const PROVIDER:Record<string,string>={not_configured:'No messaging provider is connected. Approved messages stay queued and nothing is sent.',configured_not_exercised:'A provider is configured but not yet proven. Messages count as sent only when the provider confirms.',twilio_test:'Twilio is connected with TEST credentials: sending returns a real Twilio receipt, but no text is delivered to anyone.'};
 async function read(operation:string,payload:Record<string,unknown>){
   const response=await fetch('/api/hub',{method:'POST',cache:'no-store',headers:{'content-type':'application/json'},body:JSON.stringify({operation,payload,requestKey:null})});
   const value=await response.json();
@@ -87,13 +87,15 @@ export default function CommunicationsWorkspace({members,busy,locked,feedback,cl
       {context?.broadcasts.map(b=><div key={b.id} className={styles.auditEntry} role="group" aria-label={`Broadcast ${b.name}`}>
         <strong>{b.name} · {b.state.replace('_',' ')}</strong>
         <p>{b.channel.toUpperCase()} {b.purpose} · {b.audience} · by {b.createdBy}{b.approvedBy?` · approved by ${b.approvedBy}`:''}{b.scheduledAt?` · scheduled ${new Date(b.scheduledAt).toLocaleString()}`:''}</p>
-        <p>{Object.entries(b.counts).map(([k,v])=>`${v} ${k}`).join(' · ')}</p>
+        <p>{Object.entries(b.counts).map(([k,v])=>`${v} ${k}`).join(' · ')}{b.providerRefs?` · ${b.providerRefs} Twilio receipts`:''}</p>
         {b.state!=='cancelled'&&<div className={styles.row}>
           <label>Reason<input aria-label={`Reason for ${b.name}`} value={reasons[b.id]||''} maxLength={500} disabled={blocked} onChange={e=>setReasons(r=>({...r,[b.id]:e.target.value}))}/></label>
           {b.state==='awaiting_approval'&&<button disabled={blocked||!(reasons[b.id]||'').trim()} onClick={()=>open({operation:'approve_broadcast',payload:{broadcastId:b.id,expectedVersion:b.version,reason:(reasons[b.id]||'').trim()},
             lines:[`Approve ${b.name} to ${b.counts.queued||0} recipients.`,`“${b.body}”`,'Consent and contacts are checked again now. Messages are queued for the provider; they count as sent only when the provider confirms.']})}>Review approval</button>}
-          <button disabled={blocked||!(reasons[b.id]||'').trim()} onClick={()=>open({operation:'cancel_broadcast',payload:{broadcastId:b.id,expectedVersion:b.version,reason:(reasons[b.id]||'').trim()},
-            lines:[`Cancel ${b.name}. Queued recipients are removed; nothing is sent.`]})}>Review cancellation</button>
+          {b.state==='approved'&&b.channel==='sms'&&context?.provider==='twilio_test'&&(b.counts.queued||0)>0&&<button disabled={blocked||!(reasons[b.id]||'').trim()} onClick={()=>open({operation:'dispatch_broadcast',payload:{broadcastId:b.id,expectedVersion:b.version,reason:(reasons[b.id]||'').trim()},
+            lines:[`Send ${b.name} to ${b.counts.queued} recipients through Twilio.`,'TEST credentials: Twilio returns a receipt for each message but delivers nothing. Consent and contacts are checked again before each send; nothing is resent automatically.']})}>Review sending</button>}
+          {(b.state==='awaiting_approval'||(b.state==='approved'&&!b.providerRefs))&&<button disabled={blocked||!(reasons[b.id]||'').trim()} onClick={()=>open({operation:'cancel_broadcast',payload:{broadcastId:b.id,expectedVersion:b.version,reason:(reasons[b.id]||'').trim()},
+            lines:[`Cancel ${b.name}. Queued recipients are removed; nothing is sent.`]})}>Review cancellation</button>}
         </div>}
       </div>)}
     </div>

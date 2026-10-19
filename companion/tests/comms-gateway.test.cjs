@@ -28,3 +28,13 @@ test('an approved broadcast without a provider says nothing was sent',async()=>{
  const configured=await runHubAction(async()=>({state:'broadcast_approved',queued:2,provider:'configured_not_exercised'}),async()=>{},()=>{});
  assert.match(configured.text,/count as sent only when the provider confirms/);
 });
+test('a Twilio test dispatch is success only when it says no real message was sent',async()=>{
+ const cookie=await login();
+ const payload={broadcastId:'4',expectedVersion:3,reason:'Send'};
+ const sent={broadcastId:'4',state:'broadcast_dispatched',provider:'twilio_test',accepted:2,failed:0,uncertain:0,excluded:0,realMessagesSent:false,messageSent:false,replayed:false};
+ assert.equal(await send(cookie,'dispatch_broadcast',payload,sent),200);
+ for(const bad of [{...sent,realMessagesSent:true},{...sent,provider:'twilio_live'},{...sent,broadcastId:'5'},{...sent,messageSent:true}])
+  assert.equal(await send(cookie,'dispatch_broadcast',payload,bad),503);
+ const text=(await runHubAction(async()=>({state:'broadcast_dispatched',accepted:2,uncertain:1}),async()=>{},()=>{})).text;
+ assert.match(text,/Twilio accepted 2 of the messages with a receipt \(test credentials: no text was delivered\); 1 need reconciliation and will not be resent automatically\./);
+});
