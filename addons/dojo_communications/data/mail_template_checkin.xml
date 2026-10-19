@@ -13,24 +13,24 @@
     <h2 style="color: #2c3e50;">Check-In Notification</h2>
     <p>Hello,</p>
     <p>
-        <strong>{{ object.member_id.name }}</strong> has just checked in to class.
+        <strong t-out="object.member_id.name or ''">Student</strong> has just checked in to class.
     </p>
     <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
         <tr>
             <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; background: #f9f9f9;">Session</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">{{ object.session_id.name }}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;" t-out="object.session_id.template_id.name or object.session_id.name or ''">Class</td>
         </tr>
         <tr>
             <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; background: #f9f9f9;">Check-In Time</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">{{ object.checkin_datetime | datetime }}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;" t-out="format_datetime(object.checkin_datetime, tz=object.company_id.partner_id.tz or 'UTC', dt_format='short')">Time</td>
         </tr>
         <tr>
             <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; background: #f9f9f9;">Status</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">{{ object.status | title }}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;" t-out="dict(object._fields['status'].selection).get(object.status, '')">Status</td>
         </tr>
     </table>
     <p style="color: #7f8c8d; font-size: 12px;">
-        This is an automated notification from {{ object.company_id.name }}.
+        This is an automated notification from <t t-out="object.company_id.name or ''">your school</t>.
     </p>
 </div>
         ]]></field>
@@ -38,13 +38,13 @@
     </record>
 
     <!-- ================================================================
-         Check-in SMS template  (body_html is rendered then stripped to plain text)
+         Check-in SMS template  (body_html holds an inline template, rendered then stripped to plain text)
          ================================================================ -->
     <record id="mail_template_checkin_sms" model="mail.template">
         <field name="name">Dojang: Student Check-In Notification (SMS)</field>
         <field name="model_id" ref="dojo_core.model_dojo_attendance_log"/>
         <field name="subject">Check-In SMS</field>
-        <field name="body_html"><![CDATA[{{ object.member_id.name }} checked in to {{ object.session_id.name }} at {{ object.checkin_datetime | time }}. - {{ object.company_id.name }}]]></field>
+        <field name="body_html"><![CDATA[{{ object.member_id.name }} checked in to {{ object.session_id.template_id.name or object.session_id.name }} at {{ format_time(object.checkin_datetime, tz=object.company_id.partner_id.tz or 'UTC', time_format='short') }}. - {{ object.company_id.name }}]]></field>
         <field name="auto_delete" eval="True"/>
     </record>
 </odoo>
