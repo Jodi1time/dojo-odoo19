@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "@/components/primitives/AppLink";
+import Select from "@/components/primitives/select/Select";
 import styles from "./Workspace.module.scss";
 type DirectoryMember = {
   id: string;
@@ -15,21 +16,23 @@ export default function MemberDirectory({
   members: DirectoryMember[];
 }) {
   const [query, setQuery] = useState("");
+  const [membership, setMembership] = useState("");
+  const states = [...new Set(members.map((member) => member.membershipState).filter((state): state is string => Boolean(state)))].sort();
   const filtered = members.filter((m) =>
     `${m.name} ${m.memberNumber ?? ""}`
       .toLowerCase()
-      .includes(query.toLowerCase().trim()),
+      .includes(query.toLowerCase().trim()) && (!membership || m.membershipState === membership),
   );
   return (
     <section className={styles.page}>
       <header className={styles.heading}>
         <div>
-          <div className={styles.eyebrow}>The heart of your school</div>
-          <h1>Your people.</h1>
-          <p>Find a familiar face. See their story. Take the next step.</p>
+          <h1>Members</h1>
+          <p>Profiles, memberships and attendance.</p>
         </div>
-        <Link href="/hub?view=intake">New student →</Link>
+        <Link className={styles.button} href="/hub?view=intake">New student <span aria-hidden="true">+</span></Link>
       </header>
+      <div className={styles.directoryToolbar}>
       <input
         className={styles.search}
         type="search"
@@ -38,17 +41,26 @@ export default function MemberDirectory({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <div className={styles.sectionHeading}>
-        <h2>Members</h2>
-        <span aria-live="polite">
-          {filtered.length} {filtered.length === 1 ? "member" : "members"}
-        </span>
+      <Select
+        ariaLabel="Filter by membership status"
+        value={membership}
+        onChange={setMembership}
+        options={[{ value: "", label: "All membership statuses" }, ...states.map((state) => ({ value: state, label: state }))]}
+      />
       </div>
+      <div className={styles.sectionHeading}>
+        <span aria-live="polite">
+          {filtered.length} of {members.length} members in this view
+        </span>
+        {(query || membership) && <button className={styles.quietButton} onClick={() => { setQuery(""); setMembership(""); }}>Clear filters</button>}
+      </div>
+      <div className={styles.directoryColumns} aria-hidden="true"><span>Member</span><span>Rank</span><span>Membership</span><span /></div>
       {filtered.length ? (
         <ul className={styles.directory}>
           {filtered.map((m) => (
             <li key={m.id}>
               <Link href={`/people/${m.id}`} aria-label={m.name}>
+                <div className={styles.directoryIdentity}>
                 <span className={styles.avatar} aria-hidden="true">
                   {m.name
                     .split(" ")
@@ -59,11 +71,12 @@ export default function MemberDirectory({
                 <div>
                   <strong>{m.name}</strong>
                   <p>
-                    {[m.rank?.name, m.membershipState]
-                      .filter(Boolean)
-                      .join(" · ") || "View member record"}
+                    {m.memberNumber ? `#${m.memberNumber}` : "View member record"}
                   </p>
                 </div>
+                </div>
+                <span className={styles.directoryRank}><span className={styles.mobileFieldLabel}>Rank · </span>{m.rank?.name || "Not recorded"}</span>
+                <span className={styles.directoryState}>{m.membershipState || "Status not recorded"}</span>
                 <span className={styles.arrow} aria-hidden="true">
                   →
                 </span>
@@ -73,8 +86,8 @@ export default function MemberDirectory({
         </ul>
       ) : (
         <div className={styles.empty}>
-          {query
-            ? "No members match that search."
+          {query || membership
+            ? "No members match these filters."
             : "No members are available in this scope."}
         </div>
       )}
