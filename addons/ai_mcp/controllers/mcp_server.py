@@ -17,7 +17,6 @@ resources/list      — available data resources (schedules, members, etc.)
 resources/read      — read a specific resource by URI
 """
 
-import hmac
 import json
 import logging
 
@@ -25,6 +24,9 @@ from odoo import http
 from odoo.http import request, Response
 
 _logger = logging.getLogger(__name__)
+
+_API_KEY_SCOPE = "rpc"
+_ROLE_RANK = {"kiosk": 1, "instructor": 2, "admin": 3}
 
 # MCP protocol version we support
 _MCP_PROTOCOL_VERSION = "2025-03-26"
@@ -63,33 +65,33 @@ class AiMCPServer(http.Controller):
     # ── Auth ─────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _verify_api_key():
+    def _authenticate():
+        """Identify the caller from a personal Odoo API key.
+
+        Returns (uid, role, error). The role comes from the user's Odoo
+        groups; X-Mcp-Role may only narrow it, never widen it.
         """
-        Verify X-Api-Key header.  Returns (role, error_msg).
-        On success: (role_str, None).  On failure: (None, error_str).
-        """
-        api_key = request.httprequest.headers.get("X-Api-Key", "").strip()
-        if not api_key:
-            return None, "Missing X-Api-Key header"
-
-        stored_key = (
-            request.env["ir.config_parameter"]
-            .sudo()
-            .get_str("ai_assistant.api_key")
-            or ""
-        )
-        if not stored_key:
-            return None, "API key not configured on server"
-
-        if not hmac.compare_digest(api_key, stored_key):
-            return None, "Invalid API key"
-
-        # Determine role from optional header (default: instructor)
-        role = request.httprequest.headers.get("X-Mcp-Role", "instructor").strip()
-        if role not in ("admin", "instructor", "kiosk"):
-            role = "instructor"
-
-        return role, None
+        headers = request.httprequest.headers
+        auth = headers.get("Authorization", "")
+        key = auth[7:].strip() if auth[:7].lower() == "bearer " else headers.get("X-Api-Key", "").strip()
+        if not key:
+            return None, None, "Missing API key. Send a personal Odoo API key as 'Authorization: Bearer <key>'."
+        uid = request.env["res.users.apikeys"].sudo()._check_credentials(scope=_API_KEY_SCOPE, key=key)
+        if not uid:
+            return None, None, "Invalid API key"
+        user = request.env["res.users"].sudo().browse(uid)
+        if not user.active or user.share:
+            return None, None, "This account can't use the MCP server"
+        if user.has_group("base.group_system") or user.has_group("dojo_core.group_dojo_admin"):
+            granted = "admin"
+        elif user.has_group("dojo_core.group_dojo_instructor"):
+            granted = "instructor"
+        else:
+            return None, None, "This account has no Dojang staff role"
+        asked = headers.get("X-Mcp-Role", "").strip().lower()
+        if asked in _ROLE_RANK and _ROLE_RANK[asked] <= _ROLE_RANK[granted]:
+            return uid, asked, None
+        return uid, granted, None
 
     # ── Main endpoint ────────────────────────────────────────────────────────
 
@@ -111,7 +113,7 @@ class AiMCPServer(http.Controller):
             return Response("", status=204, headers={
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, X-Api-Key, X-Mcp-Role",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Api-Key, X-Mcp-Role",
             })
 
         if request.httprequest.method == "GET":
@@ -131,11 +133,16 @@ class AiMCPServer(http.Controller):
             return _jsonrpc_error(-32600, "Invalid request: missing 'method'", req_id)
 
         # ── Auth (skip for initialize) ───────────────────────────────────────
-        role = "instructor"
+        role = None
         if method != "initialize":
-            role, err = self._verify_api_key()
+            uid, role, err = self._authenticate()
             if err:
                 return _jsonrpc_error(-32001, err, req_id)
+            request.update_env(user=uid)
+            if method == "tools/call":
+                _logger.info("MCP tools/call %s by %s as %s",
+                             (params.get("name") if isinstance(params, dict) else None),
+                             request.env.user.login, role)
 
         # ── Dispatch ─────────────────────────────────────────────────────────
         dispatch = {

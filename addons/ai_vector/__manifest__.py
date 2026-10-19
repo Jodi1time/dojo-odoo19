@@ -26,7 +26,7 @@
         'ai_assistant',
     ],
     'data': [
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'data/ir_cron_vector.xml',
         # Intent schema records (per-agent, loaded before agent data)
         'data/intents_core.xml',
