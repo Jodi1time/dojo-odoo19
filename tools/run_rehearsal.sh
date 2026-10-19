@@ -53,6 +53,8 @@ if [ -n "${DOJANG_EB_GYM_ADDONS:-}" ]; then
   INSTALL=dojo_eb_gym_bridge
   TAGS+=,/dojo_eb_gym_bridge:TestGymBridge
 fi
+TAGS+=,/dojo_communications:TestCheckinNotification
+
 docker run --rm "${MOUNTS[@]}" dojang-rehearsal "${COMMON[@]}" -i "$INSTALL" --without-demo=all --test-enable --test-tags="$TAGS" --stop-after-init > rehearsal-evidence/install.log 2>&1
 python - <<'PY'
 import ast,os,pathlib,re
@@ -62,6 +64,8 @@ expected=[]
 sources=[('addons/dojo_kiosk/tests/test_kiosk_v2.py','TestKioskSessionFirstV2'),('addons/dojo_companion_hub/tests/test_hub.py','TestCompanionHub'),('addons/dojo_companion_hub/tests/test_intake.py','TestStudentIntake'),('addons/dojo_companion_hub/tests/test_member_admin.py','TestMemberAdministration'),('addons/dojo_companion_hub/tests/test_attendance_admin.py','TestAttendanceAdministration'),('addons/dojo_companion_hub/tests/test_trial.py','TestTrialLifecycle'),('addons/dojo_companion_hub/tests/test_promotions.py','TestBeltTesting'),('addons/dojo_companion_hub/tests/test_guardian_kiosk.py','TestGuardianKiosk'),('addons/dojo_companion_hub/tests/test_communications.py','TestCommunicationsControls'),('addons/dojo_companion_hub/tests/test_refunds.py','TestRefundControls'),('addons/dojo_companion_hub/tests/test_signing.py','TestWaiverSigning'),('addons/dojo_companion_hub/tests/test_onboarding.py','TestOnboardingChecklists')]
 if os.environ.get('DOJANG_EB_GYM_ADDONS'):
     sources.append(('addons/dojo_eb_gym_bridge/tests/test_bridge.py','TestGymBridge'))
+
+sources.append(('addons/dojo_communications/tests/test_checkin_notification.py','TestCheckinNotification'))
 for source,klass in sources:
     expected += [klass+'.'+n.name for n in ast.walk(ast.parse(pathlib.Path(source).read_text())) if isinstance(n,ast.FunctionDef) and n.name.startswith('test_')]
 if not totals or any(int(f) or int(e) for f,e,n in totals) or any(name not in log for name in expected) or max(int(n) for f,e,n in totals)<len(expected):

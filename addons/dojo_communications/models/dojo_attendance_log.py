@@ -81,11 +81,11 @@ class DojoAttendanceLog(models.Model):
         )
         mobile = _partner_mobile(guardian_partner)
         if sms_template and mobile:
-            body = sms_template._render_field(
-                "body_html", [log.id], compute_lang=True
-            )[log.id]
-            # Strip HTML tags for SMS plain text
-            body_plain = body and self.env["mail.render.mixin"]._html_to_plaintext(body)
+            source = html2plaintext(str(sms_template.body_html or "")).strip()
+            body = source and self.env["mail.render.mixin"].with_context(
+                lang=guardian_partner.lang or self.env.lang
+            )._render_template(source, log._name, [log.id], engine="inline_template")[log.id]
+            body_plain = body and html2plaintext(str(body)).strip()
             self.env["sms.sms"].create(
                 {
                     "number": mobile,
